@@ -41,6 +41,16 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .loadingText { color: #e2e8f0; font-size: 0.95rem; }
         .error { color: #fecaca; font-size: 0.9rem; text-align: center; margin-top: 8px; }
+        /* Info modal styles (reuse map modal styles) */
+        #infoModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        #infoModal .modal-content { background: #1e293b; width: 100%; max-width: 700px; height: auto; max-height: 80%; border-radius: 12px; display: flex; flex-direction: column; overflow: auto; border: 1px solid #475569; }
+        #infoModal .modal-body { padding: 18px; color:#e2e8f0; line-height:1.45; }
+        #infoModal h2 { margin:0 0 8px 0; font-weight:700; }
+        #infoModal h3 { margin:10px 0 6px 0; font-weight:700; }
+        #infoModal p { margin:6px 0; color:#cbd5e1; }
+        #infoModal .close-btn { background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; }
+        .info-table { width:100%; border-collapse: collapse; margin-top:8px; }
+        .info-table td, .info-table th { border: 1px solid #334155; padding:8px; color:#e2e8f0; }
         /* Icon buttons */
         .icon-btn { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
         .icon-btn:hover { background:#0b1220; }
@@ -52,8 +62,11 @@
 
     <!-- HEADER -->
     <div class="header">
-        <h1>❄️ Snöprognos</h1>
-        <button class="settings-btn" onclick="openMap()" title="Ändra plats" aria-label="Ändra plats">📍</button>
+        <h1>❄️ Snötillverkarprognos</h1>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button class="settings-btn" onclick="openInfo()" title="Info" aria-label="Info">ℹ️</button>
+            <button class="settings-btn" onclick="openMap()" title="Ändra plats" aria-label="Ändra plats">📍</button>
+        </div>
     </div>
     <span id="locationDisplay" class="location-label">Plats: Laddar...</span>
         <div style="display:inline-flex; align-items:center; gap:8px;">
@@ -75,7 +88,7 @@
     <!-- CONTROLS -->
     <div class="controls">
         <button onclick="setRange(6, this, true)" class="time-btn">6h</button>
-        <button onclick="setRange(12, this, true)" class="time-btn">12h (Detalj)</button>
+        <button onclick="setRange(12, this, true)" class="time-btn">12h</button>
         <button onclick="setRange(24, this)" class="time-btn">24h</button>
         <button onclick="setRange(72, this)" class="time-btn">3 Dygn</button>
         <button onclick="setRange(120, this)" class="time-btn">5 Dygn</button>
@@ -111,6 +124,48 @@
                 <button class="save-btn" onclick="saveLocation()">Spara Plats</button>
             </div>
         </div>
+
+            <!-- INFO MODAL -->
+            <div id="infoModal">
+                <div class="modal-content">
+                    <div class="modal-header" style="padding:15px; text-align:center; background:#0f172a;">
+                        <h3>Information</h3>
+                    </div>
+                    <div class="modal-body">
+                        <h2>ℹ️ Om Snöprognosen</h2>
+                        <h3>📱 Så fungerar appen</h3>
+                        <p>Grafen visar våttemperatur, lufttemperatur och vind.</p>
+                        <ul>
+                            <li><strong>Zoom:</strong> Nyp med fingrarna i grafen för att zooma in/ut.</li>
+                            <li><strong>Detaljnivå:</strong> De första 24 timmarna visas med 15-minuters intervall (hög detalj). Därefter visas timvärden.</li>
+                            <li><strong>Färgzoner:</strong> <span style="color:#38bdf8">Blå bakgrund</span> betyder att snöproduktion är möjlig (Våttemp &lt; -2.5°C).</li>
+                        </ul>
+
+                        <h3>☁️ Väderdata & Modeller</h3>
+                        <p>Data hämtas via Open-Meteo som kombinerar marknadens bästa modeller:</p>
+                        <ul>
+                            <li><strong>Kort sikt (0-48h):</strong> Modellen <em>MET Nordic</em> (samma som SMHI/Yr). Uppdateras varje timme.</li>
+                            <li><strong>Lång sikt (3-10 dygn):</strong> Modellen <em>ECMWF</em>. Uppdateras 4 ggr/dygn.</li>
+                        </ul>
+
+                        <h3>❄️ Snöteori (Wet-bulb)</h3>
+                        <p>Vi räknar på <strong>Våttemperatur</strong> (Wet-bulb) som kombinerar temp och luftfuktighet. Det är det enda måttet som räknas för en snökanon.</p>
+
+                        <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-top:10px;">
+                          <div style="margin-bottom:8px;"><strong>🌡️ -2,5°C (Gränsvärde)</strong><br>
+                          <span style="font-size:0.9em; color:#94a3b8;">Här startar de flesta system. Snön är blöt/tung och produktionen låg.</span></div>
+                          <div style="margin-bottom:8px;"><strong>🌡️ -5,0°C (Effektivt)</strong><br>
+                          <span style="font-size:0.9em; color:#94a3b8;">Bra effektivitet! Vattnet fryser snabbare, snön blir torrare och mängden ökar.</span></div>
+                          <div><strong>🌡️ -10°C (Maxfart)</strong><br>
+                          <span style="font-size:0.9em; color:#94a3b8;">Systemet går ofta på maxkapacitet. Nu är det oftast vattentillgången som sätter gränsen, inte kylan.</span></div>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer" style="padding:12px; background:#0f172a; display:flex; justify-content:center; gap:8px;">
+                        <button class="close-btn" onclick="closeInfo()">Stäng</button>
+                    </div>
+                </div>
+            </div>
     </div>
 
     <script>
@@ -144,6 +199,19 @@
         }
 
         function closeMap() { document.getElementById('mapModal').style.display = 'none'; }
+
+        // Info modal control
+        function openInfo() { document.getElementById('infoModal').style.display = 'flex'; }
+        function closeInfo() { document.getElementById('infoModal').style.display = 'none'; }
+
+        // Close info modal when clicking outside content
+        document.addEventListener('click', (e) => {
+            const info = document.getElementById('infoModal');
+            if (!info) return;
+            if (info.style.display === 'flex' && e.target === info) {
+                closeInfo();
+            }
+        });
 
         function saveLocation() {
             const pos = markerInstance.getLatLng();
