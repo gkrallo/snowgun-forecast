@@ -51,6 +51,8 @@
         <button class="settings-btn" onclick="openMap()" title="Ändra plats" aria-label="Ändra plats">📍</button>
     </div>
     <span id="locationDisplay" class="location-label">Plats: Laddar...</span>
+    <select id="favoritesSelect" style="margin-left:8px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px;"></select>
+    <button id="gotoFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem;">Gå</button>
 
     <!-- CONTROLS -->
     <div class="controls">
@@ -116,12 +118,77 @@
         function saveLocation() {
             const pos = markerInstance.getLatLng();
             currentLat = pos.lat; currentLon = pos.lng;
+            // Ask the user if they want to save as favorite
+            const want = window.confirm('Vill du spara denna plats som favorit?');
+            if (want) {
+                const name = window.prompt('Ange namn för favoriten:', currentName || 'Favorit');
+                if (name && name.trim().length) {
+                    currentName = name.trim();
+                    saveFavorite(currentName, currentLat, currentLon);
+                }
+            }
+
             // Persist coords and name
             localStorage.setItem('snowLat', currentLat);
             localStorage.setItem('snowLon', currentLon);
             localStorage.setItem('snowName', currentName);
+
+            // Update marker / map so we stay at the saved pos
+            if (markerInstance) {
+                markerInstance.setLatLng([currentLat, currentLon]);
+            }
+            if (mapInstance) {
+                mapInstance.setView([currentLat, currentLon], mapInstance.getZoom() || 13);
+            }
+
             updateLocationText(); closeMap(); fetchData();
         }
+
+        // Favorites management
+        function saveFavorite(name, lat, lon) {
+            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+            // avoid duplicate names: replace if same name
+            const idx = list.findIndex(f => f.name === name);
+            const item = { name, lat, lon };
+            if (idx >= 0) list[idx] = item; else list.push(item);
+            localStorage.setItem('snowFavorites', JSON.stringify(list));
+            populateFavorites();
+        }
+
+        function populateFavorites() {
+            const sel = document.getElementById('favoritesSelect');
+            sel.innerHTML = '';
+            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.text = '— Välj favorit —';
+            sel.appendChild(emptyOpt);
+            list.forEach((f, i) => {
+                const opt = document.createElement('option');
+                opt.value = i.toString();
+                opt.text = `${f.name} (${f.lat.toFixed(3)}, ${f.lon.toFixed(3)})`;
+                sel.appendChild(opt);
+            });
+
+            // preselect current if it matches a favorite
+            const curIdx = list.findIndex(f => Math.abs(f.lat - currentLat) < 1e-6 && Math.abs(f.lon - currentLon) < 1e-6);
+            if (curIdx >= 0) sel.value = curIdx.toString(); else sel.value = '';
+        }
+
+        document.getElementById('gotoFavBtn').addEventListener('click', () => {
+            const sel = document.getElementById('favoritesSelect');
+            const idx = sel.value;
+            if (!idx) return;
+            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+            const f = list[parseInt(idx)];
+            if (!f) return;
+            currentLat = f.lat; currentLon = f.lon; currentName = f.name;
+            localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
+            updateLocationText(); fetchData();
+        });
+
+        // Initialize favorites on load
+        populateFavorites();
 
         function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} — Koord: ${currentLat.toFixed(3)}, ${currentLon.toFixed(3)}`; }
 
