@@ -479,7 +479,7 @@
                                 limitLine: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1, label: { display: true, content: '-2.5°C', color: 'rgba(255,255,255,0.5)', position: 'start' } }
                             }
                         },
-                        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: ({chart}) => handleDetailZoom(chart) }, pan: { enabled: true, mode: 'x', onPanComplete: ({chart}) => handleDetailZoom(chart) }, limits: { x: { min: 'original', max: 'original' } } }
+                        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: ({chart}) => handleDetailZoom(chart) }, pan: { enabled: true, mode: 'x', threshold: 5, onPanComplete: ({chart}) => handleDetailZoom(chart) }, limits: { x: { min: 'original', max: 'original' } } }
                     },
                     scales: {
                         x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'EEE d MMM' } }, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
@@ -538,22 +538,20 @@
             if (!chartInstance || isDetailMode) return;
             isDetailMode = true;
             updateDatasets(true);
+            adjustXAxisForSpan(chartInstance);
             chartInstance.update();
         }
-
+        
         function switchToHourly() {
             if (!chartInstance || !isDetailMode) return;
             isDetailMode = false;
             updateDatasets(false);
-            chartInstance.update();
-        }
-
-        function handleDetailZoom(chart) {
+            adjustXAxisForSpan(chartInstance);
             try {
                 const x = chart.scales.x;
                 const min = x.min; const max = x.max;
-                const span = max - min;
-                // If zoomed in less than 24h, try detail
+                const span = max - min;                // Adjust axis formatting for span
+                adjustXAxisForSpan(chart);                // If zoomed in less than 24h, try detail
                 if (span < 24 * 60 * 60 * 1000) {
                     trySwitchToDetailForRange(min, max);
                 } else {
@@ -562,6 +560,35 @@
             } catch (e) {
                 // ignore
             }
+        }
+
+        // Adjust x-axis formatting depending on visible span
+        function adjustXAxisForSpan(chart) {
+            if (!chart || !chart.options || !chart.options.scales || !chart.options.scales.x) return;
+            const x = chart.scales.x;
+            const span = x.max - x.min;
+            const isSmall = span < 24 * 60 * 60 * 1000; // <24h
+            const timeOpts = chart.options.scales.x.time || {};
+            // Set display unit and formats
+            timeOpts.unit = isSmall ? 'hour' : 'day';
+            timeOpts.displayFormats = timeOpts.displayFormats || {};
+            timeOpts.displayFormats.hour = isSmall ? 'HH:mm' : 'HH:mm';
+            timeOpts.displayFormats.day = isSmall ? 'HH:mm' : 'EEE d MMM';
+            chart.options.scales.x.time = timeOpts;
+            // Ticks: show HH:mm for small spans
+            chart.options.scales.x.ticks = chart.options.scales.x.ticks || {};
+            chart.options.scales.x.ticks.callback = function(val, index, ticks) {
+                const date = new Date(this.getLabelForValue(val));
+                try {
+                    if (isSmall) return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                    // default formatting (day)
+                    return date.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short'});
+                } catch (e) {
+                    return date.toLocaleString();
+                }
+            };
+            // Update without animation for smoothness
+            chart.update('none');
         }
 
         // Override previous setRange to support preferDetailed flag
