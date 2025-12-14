@@ -41,6 +41,11 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .loadingText { color: #e2e8f0; font-size: 0.95rem; }
         .error { color: #fecaca; font-size: 0.9rem; text-align: center; margin-top: 8px; }
+        /* Icon buttons */
+        .icon-btn { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
+        .icon-btn:hover { background:#0b1220; }
+        .search-result { padding:8px; border-radius:8px; cursor:pointer; color:#e2e8f0; }
+        .search-result:hover { background:#0b1220; }
     </style>
 </head>
 <body>
@@ -51,10 +56,21 @@
         <button class="settings-btn" onclick="openMap()" title="Ändra plats" aria-label="Ändra plats">📍</button>
     </div>
     <span id="locationDisplay" class="location-label">Plats: Laddar...</span>
-    <select id="favoritesSelect" style="margin-left:8px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px;"></select>
-    <button id="gotoFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem;">Gå</button>
-    <button id="editFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem; background:#f97316; border-color:#f97316;">Redigera</button>
-    <button id="delFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem; background:#ef4444; border-color:#ef4444;">Ta bort</button>
+        <div style="display:inline-flex; align-items:center; gap:8px;">
+            <select id="favoritesSelect" style="background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px;"></select>
+            <button id="gotoFavBtn" class="icon-btn" title="Gå till favorit" aria-label="Gå till favorit">
+                <!-- arrow icon -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+            <button id="editFavBtn" class="icon-btn" title="Redigera favorit" aria-label="Redigera favorit">
+                <!-- pencil icon -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+            </button>
+            <button id="delFavBtn" class="icon-btn" title="Ta bort favorit" aria-label="Ta bort favorit">
+                <!-- trash icon -->
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+            </button>
+        </div>
 
     <!-- CONTROLS -->
     <div class="controls">
@@ -78,6 +94,13 @@
             <div class="modal-header">
                 <h3>Välj din Snökanonsanläggning</h3>
                 <p style="font-size: 0.8rem; color: #94a3b8; margin:0;">Dra markören till snösystemet</p>
+                <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                    <input id="mapSearch" placeholder="Sök plats eller adress" style="flex:1; background:#0b1220; color:#e2e8f0; border:1px solid #334155; padding:6px 8px; border-radius:8px;" aria-label="Sök plats" />
+                    <button id="mapSearchBtn" class="icon-btn" title="Sök" aria-label="Sök">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </button>
+                </div>
+                <div id="searchResults" style="margin-top:8px; max-height:140px; overflow:auto; display:none; border-top:1px solid #1f2937; padding-top:8px;"></div>
                 <div id="favoriteChips" style="margin-top:8px; display:flex; gap:6px; overflow:auto; padding-bottom:6px;"></div>
             </div>
             <div id="map"></div>
@@ -247,6 +270,54 @@
             localStorage.setItem('snowFavorites', JSON.stringify(list));
             populateFavorites();
         });
+
+        // Map search (Nominatim)
+        let searchTimeout = null;
+        const searchInput = document.getElementById('mapSearch');
+        const searchBtn = document.getElementById('mapSearchBtn');
+        const resultsEl = document.getElementById('searchResults');
+
+        async function performSearch(q) {
+            if (!q || q.trim().length < 2) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
+            resultsEl.style.display = 'block';
+            resultsEl.innerHTML = '<div style="color:#94a3b8;padding:8px">Söker…</div>';
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(q)}`);
+                const json = await res.json();
+                resultsEl.innerHTML = '';
+                if (!json || json.length === 0) {
+                    resultsEl.innerHTML = '<div style="color:#94a3b8;padding:8px">Inga träffar</div>';
+                    return;
+                }
+                json.forEach((r, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'search-result';
+                    div.innerText = r.display_name;
+                    div.onclick = () => {
+                        const lat = parseFloat(r.lat); const lon = parseFloat(r.lon);
+                        if (!mapInstance) openMap();
+                        markerInstance.setLatLng([lat, lon]);
+                        mapInstance.setView([lat, lon], 13);
+                        currentLat = lat; currentLon = lon; currentName = r.display_name.split(',')[0];
+                        localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
+                        updateLocationText();
+                        // leave modal open so user can Save Plats to save as favorite
+                        resultsEl.style.display = 'none';
+                    };
+                    resultsEl.appendChild(div);
+                });
+            } catch (err) {
+                resultsEl.innerHTML = '<div style="color:#fecaca;padding:8px">Fel vid sökning</div>';
+            }
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            const q = e.target.value;
+            searchTimeout = setTimeout(() => performSearch(q), 300);
+        });
+
+        searchBtn.addEventListener('click', () => performSearch(searchInput.value));
 
         // Initialize favorites on load (ensure default is present first)
         ensureDefaultFavorite();
