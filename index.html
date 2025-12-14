@@ -53,6 +53,8 @@
     <span id="locationDisplay" class="location-label">Plats: Laddar...</span>
     <select id="favoritesSelect" style="margin-left:8px; background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px;"></select>
     <button id="gotoFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem;">Gå</button>
+    <button id="editFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem; background:#f97316; border-color:#f97316;">Redigera</button>
+    <button id="delFavBtn" class="time-btn" style="margin-left:6px; padding:6px 8px; font-size:0.8rem; background:#ef4444; border-color:#ef4444;">Ta bort</button>
 
     <!-- CONTROLS -->
     <div class="controls">
@@ -76,6 +78,7 @@
             <div class="modal-header">
                 <h3>Välj din Snökanonsanläggning</h3>
                 <p style="font-size: 0.8rem; color: #94a3b8; margin:0;">Dra markören till snösystemet</p>
+                <div id="favoriteChips" style="margin-top:8px; display:flex; gap:6px; overflow:auto; padding-bottom:6px;"></div>
             </div>
             <div id="map"></div>
             <div class="modal-footer">
@@ -173,6 +176,37 @@
             // preselect current if it matches a favorite
             const curIdx = list.findIndex(f => Math.abs(f.lat - currentLat) < 1e-6 && Math.abs(f.lon - currentLon) < 1e-6);
             if (curIdx >= 0) sel.value = curIdx.toString(); else sel.value = '';
+            // update chips in modal
+            const chips = document.getElementById('favoriteChips');
+            chips.innerHTML = '';
+            list.forEach((f, i) => {
+                const btn = document.createElement('button');
+                btn.textContent = f.name;
+                btn.style.padding = '6px 8px';
+                btn.style.background = '#111827';
+                btn.style.color = '#e2e8f0';
+                btn.style.border = '1px solid #334155';
+                btn.style.borderRadius = '8px';
+                btn.style.cursor = 'pointer';
+                btn.onclick = () => {
+                    markerInstance.setLatLng([f.lat, f.lon]);
+                    mapInstance.setView([f.lat, f.lon], 13);
+                    currentLat = f.lat; currentLon = f.lon; currentName = f.name;
+                    localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
+                    updateLocationText();
+                };
+                chips.appendChild(btn);
+            });
+        }
+
+        // ensure default favorite exists
+        function ensureDefaultFavorite() {
+            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+            const found = list.some(f => Math.abs(f.lat - currentLat) < 1e-6 && Math.abs(f.lon - currentLon) < 1e-6);
+            if (!found) {
+                list.unshift({ name: currentName || 'Sparbanksspåret', lat: currentLat, lon: currentLon });
+                localStorage.setItem('snowFavorites', JSON.stringify(list));
+            }
         }
 
         document.getElementById('gotoFavBtn').addEventListener('click', () => {
@@ -187,7 +221,35 @@
             updateLocationText(); fetchData();
         });
 
-        // Initialize favorites on load
+        // Edit and delete favorite
+        document.getElementById('editFavBtn').addEventListener('click', () => {
+            const sel = document.getElementById('favoritesSelect');
+            const idx = sel.value;
+            if (!idx) return alert('Välj en favorit att redigera');
+            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+            const f = list[parseInt(idx)];
+            const name = window.prompt('Nytt namn för favoriten:', f.name);
+            if (name && name.trim().length) {
+                f.name = name.trim();
+                list[parseInt(idx)] = f;
+                localStorage.setItem('snowFavorites', JSON.stringify(list));
+                populateFavorites();
+            }
+        });
+
+        document.getElementById('delFavBtn').addEventListener('click', () => {
+            const sel = document.getElementById('favoritesSelect');
+            const idx = sel.value;
+            if (!idx) return alert('Välj en favorit att ta bort');
+            if (!confirm('Ta bort vald favorit?')) return;
+            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+            list.splice(parseInt(idx), 1);
+            localStorage.setItem('snowFavorites', JSON.stringify(list));
+            populateFavorites();
+        });
+
+        // Initialize favorites on load (ensure default is present first)
+        ensureDefaultFavorite();
         populateFavorites();
 
         function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} — Koord: ${currentLat.toFixed(3)}, ${currentLon.toFixed(3)}`; }
@@ -237,6 +299,46 @@
         function createChart() {
             const ctx = document.getElementById('snowChart').getContext('2d');
             const getDir = (d) => ['N','NÖ','Ö','SÖ','S','SV','V','NV'][Math.round(d/45)%8];
+            // Wind arrows plugin (draw small arrows at top showing wind direction)
+            const windPlugin = {
+                id: 'windArrows',
+                afterDraw: function(chart) {
+                    if (!weatherData || weatherData.length === 0) return;
+                    const ctx = chart.ctx;
+                    const xScale = chart.scales.x;
+                    const left = chart.chartArea.left;
+                    const right = chart.chartArea.right;
+                    const top = chart.chartArea.top + 8;
+                    // limit number of arrows to ~40
+                    const step = Math.max(1, Math.ceil(weatherData.length / 40));
+                    for (let i = 0; i < weatherData.length; i += step) {
+                        const d = weatherData[i];
+                        const x = xScale.getPixelForValue(new Date(d.x));
+                        if (x < left - 10 || x > right + 10) continue;
+                        drawArrow(ctx, x, top, d.dir);
+                    }
+                }
+            };
+
+            function drawArrow(ctx, x, y, deg) {
+                ctx.save();
+                ctx.translate(x, y);
+                // rotate: Chart canvas default 0 rad is to the right; wind dir is degrees from north (clockwise)
+                // convert so 0deg (N) points up: rotate by (deg) degrees clockwise then subtract 90deg
+                const rad = (deg - 90) * Math.PI / 180;
+                ctx.rotate(rad);
+                ctx.beginPath();
+                ctx.moveTo(-6, -4);
+                ctx.lineTo(8, 0);
+                ctx.lineTo(-6, 4);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(203, 213, 225, 0.9)';
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Register plugin (safe to call multiple times)
+            try { Chart.register(windPlugin); } catch (e) { /* ignore if already registered */ }
 
             chartInstance = new Chart(ctx, {
                 type: 'line',
