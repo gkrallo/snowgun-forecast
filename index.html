@@ -78,6 +78,7 @@
         <button onclick="setRange(72, this)" class="time-btn">3 Dygn</button>
         <button onclick="setRange(120, this)" class="time-btn">5 Dygn</button>
         <button onclick="setRange(240, this)" class="time-btn active">10 Dygn</button>
+        <button onclick="setRange(12, this, true)" class="time-btn">12h (Detalj)</button>
     </div>
 
     <!-- CHART -->
@@ -118,7 +119,9 @@
         let currentLon = localStorage.getItem('snowLon') ? parseFloat(localStorage.getItem('snowLon')) : 13.087781307969978;
         let currentName = localStorage.getItem('snowName') ? localStorage.getItem('snowName') : 'Sparbanksspåret';
         let chartInstance = null;
-        let weatherData = [];
+        let weatherData = []; // hourly data (1h)
+        let weatherDataDetailed = []; // minutely_15 data (15min)
+        let isDetailMode = false;
         let mapInstance = null;
         let markerInstance = null;
 
@@ -335,8 +338,12 @@
         // WEATHER DATA (Open-Meteo)
         async function fetchData() {
             showLoading(true);
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&forecast_days=10`;
+            // Hourly (10 days)
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&forecast_days=10&models=best_match`;
+            // Detailed minutely_15 (1 day)
+            const urlDetailed = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&forecast_days=1&models=best_match`;
             try {
+                // Fetch hourly
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const json = await response.json();
@@ -349,12 +356,38 @@
                     return { x: time, temp, wetBulb, wind, dir };
                 });
 
+                // Fetch detailed minutely_15
+                try {
+                    const r2 = await fetch(urlDetailed);
+                    if (r2.ok) {
+                        const j2 = await r2.json();
+                        if (j2.minutely_15 && j2.minutely_15.time) {
+                            weatherDataDetailed = j2.minutely_15.time.map((time, index) => {
+                                const temp = j2.minutely_15.temperature_2m[index];
+                                const hum = j2.minutely_15.relative_humidity_2m[index];
+                                const wind = j2.minutely_15.wind_speed_10m[index];
+                                const dir = j2.minutely_15.wind_direction_10m[index];
+                                const wetBulb = calculateWetBulb(temp, hum);
+                                return { x: time, temp, wetBulb, wind, dir };
+                            });
+                        } else {
+                            weatherDataDetailed = [];
+                        }
+                    } else {
+                        weatherDataDetailed = [];
+                    }
+                } catch (err) {
+                    console.warn('No detailed data:', err);
+                    weatherDataDetailed = [];
+                }
+
                 if (chartInstance) chartInstance.destroy();
                 createChart();
             } catch (error) {
                 console.error('Fel vid hämtning:', error);
                 document.getElementById('errorMsg').innerText = 'Fel: Kunde inte hämta väderdata.';
                 weatherData = [];
+                weatherDataDetailed = [];
                 if (chartInstance) chartInstance.destroy();
             } finally {
                 showLoading(false);
@@ -445,7 +478,7 @@
                                 limitLine: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1, label: { display: true, content: '-2.5°C', color: 'rgba(255,255,255,0.5)', position: 'start' } }
                             }
                         },
-                        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }, pan: { enabled: true, mode: 'x' }, limits: { x: { min: 'original', max: 'original' } } }
+                        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: ({chart}) => handleDetailZoom(chart) }, pan: { enabled: true, mode: 'x', onPanComplete: ({chart}) => handleDetailZoom(chart) }, limits: { x: { min: 'original', max: 'original' } } }
                     },
                     scales: {
                         x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'EEE d MMM' } }, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
@@ -476,6 +509,77 @@
         // Start app
         fetchData();
         if(!localStorage.getItem('snowLat')) setTimeout(openMap, 500);
+
+        // --- Detail switching helpers ---
+        function updateDatasets(useDetailed) {
+            if (!chartInstance) return;
+            const src = useDetailed ? weatherDataDetailed : weatherData;
+            chartInstance.data.datasets[0].data = src.map(d => ({x: d.x, y: d.wetBulb}));
+            chartInstance.data.datasets[1].data = src.map(d => ({x: d.x, y: d.temp}));
+            chartInstance.data.datasets[2].data = src.map(d => ({x: d.x, y: d.wind}));
+        }
+
+        function trySwitchToDetailForRange(minMs, maxMs) {
+            if (!weatherDataDetailed || weatherDataDetailed.length === 0) {
+                switchToHourly();
+                return;
+            }
+            const first = new Date(weatherDataDetailed[0].x).getTime();
+            const last = new Date(weatherDataDetailed[weatherDataDetailed.length - 1].x).getTime();
+            if (minMs >= first - 1000 && maxMs <= last + 1000) {
+                switchToDetailed();
+            } else {
+                switchToHourly();
+            }
+        }
+
+        function switchToDetailed() {
+            if (!chartInstance || isDetailMode) return;
+            isDetailMode = true;
+            updateDatasets(true);
+            chartInstance.update();
+        }
+
+        function switchToHourly() {
+            if (!chartInstance || !isDetailMode) return;
+            isDetailMode = false;
+            updateDatasets(false);
+            chartInstance.update();
+        }
+
+        function handleDetailZoom(chart) {
+            try {
+                const x = chart.scales.x;
+                const min = x.min; const max = x.max;
+                const span = max - min;
+                // If zoomed in less than 24h, try detail
+                if (span < 24 * 60 * 60 * 1000) {
+                    trySwitchToDetailForRange(min, max);
+                } else {
+                    switchToHourly();
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        // Override previous setRange to support preferDetailed flag
+        function setRange(hours, btn, preferDetailed = false) {
+            if(!chartInstance) return;
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            if (btn && btn.classList) btn.classList.add('active');
+            const now = new Date();
+            const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
+            chartInstance.options.scales.x.min = now.getTime();
+            chartInstance.options.scales.x.max = future.getTime();
+            if (preferDetailed) {
+                trySwitchToDetailForRange(now.getTime(), future.getTime());
+            } else {
+                const span = future.getTime() - now.getTime();
+                if (span > 24 * 60 * 60 * 1000) switchToHourly(); else trySwitchToDetailForRange(now.getTime(), future.getTime());
+            }
+            chartInstance.update();
+        }
     </script>
 </body>
 </html>
