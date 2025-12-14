@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snökanon Prognos + Karta</title>
+    <meta name="theme-color" content="#0f172a">
+    <!-- Chart.js för grafer -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <!-- Leaflet för Karta -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { background-color: #1e293b; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+        /* Header layout */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        h1 { font-size: 1.1rem; margin: 0; color: #e2e8f0; }
+        .settings-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #94a3b8; padding: 0; }
+        .controls { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
+        button.time-btn { background-color: #334155; border: 1px solid #475569; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; }
+        button.time-btn:active, button.time-btn.active { background-color: #3b82f6; border-color: #3b82f6; }
+        .chart-container { flex-grow: 1; position: relative; min-height: 250px; background: #0f172a; border-radius: 12px; padding: 10px; border: 1px solid #334155; }
+        .legend { font-size: 0.75rem; text-align: center; margin-top: 5px; color: #94a3b8; }
+        /* MAP MODAL STYLES */
+        #mapModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: #1e293b; width: 100%; max-width: 500px; height: 80%; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; }
+        #map { flex-grow: 1; width: 100%; }
+        .modal-header { padding: 15px; text-align: center; background: #0f172a; }
+        .modal-footer { padding: 15px; display: flex; gap: 10px; justify-content: center; background: #0f172a; }
+        .save-btn { background-color: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+        .cancel-btn { background-color: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+        .location-label { font-size: 0.8rem; color: #cbd5e1; margin-bottom: 5px; display: block;}
+
+        /* Loading overlay */
+        #loadingOverlay { display: none; position: absolute; inset: 0; background: rgba(2,6,23,0.6); z-index: 200; align-items: center; justify-content: center; border-radius: 12px; }
+        .spinner { border: 4px solid rgba(255,255,255,0.08); border-top: 4px solid #3b82f6; border-radius: 50%; width: 36px; height: 36px; animation: spin 1s linear infinite; margin-right: 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loadingText { color: #e2e8f0; font-size: 0.95rem; }
+        .error { color: #fecaca; font-size: 0.9rem; text-align: center; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1>❄️ Snöprognos</h1>
+        <button class="settings-btn" onclick="openMap()" title="Ändra plats" aria-label="Ändra plats">📍</button>
+    </div>
+    <span id="locationDisplay" class="location-label">Plats: Laddar...</span>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+        <button onclick="setRange(24, this)" class="time-btn">24h</button>
+        <button onclick="setRange(72, this)" class="time-btn">3 Dygn</button>
+        <button onclick="setRange(120, this)" class="time-btn">5 Dygn</button>
+        <button onclick="setRange(240, this)" class="time-btn active">10 Dygn</button>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-container">
+        <div id="loadingOverlay"><div style="display:flex;align-items:center"><div class="spinner"></div><div class="loadingText">Laddar data…</div></div></div>
+        <canvas id="snowChart"></canvas>
+    </div>
+    <div class="legend">Zooma: Nyp • Röd: Varmt • Blå: Snöproduktivt (Wet-bulb &lt; -2.5)</div>
+    <div id="errorMsg" class="error" role="status" aria-live="polite"></div>
+
+    <!-- MAP MODAL (Hidden by default) -->
+    <div id="mapModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Välj din Snökanonsanläggning</h3>
+                <p style="font-size: 0.8rem; color: #94a3b8; margin:0;">Dra markören till snösystemet</p>
+            </div>
+            <div id="map"></div>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeMap()">Avbryt</button>
+                <button class="save-btn" onclick="saveLocation()">Spara Plats</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- VARIABLER ---
+        // Standardvärden (Sparbanksspåret) om inget är sparat
+        let currentLat = localStorage.getItem('snowLat') ? parseFloat(localStorage.getItem('snowLat')) : 58.503524076883366;
+        let currentLon = localStorage.getItem('snowLon') ? parseFloat(localStorage.getItem('snowLon')) : 13.087781307969978;
+        let currentName = localStorage.getItem('snowName') ? localStorage.getItem('snowName') : 'Sparbanksspåret';
+        let chartInstance = null;
+        let weatherData = [];
+        let mapInstance = null;
+        let markerInstance = null;
+
+        updateLocationText();
+
+        // MAP LOGIC
+        function openMap() {
+            document.getElementById('mapModal').style.display = 'flex';
+            if (!mapInstance) {
+                mapInstance = L.map('map').setView([currentLat, currentLon], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
+                markerInstance = L.marker([currentLat, currentLon], {draggable: true}).addTo(mapInstance);
+                mapInstance.on('click', function(e) { markerInstance.setLatLng(e.latlng); });
+            } else {
+                mapInstance.invalidateSize();
+                mapInstance.setView([currentLat, currentLon], 13);
+                markerInstance.setLatLng([currentLat, currentLon]);
+            }
+        }
+
+        function closeMap() { document.getElementById('mapModal').style.display = 'none'; }
+
+        function saveLocation() {
+            const pos = markerInstance.getLatLng();
+            currentLat = pos.lat; currentLon = pos.lng;
+            // Persist coords and name
+            localStorage.setItem('snowLat', currentLat);
+            localStorage.setItem('snowLon', currentLon);
+            localStorage.setItem('snowName', currentName);
+            updateLocationText(); closeMap(); fetchData();
+        }
+
+        function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} — Koord: ${currentLat.toFixed(3)}, ${currentLon.toFixed(3)}`; }
+
+        // LOADING UI
+        function showLoading(show) {
+            const el = document.getElementById('loadingOverlay');
+            el.style.display = show ? 'flex' : 'none';
+            document.getElementById('errorMsg').innerText = '';
+        }
+
+        // WEATHER DATA (Open-Meteo)
+        async function fetchData() {
+            showLoading(true);
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&forecast_days=10`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const json = await response.json();
+                weatherData = json.hourly.time.map((time, index) => {
+                    const temp = json.hourly.temperature_2m[index];
+                    const hum = json.hourly.relative_humidity_2m[index];
+                    const wind = json.hourly.wind_speed_10m[index];
+                    const dir = json.hourly.wind_direction_10m[index];
+                    const wetBulb = calculateWetBulb(temp, hum);
+                    return { x: time, temp, wetBulb, wind, dir };
+                });
+
+                if (chartInstance) chartInstance.destroy();
+                createChart();
+            } catch (error) {
+                console.error('Fel vid hämtning:', error);
+                document.getElementById('errorMsg').innerText = 'Fel: Kunde inte hämta väderdata.';
+                weatherData = [];
+                if (chartInstance) chartInstance.destroy();
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // WET BULB
+        function calculateWetBulb(T, Rh) {
+            return T * Math.atan(0.151977 * Math.pow(Rh + 8.313659, 0.5)) + Math.atan(T + Rh) - Math.atan(Rh - 1.676331) + 0.00391838 * Math.pow(Rh, 1.5) * Math.atan(0.023101 * Rh) - 4.686035;
+        }
+
+        // CREATE CHART
+        function createChart() {
+            const ctx = document.getElementById('snowChart').getContext('2d');
+            const getDir = (d) => ['N','NÖ','Ö','SÖ','S','SV','V','NV'][Math.round(d/45)%8];
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: 'Våttemperatur', data: weatherData.map(d => ({x: d.x, y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, pointHitRadius: 20, tension: 0.3, yAxisID: 'y' },
+                        { label: 'Lufttemperatur', data: weatherData.map(d => ({x: d.x, y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.3, yAxisID: 'y' },
+                        { label: 'Vind (m/s)', data: weatherData.map(d => ({x: d.x, y: d.wind})), borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', borderWidth: 1, fill: true, pointRadius: 0, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) label += context.parsed.y.toFixed(1);
+                                    if(context.dataset.label === 'Vind (m/s)') {
+                                        label += ` m/s (${getDir(weatherData[context.dataIndex].dir)})`;
+                                    }
+                                    if(context.dataset.label.includes('temperatur')) label += '°C';
+                                    return label;
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                hotZone: { type: 'box', yMin: -2.5, yMax: 50, backgroundColor: 'rgba(239, 68, 68, 0.2)', borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+                                coldZone: { type: 'box', yMin: -50, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.2)', borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
+                                limitLine: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1, label: { display: true, content: '-2.5°C', color: 'rgba(255,255,255,0.5)', position: 'start' } }
+                            }
+                        },
+                        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' }, pan: { enabled: true, mode: 'x' }, limits: { x: { min: 'original', max: 'original' } } }
+                    },
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'EEE d MMM' } }, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
+                        y: { type: 'linear', display: true, position: 'left', grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fbbf24' }, min: 0 }
+                    }
+                }
+            });
+            // Återställ zoom-knappar visuellt
+            // default to 10 days view
+            const defaultBtn = document.querySelector('.time-btn:last-child');
+            setRange(240, defaultBtn);
+        }
+
+        // TIDSSKALA
+        function setRange(hours, btn) {
+            if(!chartInstance) return;
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            if (btn && btn.classList) btn.classList.add('active');
+
+            const now = new Date();
+            const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
+            chartInstance.options.scales.x.min = now.getTime();
+            chartInstance.options.scales.x.max = future.getTime();
+            chartInstance.update();
+        }
+
+        // Start app
+        fetchData();
+        if(!localStorage.getItem('snowLat')) setTimeout(openMap, 500);
+    </script>
+</body>
+</html>
