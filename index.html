@@ -124,49 +124,48 @@
                 <button class="save-btn" onclick="saveLocation()">Spara Plats</button>
             </div>
         </div>
+        </div>
 
-            <!-- INFO MODAL -->
-            <div id="infoModal">
-                <div class="modal-content">
-                    <div class="modal-header" style="padding:15px; text-align:center; background:#0f172a;">
-                        <h3>Information</h3>
-                    </div>
-                    <div class="modal-body">
-                        <h2>ℹ️ Om Snöprognosen</h2>
-                        <h3>📱 Så fungerar appen</h3>
-                        <p>Grafen visar våttemperatur, lufttemperatur och vind.</p>
-                        <ul>
-                            <li><strong>Zoom:</strong> Nyp med fingrarna i grafen för att zooma in/ut.</li>
-                            <li><strong>Detaljnivå:</strong> De första 24 timmarna visas med 15-minuters intervall (hög detalj). Därefter visas timvärden.</li>
-                            <li><strong>Färgzoner:</strong> <span style="color:#38bdf8">Blå bakgrund</span> betyder att snöproduktion är möjlig (Våttemp &lt; -2.5°C).</li>
-                        </ul>
-
-                        <h3>☁️ Väderdata & Modeller</h3>
-                        <p>Data hämtas via Open-Meteo som kombinerar marknadens bästa modeller:</p>
-                        <ul>
-                            <li><strong>Kort sikt (0-48h):</strong> Modellen <em>MET Nordic</em> (samma som SMHI/Yr). Uppdateras varje timme.</li>
-                            <li><strong>Lång sikt (3-10 dygn):</strong> Modellen <em>ECMWF</em>. Uppdateras 4 ggr/dygn.</li>
-                        </ul>
-
-                        <h3>❄️ Snöteori (Wet-bulb)</h3>
-                        <p>Vi räknar på <strong>Våttemperatur</strong> (Wet-bulb) som kombinerar temp och luftfuktighet. Det är det enda måttet som räknas för en snökanon.</p>
-
-                        <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-top:10px;">
-                          <div style="margin-bottom:8px;"><strong>🌡️ -2,5°C (Gränsvärde)</strong><br>
-                          <span style="font-size:0.9em; color:#94a3b8;">Här startar de flesta system. Snön är blöt/tung och produktionen låg.</span></div>
-                          <div style="margin-bottom:8px;"><strong>🌡️ -5,0°C (Effektivt)</strong><br>
-                          <span style="font-size:0.9em; color:#94a3b8;">Bra effektivitet! Vattnet fryser snabbare, snön blir torrare och mängden ökar.</span></div>
-                          <div><strong>🌡️ -10°C (Maxfart)</strong><br>
-                          <span style="font-size:0.9em; color:#94a3b8;">Systemet går ofta på maxkapacitet. Nu är det oftast vattentillgången som sätter gränsen, inte kylan.</span></div>
-                        </div>
-
-                    </div>
-                    <div class="modal-footer" style="padding:12px; background:#0f172a; display:flex; justify-content:center; gap:8px;">
-                        <button class="close-btn" onclick="closeInfo()">Stäng</button>
-                    </div>
-                </div>
+    <!-- INFO MODAL -->
+    <div id="infoModal">
+        <div class="modal-content">
+            <div class="modal-header" style="padding:15px; text-align:center; background:#0f172a;">
+                <h3>Information</h3>
             </div>
-    </div>
+            <div class="modal-body">
+                <h2>ℹ️ Om Snöprognosen</h2>
+                <h3>📱 Så fungerar appen</h3>
+                <p>Grafen visar våttemperatur, lufttemperatur och vind.</p>
+                <ul>
+                    <li><strong>Zoom:</strong> Nyp med fingrarna i grafen för att zooma in/ut.</li>
+                    <li><strong>Detaljnivå:</strong> De första 24 timmarna visas med 15-minuters intervall (hög detalj). Därefter visas timvärden.</li>
+                    <li><strong>Färgzoner:</strong> <span style="color:#38bdf8">Blå bakgrund</span> betyder att snöproduktion är möjlig (Våttemp &lt; -2.5°C).</li>
+                </ul>
+
+                <h3>☁️ Väderdata & Modeller</h3>
+                <p>Data hämtas via Open-Meteo som kombinerar marknadens bästa modeller:</p>
+                <ul>
+                    <li><strong>Kort sikt (0-48h):</strong> Modellen <em>MET Nordic</em> (samma som SMHI/Yr). Uppdateras varje timme.</li>
+                    <li><strong>Lång sikt (3-10 dygn):</strong> Modellen <em>ECMWF</em>. Uppdateras 4 ggr/dygn.</li>
+                </ul>
+
+                <h3>❄️ Snöteori (Wet-bulb)</h3>
+                <p>Vi räknar på <strong>Våttemperatur</strong> (Wet-bulb) som kombinerar temp och luftfuktighet. Det är det enda måttet som räknas för en snökanon.</p>
+
+                <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-top:10px;">
+                  <div style="margin-bottom:8px;"><strong>🌡️ -2,5°C (Gränsvärde)</strong><br>
+                  <span style="font-size:0.9em; color:#94a3b8;">Här startar de flesta system. Snön är blöt/tung och produktionen låg.</span></div>
+                  <div style="margin-bottom:8px;"><strong>🌡️ -5,0°C (Effektivt)</strong><br>
+                  <span style="font-size:0.9em; color:#94a3b8;">Bra effektivitet! Vattnet fryser snabbare, snön blir torrare och mängden ökar.</span></div>
+                  <div><strong>🌡️ -10°C (Maxfart)</strong><br>
+                  <span style="font-size:0.9em; color:#94a3b8;">Systemet går ofta på maxkapacitet. Nu är det oftast vattentillgången som sätter gränsen, inte kylan.</span></div>
+                </div>
+
+            </div>
+            <div class="modal-footer" style="padding:12px; background:#0f172a; display:flex; justify-content:center; gap:8px;">
+                <button class="close-btn" onclick="closeInfo()">Stäng</button>
+            </div>
+        </div>
 
     <script>
         // --- VARIABLER ---
