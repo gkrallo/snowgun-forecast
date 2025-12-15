@@ -177,6 +177,8 @@
         let weatherData = []; // hourly data (1h)
         let weatherDataDetailed = []; // minutely_15 data (15min)
         let isDetailMode = false;
+        // guard to avoid re-entrant range/zoom changes causing recursive scriptable calls
+        let _isChangingRange = false;
         let mapInstance = null;
         let markerInstance = null;
 
@@ -475,21 +477,28 @@
             const windPlugin = {
                 id: 'windArrows',
                 afterDraw: function(chart) {
-                    if (!weatherData || weatherData.length === 0) return;
-                    const ctx = chart.ctx;
-                    const xScale = chart.scales.x;
-                    const left = chart.chartArea.left;
-                    const right = chart.chartArea.right;
-                    const top = chart.chartArea.top + 8;
-                    // limit number of arrows to ~40
-                    const step = Math.max(1, Math.ceil(weatherData.length / 40));
-                    for (let i = 0; i < weatherData.length; i += step) {
-                        const d = weatherData[i];
-                        const x = xScale.getPixelForValue(new Date(d.x));
-                        if (x < left - 10 || x > right + 10) continue;
-                        drawArrow(ctx, x, top, d.dir);
+                        if (!weatherData || weatherData.length === 0) return;
+                        const ctx = chart.ctx;
+                        const xScale = chart.scales.x;
+                        const yScale = chart.scales.y;
+                        const left = chart.chartArea.left;
+                        const right = chart.chartArea.right;
+                        const top = chart.chartArea.top + 8;
+                        // draw wet-bulb zone below threshold
+                        if (yScale) {
+                            const threshold = -2.5;
+                            const yPixel = yScale.getPixelForValue(threshold);
+                            ctx.save(); ctx.fillStyle = 'rgba(14, 165, 233, 0.12)'; ctx.fillRect(left, yPixel, right - left, chart.chartArea.bottom - yPixel); ctx.restore();
+                        }
+                        // limit number of arrows to ~40
+                        const step = Math.max(1, Math.ceil(weatherData.length / 40));
+                        for (let i = 0; i < weatherData.length; i += step) {
+                            const d = weatherData[i];
+                            const x = xScale.getPixelForValue((typeof d.x === 'number') ? d.x : new Date(d.x).getTime());
+                            if (x < left - 10 || x > right + 10) continue;
+                            drawArrow(ctx, x, top, d.dir);
+                        }
                     }
-                }
             };
 
             function drawArrow(ctx, x, y, deg) {
@@ -512,53 +521,92 @@
             // Register plugin (safe to call multiple times)
             try { Chart.register(windPlugin); } catch (e) { /* ignore if already registered */ }
 
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        { label: 'Våttemperatur', data: weatherData.map(d => ({x: d.x, y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, pointHitRadius: 20, tension: 0.3, yAxisID: 'y' },
-                        { label: 'Lufttemperatur', data: weatherData.map(d => ({x: d.x, y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.3, yAxisID: 'y' },
-                        { label: 'Vind (m/s)', data: weatherData.map(d => ({x: d.x, y: d.wind})), borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', borderWidth: 1, fill: true, pointRadius: 0, yAxisID: 'y1' }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) label += ': ';
-                                    if (context.parsed.y !== null) label += context.parsed.y.toFixed(1);
-                                    if(context.dataset.label === 'Vind (m/s)') {
-                                        label += ` m/s (${getDir(weatherData[context.dataIndex].dir)})`;
-                                    }
-                                    if(context.dataset.label.includes('temperatur')) label += '°C';
-                                    return label;
-                                }
-                            }
-                        },
-                        annotation: {
-                            annotations: {
-                                hotZone: { type: 'box', yMin: -2.5, yMax: 50, backgroundColor: 'rgba(239, 68, 68, 0.2)', borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
-                                coldZone: { type: 'box', yMin: -50, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.2)', borderWidth: 0, drawTime: 'beforeDatasetsDraw' },
-                                limitLine: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1, label: { display: true, content: '-2.5°C', color: 'rgba(255,255,255,0.5)', position: 'start' } }
-                            }
-                        },
-                        zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: ({chart}) => handleDetailZoom(chart) }, pan: { enabled: true, mode: 'x', threshold: 5, onPanComplete: ({chart}) => handleDetailZoom(chart) }, limits: { x: { min: 'original', max: 'original' } } }
+            // Create chart and fallback on error
+            try {
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: [
+                            { label: 'Våttemperatur', data: weatherData.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, pointHitRadius: 20, tension: 0.3, yAxisID: 'y' },
+                            { label: 'Lufttemperatur', data: weatherData.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.3, yAxisID: 'y' },
+                            { label: 'Vind (m/s)', data: weatherData.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wind})), borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', borderWidth: 1, fill: true, pointRadius: 0, yAxisID: 'y1' }
+                        ]
                     },
-                    scales: {
-                        x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'EEE d MMM' } }, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
-                        y: { type: 'linear', display: true, position: 'left', grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
-                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fbbf24' }, min: 0 }
-                    }
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed.y !== null) label += context.parsed.y.toFixed(1);
+                                        if(context.dataset.label === 'Vind (m/s)') {
+                                            label += ` m/s (${getDir(weatherData[context.dataIndex].dir)})`;
+                                        }
+                                        if(context.dataset.label.includes('temperatur')) label += '°C';
+                                        return label;
+                                    }
+                                }
+                            },
+                            annotation: false,
+                            zoom: false
+                        },
+                        scales: {
+                            x: { type: 'linear', grid: { color: '#334155' }, ticks: { color: '#cbd5e1', callback: function(val) { try { return new Date(val).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }); } catch (e) { return new Date(val).toString(); } } } },
+                            y: { type: 'linear', display: true, position: 'left', grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
+                            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fbbf24' }, min: 0 }
+                        }
+                    });
+            } catch (err) {
+                console.error('Chart creation failed, falling back to minimal chart', err);
+                try {
+                    chartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: { datasets: [ { label: 'Lufttemperatur', data: weatherData.map(d => ({ x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.temp })), borderColor: '#94a3b8', borderWidth: 1, pointRadius: 0 } ] },
+                        options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear', ticks: { callback: function(v) { try { return new Date(v).toLocaleString(); } catch (e) { return String(v); } } } }, y: { type: 'linear' } } }
+                    });
+                } catch (err2) {
+                    console.error('Fallback chart also failed', err2);
+                    document.getElementById('errorMsg').innerText = 'Fel: Kunde inte rendera grafen.';
                 }
-            });
+            }
             // Återställ zoom-knappar visuellt
             // default to 10 days view
             const defaultBtn = document.querySelector('.time-btn:last-child');
             setRange(240, defaultBtn);
+
+            // Simple wheel zoom handler (passive:false to avoid browser warning). This replaces the plugin wheel behavior.
+            (function attachWheel() {
+                const canvas = document.getElementById('snowChart');
+                if (!canvas) return;
+                function onWheel(e) {
+                    if (!chartInstance) return;
+                    if (_isChangingRange) return;
+                    e.preventDefault();
+                    _isChangingRange = true;
+                    try {
+                        const rect = canvas.getBoundingClientRect();
+                        const cx = e.clientX - rect.left;
+                        const xScale = chartInstance.scales.x;
+                        if (!xScale) return;
+                        const center = xScale.getValueForPixel(cx);
+                        const centerVal = (typeof center === 'number') ? center : (new Date(center)).getTime();
+                        const min = xScale.min; const max = xScale.max;
+                        const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88; // out / in
+                        const newMin = centerVal - (centerVal - min) * zoomFactor;
+                        const newMax = centerVal + (max - centerVal) * zoomFactor;
+                        // clamp to data bounds
+                        const dataMin = chartInstance.data.datasets[0].data[0] && chartInstance.data.datasets[0].data[0].x;
+                        const dataMax = chartInstance.data.datasets[0].data[chartInstance.data.datasets[0].data.length - 1] && chartInstance.data.datasets[0].data[chartInstance.data.datasets[0].data.length - 1].x;
+                        chartInstance.options.scales.x.min = Math.max(newMin, dataMin || newMin);
+                        chartInstance.options.scales.x.max = Math.min(newMax, dataMax || newMax);
+                        try { chartInstance.update('none'); } catch (err) { console.error('chart.update() threw (wheel)', err); }
+                    } finally { _isChangingRange = false; }
+                }
+                canvas.addEventListener('wheel', onWheel, { passive: false });
+            })();
         }
 
         // TIDSSKALA
@@ -571,9 +619,34 @@
             const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
             chartInstance.options.scales.x.min = now.getTime();
             chartInstance.options.scales.x.max = future.getTime();
-            chartInstance.update();
+            try {
+                chartInstance.update();
+            } catch (e) {
+                console.error('chart.update() threw', e);
+                try {
+                    console.debug('chart.options.scales.x', { type: chartInstance.options.scales.x.type, time: chartInstance.options.scales.x.time || null, min: chartInstance.options.scales.x.min, max: chartInstance.options.scales.x.max });
+                    console.debug('chart.options.plugins sample', { zoom: chartInstance.options.plugins && chartInstance.options.plugins.zoom, annotation: chartInstance.options.plugins && chartInstance.options.plugins.annotation });
+                    console.debug('dataset samples', chartInstance.data.datasets.map(ds => ({ label: ds.label, length: ds.data.length, sample: ds.data.slice(0,3) })));
+                } catch (e2) { console.error('while logging chart state', e2); }
+                throw e;
+            }
         }
 
+        // Global error hook to capture Chart.js scriptable errors and dump chart state for debugging
+        window.addEventListener('error', function (ev) {
+            try {
+                const msg = ev && ev.message ? ev.message : '';
+                const file = ev && ev.filename ? ev.filename : '';
+                if (msg && msg.includes('startsWith') || file && file.includes('chart.js')) {
+                    console.error('Captured global error:', ev.message, 'from', file);
+                    if (chartInstance) {
+                        try {
+                            console.debug('Dumping chart state due to error', { options: chartInstance.options && chartInstance.options.scales && chartInstance.options.scales.x, plugins: chartInstance.options && chartInstance.options.plugins, datasets: chartInstance.data.datasets.map(ds => ({label: ds.label, sample: ds.data && ds.data.slice && ds.data.slice(0,3)})) });
+                        } catch (e) { console.error('Error while dumping chart state', e); }
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        });
         // Start app
         fetchData();
         if(!localStorage.getItem('snowLat')) setTimeout(openMap, 500);
@@ -582,23 +655,27 @@
         function updateDatasets(useDetailed) {
             if (!chartInstance) return;
             const src = useDetailed ? weatherDataDetailed : weatherData;
-            chartInstance.data.datasets[0].data = src.map(d => ({x: d.x, y: d.wetBulb}));
-            chartInstance.data.datasets[1].data = src.map(d => ({x: d.x, y: d.temp}));
-            chartInstance.data.datasets[2].data = src.map(d => ({x: d.x, y: d.wind}));
+            chartInstance.data.datasets[0].data = src.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wetBulb}));
+            chartInstance.data.datasets[1].data = src.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.temp}));
+            chartInstance.data.datasets[2].data = src.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wind}));
         }
 
         function trySwitchToDetailForRange(minMs, maxMs) {
-            if (!weatherDataDetailed || weatherDataDetailed.length === 0) {
-                switchToHourly();
-                return;
-            }
-            const first = new Date(weatherDataDetailed[0].x).getTime();
-            const last = new Date(weatherDataDetailed[weatherDataDetailed.length - 1].x).getTime();
-            if (minMs >= first - 1000 && maxMs <= last + 1000) {
-                switchToDetailed();
-            } else {
-                switchToHourly();
-            }
+            if (_isChangingRange) return;
+            _isChangingRange = true;
+            try {
+                if (!weatherDataDetailed || weatherDataDetailed.length === 0) {
+                    switchToHourly();
+                    return;
+                }
+                const first = new Date(weatherDataDetailed[0].x).getTime();
+                const last = new Date(weatherDataDetailed[weatherDataDetailed.length - 1].x).getTime();
+                if (minMs >= first - 1000 && maxMs <= last + 1000) {
+                    switchToDetailed();
+                } else {
+                    switchToHourly();
+                }
+            } finally { _isChangingRange = false; }
         }
 
         function switchToDetailed() {
@@ -606,74 +683,62 @@
             isDetailMode = true;
             updateDatasets(true);
             adjustXAxisForSpan(chartInstance);
-            chartInstance.update();
+            try { chartInstance.update(); } catch (e) { console.error('chart.update() threw (switchToDetailed)', e); try { console.debug('chart.options.scales.x', { type: chartInstance.options.scales.x.type, time: chartInstance.options.scales.x.time || null, min: chartInstance.options.scales.x.min, max: chartInstance.options.scales.x.max }); console.debug('chart.options.plugins sample', { zoom: chartInstance.options.plugins && chartInstance.options.plugins.zoom, annotation: chartInstance.options.plugins && chartInstance.options.plugins.annotation }); console.debug('dataset samples', chartInstance.data.datasets.map(ds => ({ label: ds.label, length: ds.data.length, sample: ds.data.slice(0,3) }))); } catch (e2) { console.error('while logging chart state', e2); } throw e; }
         }
         
         function switchToHourly() {
-            if (!chartInstance || !isDetailMode) return;
+            if (!chartInstance) return;
+            // if already hourly, just ensure datasets and axis are correct
             isDetailMode = false;
             updateDatasets(false);
             adjustXAxisForSpan(chartInstance);
             try {
-                const x = chart.scales.x;
-                const min = x.min; const max = x.max;
-                const span = max - min;                // Adjust axis formatting for span
-                adjustXAxisForSpan(chart);                // If zoomed in less than 24h, try detail
-                if (span < 24 * 60 * 60 * 1000) {
-                    trySwitchToDetailForRange(min, max);
-                } else {
-                    switchToHourly();
-                }
+                chartInstance.update();
             } catch (e) {
-                // ignore
+                console.error('chart.update() threw (switchToHourly)', e);
+                try { console.debug('chart state at error', { options: chartInstance.options && chartInstance.options.scales && chartInstance.options.scales.x, datasets: chartInstance.data.datasets.map(ds => ({label: ds.label, len: ds.data.length})) }); } catch (e2) { /* ignore */ }
             }
         }
 
-        // Adjust x-axis formatting depending on visible span
+        // Adjust x-axis formatting depending on visible span (linear scale)
         function adjustXAxisForSpan(chart) {
             if (!chart || !chart.options || !chart.options.scales || !chart.options.scales.x) return;
             const x = chart.scales.x;
             const span = x.max - x.min;
             const isSmall = span < 24 * 60 * 60 * 1000; // <24h
-            const timeOpts = chart.options.scales.x.time || {};
-            // Set display unit and formats
-            timeOpts.unit = isSmall ? 'hour' : 'day';
-            timeOpts.displayFormats = timeOpts.displayFormats || {};
-            timeOpts.displayFormats.hour = isSmall ? 'HH:mm' : 'HH:mm';
-            timeOpts.displayFormats.day = isSmall ? 'HH:mm' : 'EEE d MMM';
-            chart.options.scales.x.time = timeOpts;
-            // Ticks: show HH:mm for small spans
             chart.options.scales.x.ticks = chart.options.scales.x.ticks || {};
-            chart.options.scales.x.ticks.callback = function(val, index, ticks) {
-                const date = new Date(this.getLabelForValue(val));
+            chart.options.scales.x.ticks.callback = function(val) {
+                const date = new Date(val);
                 try {
                     if (isSmall) return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-                    // default formatting (day)
                     return date.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short'});
                 } catch (e) {
                     return date.toLocaleString();
                 }
             };
-            // Update without animation for smoothness
-            chart.update('none');
+            try { chart.update('none'); } catch (e) { console.error('chart.update() threw (adjustXAxisForSpan)', e); }
         }
 
         // Override previous setRange to support preferDetailed flag
         function setRange(hours, btn, preferDetailed = false) {
             if(!chartInstance) return;
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-            if (btn && btn.classList) btn.classList.add('active');
-            const now = new Date();
-            const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
-            chartInstance.options.scales.x.min = now.getTime();
-            chartInstance.options.scales.x.max = future.getTime();
-            if (preferDetailed) {
-                trySwitchToDetailForRange(now.getTime(), future.getTime());
-            } else {
-                const span = future.getTime() - now.getTime();
-                if (span > 24 * 60 * 60 * 1000) switchToHourly(); else trySwitchToDetailForRange(now.getTime(), future.getTime());
-            }
-            chartInstance.update();
+            if (_isChangingRange) return;
+            _isChangingRange = true;
+            try {
+                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                if (btn && btn.classList) btn.classList.add('active');
+                const now = new Date();
+                const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
+                chartInstance.options.scales.x.min = now.getTime();
+                chartInstance.options.scales.x.max = future.getTime();
+                if (preferDetailed) {
+                    trySwitchToDetailForRange(now.getTime(), future.getTime());
+                } else {
+                    const span = future.getTime() - now.getTime();
+                    if (span > 24 * 60 * 60 * 1000) switchToHourly(); else trySwitchToDetailForRange(now.getTime(), future.getTime());
+                }
+                try { chartInstance.update(); } catch (e) { console.error('chart.update() threw (setRange)', e); }
+            } finally { _isChangingRange = false; }
         }
     </script>
 </body>
