@@ -3,120 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Snökanon Prognos + Karta</title>
+    <title>Snöprognos</title>
     <meta name="theme-color" content="#0f172a">
-    <!-- Chart.js för grafer -->
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    <!-- Leaflet för Karta -->
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         body { background-color: #1e293b; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-        /* Header layout */
+        
+        /* Header */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         h1 { font-size: 1.1rem; margin: 0; color: #e2e8f0; }
         .settings-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #94a3b8; padding: 0; }
-        .controls { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; }
-        button.time-btn { background-color: #334155; border: 1px solid #475569; color: white; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; }
+        
+        /* Controls & Favs */
+        .controls { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+        .fav-controls { display:flex; align-items:center; gap:8px; margin-bottom: 10px; flex-wrap: wrap; }
+        
+        button.time-btn { background-color: #334155; border: 1px solid #475569; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; }
         button.time-btn:active, button.time-btn.active { background-color: #3b82f6; border-color: #3b82f6; }
-        .chart-container { flex-grow: 1; position: relative; min-height: 250px; background: #0f172a; border-radius: 12px; padding: 10px; border: 1px solid #334155; }
+        
+        /* Chart area */
+        .chart-container { flex-grow: 1; position: relative; min-height: 250px; background: #0f172a; border-radius: 12px; padding: 10px; border: 1px solid #334155; overflow: hidden; }
         .legend { font-size: 0.75rem; text-align: center; margin-top: 5px; color: #94a3b8; }
-        /* MAP MODAL STYLES */
-        #mapModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .modal-content { background: #1e293b; width: 100%; max-width: 500px; height: 80%; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; }
-        #map { flex-grow: 1; width: 100%; }
-        .modal-header { padding: 15px; text-align: center; background: #0f172a; }
-        .modal-footer { padding: 15px; display: flex; gap: 10px; justify-content: center; background: #0f172a; }
-        .save-btn { background-color: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
-        .cancel-btn { background-color: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
-        .location-label { font-size: 0.8rem; color: #cbd5e1; margin-bottom: 5px; display: block;}
+        
+        /* Modals */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .modal-content { background: #1e293b; width: 100%; max-width: 600px; max-height: 90%; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; position: relative; }
+        .modal-header { padding: 15px; text-align: center; background: #0f172a; border-bottom: 1px solid #334155; }
+        .modal-body { padding: 20px; overflow-y: auto; color: #cbd5e1; line-height: 1.6; }
+        .modal-footer { padding: 15px; display: flex; gap: 10px; justify-content: center; background: #0f172a; border-top: 1px solid #334155; }
+        
+        /* Info Content Styles */
+        .info-section { margin-bottom: 25px; border-bottom: 1px solid #334155; padding-bottom: 15px; }
+        .info-section:last-child { border-bottom: none; }
+        .info-title { font-size: 1.1rem; color: #38bdf8; margin: 0 0 10px 0; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        .highlight-box { background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        
+        /* Matrix Table for Snow Theory */
+        .snow-matrix { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 10px; text-align: center; }
+        .snow-matrix th { background: #0f172a; padding: 6px; color: #94a3b8; border: 1px solid #334155; }
+        .snow-matrix td { padding: 6px; border: 1px solid #334155; color: #fff; font-weight: bold; }
+        .bg-green { background-color: rgba(34, 197, 94, 0.25); color: #86efac !important; }
+        .bg-yellow { background-color: rgba(234, 179, 8, 0.25); color: #fde047 !important; }
+        .bg-red { background-color: rgba(239, 68, 68, 0.25); color: #fca5a5 !important; }
 
-        /* Loading overlay */
-        #loadingOverlay { display: none; position: absolute; inset: 0; background: rgba(2,6,23,0.6); z-index: 200; align-items: center; justify-content: center; border-radius: 12px; }
-        .spinner { border: 4px solid rgba(255,255,255,0.08); border-top: 4px solid #3b82f6; border-radius: 50%; width: 36px; height: 36px; animation: spin 1s linear infinite; margin-right: 12px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loadingText { color: #e2e8f0; font-size: 0.95rem; }
-        .error { color: #fecaca; font-size: 0.9rem; text-align: center; margin-top: 8px; }
-        /* Info modal styles (reuse map modal styles) */
-        #infoModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        #infoModal .modal-content { background: #1e293b; width: 100%; max-width: 700px; height: auto; max-height: 80%; border-radius: 12px; display: flex; flex-direction: column; overflow: auto; border: 1px solid #475569; }
-        #infoModal .modal-body { padding: 18px; color:#e2e8f0; line-height:1.45; }
-        #infoModal h2 { margin:0 0 8px 0; font-weight:700; }
-        #infoModal h3 { margin:10px 0 6px 0; font-weight:700; }
-        #infoModal p { margin:6px 0; color:#cbd5e1; }
-        #infoModal .close-btn { background:#ef4444; color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; }
-        .info-table { width:100%; border-collapse: collapse; margin-top:8px; }
-        .info-table td, .info-table th { border: 1px solid #334155; padding:8px; color:#e2e8f0; }
-        /* Icon buttons */
+        /* Map specific */
+        #map { flex-grow: 1; width: 100%; min-height: 300px; }
+        
+        /* Buttons */
+        .save-btn { background-color: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .cancel-btn { background-color: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .icon-btn { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
-        .icon-btn:hover { background:#0b1220; }
-        .search-result { padding:8px; border-radius:8px; cursor:pointer; color:#e2e8f0; }
-        .search-result:hover { background:#0b1220; }
+        .icon-btn:hover { background:#1e293b; border-color:#94a3b8; }
+
+        /* Loading & Error */
+        #loadingOverlay { display: none; position: absolute; inset: 0; background: rgba(2,6,23,0.7); z-index: 200; align-items: center; justify-content: center; border-radius: 12px; }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #3b82f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-right: 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error { color: #fca5a5; font-size: 0.9rem; text-align: center; margin-top: 5px; min-height: 20px; }
+
+        /* Search & Select */
+        .search-result { padding:10px; border-bottom:1px solid #334155; cursor:pointer; }
+        .search-result:hover { background:#334155; }
+        select { background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px; max-width: 150px; }
     </style>
 </head>
 <body>
 
-    <!-- HEADER -->
     <div class="header">
-        <h1>❄️ Snötillverkarprognos</h1>
-        <div style="display:flex; gap:8px; align-items:center;">
-            <button class="settings-btn" onclick="openInfo()" title="Info" aria-label="Info">ℹ️</button>
-            <button class="settings-btn" onclick="openMap()" title="Ändra plats" aria-label="Ändra plats">📍</button>
+        <h1>❄️ Snöprognos</h1>
+        <div style="display:flex; gap:10px;">
+            <button class="settings-btn" onclick="openInfo()" title="Info">ℹ️</button>
+            <button class="settings-btn" onclick="openMap()" title="Karta">📍</button>
         </div>
     </div>
-    <span id="locationDisplay" class="location-label">Plats: Laddar...</span>
-        <div style="display:inline-flex; align-items:center; gap:8px;">
-            <select id="favoritesSelect" style="background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px;"></select>
-            <button id="gotoFavBtn" class="icon-btn" title="Gå till favorit" aria-label="Gå till favorit">
-                <!-- arrow icon -->
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-            </button>
-            <button id="editFavBtn" class="icon-btn" title="Redigera favorit" aria-label="Redigera favorit">
-                <!-- pencil icon -->
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
-            </button>
-            <button id="delFavBtn" class="icon-btn" title="Ta bort favorit" aria-label="Ta bort favorit">
-                <!-- trash icon -->
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
-            </button>
-        </div>
 
-    <!-- CONTROLS -->
+    <div class="fav-controls">
+        <div style="flex-grow:1; overflow:hidden;">
+            <span id="locationDisplay" style="font-size:0.9rem; color:#cbd5e1; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Laddar...</span>
+        </div>
+        <select id="favoritesSelect"></select>
+        <button id="gotoFavBtn" class="icon-btn" title="Gå till favorit">➡️</button>
+        <button id="editFavBtn" class="icon-btn" title="Redigera namn">✏️</button>
+        <button id="delFavBtn" class="icon-btn" title="Ta bort">🗑️</button>
+    </div>
+
     <div class="controls">
-        <button onclick="setRange(6, this, true)" class="time-btn">6h</button>
-        <button onclick="setRange(12, this, true)" class="time-btn">12h</button>
+        <button onclick="setRange(12, this)" class="time-btn">12h</button>
         <button onclick="setRange(24, this)" class="time-btn">24h</button>
         <button onclick="setRange(72, this)" class="time-btn">3 Dygn</button>
         <button onclick="setRange(120, this)" class="time-btn">5 Dygn</button>
         <button onclick="setRange(240, this)" class="time-btn active">10 Dygn</button>
+        <button onclick="resetZoom()" class="time-btn" style="border-color:#fbbf24; color:#fbbf24;">Reset Zoom</button>
     </div>
 
-    <!-- CHART -->
     <div class="chart-container">
-        <div id="loadingOverlay"><div style="display:flex;align-items:center"><div class="spinner"></div><div class="loadingText">Laddar data…</div></div></div>
+        <div id="loadingOverlay">
+            <div class="spinner"></div><div style="color:#e2e8f0;">Hämtar väderdata...</div>
+        </div>
         <canvas id="snowChart"></canvas>
     </div>
-    <div class="legend">Zooma: Nyp • Röd: Varmt • Blå: Snöproduktivt (Wet-bulb &lt; -2.5)</div>
-    <div id="errorMsg" class="error" role="status" aria-live="polite"></div>
+    <div class="legend">Zooma: Nyp / Scrolla • Panorera: Dra • Röd: Varmt • Blå: Snö (Wet-bulb &lt; -2.5)</div>
+    <div id="errorMsg" class="error"></div>
 
-    <!-- MAP MODAL (Hidden by default) -->
-    <div id="mapModal">
-        <div class="modal-content">
+    <div id="mapModal" class="modal-overlay">
+        <div class="modal-content" style="height: 80%;">
             <div class="modal-header">
-                <h3>Välj din Snökanonsanläggning</h3>
-                <p style="font-size: 0.8rem; color: #94a3b8; margin:0;">Dra markören till snösystemet</p>
-                <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                    <input id="mapSearch" placeholder="Sök plats eller adress" style="flex:1; background:#0b1220; color:#e2e8f0; border:1px solid #334155; padding:6px 8px; border-radius:8px;" aria-label="Sök plats" />
-                    <button id="mapSearchBtn" class="icon-btn" title="Sök" aria-label="Sök">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    </button>
+                <h3>Välj Plats</h3>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <input id="mapSearch" placeholder="Sök plats..." style="flex:1; background:#0f172a; color:#fff; border:1px solid #334155; padding:8px; border-radius:6px;">
+                    <button id="mapSearchBtn" class="icon-btn">🔍</button>
                 </div>
-                <div id="searchResults" style="margin-top:8px; max-height:140px; overflow:auto; display:none; border-top:1px solid #1f2937; padding-top:8px;"></div>
-                <div id="favoriteChips" style="margin-top:8px; display:flex; gap:6px; overflow:auto; padding-bottom:6px;"></div>
+                <div id="searchResults" style="display:none; max-height:150px; overflow-y:auto; background:#1e293b; border:1px solid #334155; margin-top:5px; text-align:left;"></div>
             </div>
             <div id="map"></div>
             <div class="modal-footer">
@@ -124,622 +129,494 @@
                 <button class="save-btn" onclick="saveLocation()">Spara Plats</button>
             </div>
         </div>
-        </div>
+    </div>
 
-    <!-- INFO MODAL -->
-    <div id="infoModal">
+    <div id="infoModal" class="modal-overlay">
         <div class="modal-content">
-            <div class="modal-header" style="padding:15px; text-align:center; background:#0f172a;">
-                <h3>Information</h3>
-            </div>
+            <div class="modal-header"><h3>Information & Teori</h3></div>
             <div class="modal-body">
-                <h2>ℹ️ Om Snöprognosen</h2>
-                <h3>📱 Så fungerar appen</h3>
-                <p>Grafen visar våttemperatur, lufttemperatur och vind.</p>
-                <ul>
-                    <li><strong>Zoom:</strong> Nyp med fingrarna i grafen för att zooma in/ut.</li>
-                    <li><strong>Detaljnivå:</strong> De första 24 timmarna visas med 15-minuters intervall (hög detalj). Därefter visas timvärden.</li>
-                    <li><strong>Färgzoner:</strong> <span style="color:#38bdf8">Blå bakgrund</span> betyder att snöproduktion är möjlig (Våttemp &lt; -2.5°C).</li>
-                </ul>
+                
+                <div class="info-section">
+                    <h4 class="info-title">📱 Så fungerar appen</h4>
+                    <p>Grafen visar <strong>Våttemperatur (Wet-bulb)</strong> vilket är det viktigaste måttet för snötillverkning. </p>
+                    <ul style="padding-left:20px; color:#94a3b8; margin:5px 0;">
+                        <li><strong>Blå zon:</strong> (Wet-bulb < -2.5°C) Snöproduktion möjlig.</li>
+                        <li><strong>Vind:</strong> Pilar visar riktning. Gult område är vindstyrka.</li>
+                    </ul>
+                </div>
 
-                <h3>☁️ Väderdata & Modeller</h3>
-                <p>Data hämtas via Open-Meteo som kombinerar marknadens bästa modeller:</p>
-                <ul>
-                    <li><strong>Kort sikt (0-48h):</strong> Modellen <em>MET Nordic</em> (samma som SMHI/Yr). Uppdateras varje timme.</li>
-                    <li><strong>Lång sikt (3-10 dygn):</strong> Modellen <em>ECMWF</em>. Uppdateras 4 ggr/dygn.</li>
-                </ul>
+                <div class="info-section">
+                    <h4 class="info-title">🌡️ Våttemperatur – Vad är det?</h4>
+                    <p>En snökanon kyler inte bara med kyla, utan med <em>avdunstning</em>. När vattendropparna lämnar kanonen avdunstar en del av vattnet, vilket stjäl värme från droppen och kyler den inifrån.</p>
+                    <p><strong>Våttemperaturen</strong> är den lägsta temperatur en vattendroppe kan nå genom enbart avdunstning. Det är därför man kan göra snö även om termometern visar +1°C, så länge luften är torr nog!</p>
+                    <div class="highlight-box">
+                        <strong>Tumregel:</strong> Torr luft är din bästa vän. <br>Hög fuktighet = Svårt att göra snö.
+                    </div>
+                </div>
 
-                <h3>❄️ Snöteori (Wet-bulb)</h3>
-                <p>Vi räknar på <strong>Våttemperatur</strong> (Wet-bulb) som kombinerar temp och luftfuktighet. Det är det enda måttet som räknas för en snökanon.</p>
+                <div class="info-section">
+                    <h4 class="info-title">💧 Parametrarnas effekt</h4>
+                    <p><strong>Lufttemperatur & Fuktighet:</strong> Dessa två skapar tillsammans Våttemperaturen. Se tabellen nedan för att se hur de samspelar.</p>
+                    <p><strong>Vattentemperatur:</strong> Ofta bortglömd men kritisk. Optimalt vatten in i systemet bör vara <strong>+0,5°C till +1,5°C</strong>.</p>
+                    <ul style="padding-left:20px; color:#94a3b8; margin:5px 0;">
+                        <li>Om vattnet är varmt (t.ex. +4°C) måste kanonen slösa energi på att kyla vattnet till fryspunkten innan det kan bli snö.</li>
+                        <li>Detta minskar snömängden drastiskt och kräver kallare utetemperatur för att kompensera.</li>
+                    </ul>
+                </div>
 
-                <div style="background:#0f172a; padding:10px; border-radius:8px; border:1px solid #334155; margin-top:10px;">
-                  <div style="margin-bottom:8px;"><strong>🌡️ -2,5°C (Gränsvärde)</strong><br>
-                  <span style="font-size:0.9em; color:#94a3b8;">Här startar de flesta system. Snön är blöt/tung och produktionen låg.</span></div>
-                  <div style="margin-bottom:8px;"><strong>🌡️ -5,0°C (Effektivt)</strong><br>
-                  <span style="font-size:0.9em; color:#94a3b8;">Bra effektivitet! Vattnet fryser snabbare, snön blir torrare och mängden ökar.</span></div>
-                  <div><strong>🌡️ -10°C (Maxfart)</strong><br>
-                  <span style="font-size:0.9em; color:#94a3b8;">Systemet går ofta på maxkapacitet. Nu är det oftast vattentillgången som sätter gränsen, inte kylan.</span></div>
+                <div class="info-section">
+                    <h4 class="info-title">📊 Snötabell (Våttemp)</h4>
+                    <p style="font-size:0.9rem; color:#94a3b8;">Tabellen visar vilken våttemperatur du får vid olika grader och luftfuktighet.</p>
+                    
+                    <table class="snow-matrix">
+                        <thead>
+                            <tr>
+                                <th>Luft</th>
+                                <th>40% Rh</th>
+                                <th>60% Rh</th>
+                                <th>80% Rh</th>
+                                <th>100% Rh</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>+2°C</td>
+                                <td class="bg-yellow">-2.5°</td> <td class="bg-red">-0.5°</td>
+                                <td class="bg-red">+1.0°</td>
+                                <td class="bg-red">+2.0°</td>
+                            </tr>
+                            <tr>
+                                <td>0°C</td>
+                                <td class="bg-green">-4.0°</td>
+                                <td class="bg-yellow">-2.3°</td> <td class="bg-red">-1.0°</td>
+                                <td class="bg-red">0.0°</td>
+                            </tr>
+                            <tr>
+                                <td>-2°C</td>
+                                <td class="bg-green">-5.5°</td>
+                                <td class="bg-green">-4.0°</td>
+                                <td class="bg-green">-3.0°</td>
+                                <td class="bg-yellow">-2.0°</td>
+                            </tr>
+                            <tr>
+                                <td>-4°C</td>
+                                <td class="bg-green">-7.0°</td>
+                                <td class="bg-green">-6.0°</td>
+                                <td class="bg-green">-5.0°</td>
+                                <td class="bg-green">-4.0°</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div style="font-size:0.8rem; margin-top:8px; display:flex; gap:10px; justify-content:center;">
+                        <span style="color:#86efac">● Bra Snö</span>
+                        <span style="color:#fde047">● Gränsfall/Slask</span>
+                        <span style="color:#fca5a5">● Ingen Snö</span>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4 class="info-title">❄️ Snökvalitet</h4>
+                    <ul style="padding-left:20px; color:#cbd5e1;">
+                        <li><strong>Vid -2.5°C (Våttemp):</strong> "Startsnö". Tung, blöt (hög densitet). Bygger bra botten men sliter på utrustningen och ger mindre volym.</li>
+                        <li><strong>Vid -5.0°C till -10°C:</strong> Effektiv produktion. Snön är torrare, lättare och kanonerna kan köra mer vatten = mer snö på backen.</li>
+                        <li><strong>Kallare än -15°C:</strong> Mycket torr snö ("Pudersnö"), men risk för att små droppar fryser innan de landar och blåser bort som damm.</li>
+                    </ul>
                 </div>
 
             </div>
-            <div class="modal-footer" style="padding:12px; background:#0f172a; display:flex; justify-content:center; gap:8px;">
-                <button class="close-btn" onclick="closeInfo()">Stäng</button>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeInfo()" style="background:#334155;">Stäng</button>
             </div>
         </div>
+    </div>
 
     <script>
-        // --- VARIABLER ---
-        // Standardvärden (Sparbanksspåret) om inget är sparat
-        let currentLat = localStorage.getItem('snowLat') ? parseFloat(localStorage.getItem('snowLat')) : 58.503524076883366;
-        let currentLon = localStorage.getItem('snowLon') ? parseFloat(localStorage.getItem('snowLon')) : 13.087781307969978;
-        let currentName = localStorage.getItem('snowName') ? localStorage.getItem('snowName') : 'Sparbanksspåret';
+        // --- INSTÄLLNINGAR & STATE ---
+        let currentLat = parseFloat(localStorage.getItem('snowLat')) || 58.503; 
+        let currentLon = parseFloat(localStorage.getItem('snowLon')) || 13.088; 
+        let currentName = localStorage.getItem('snowName') || 'Sparbanksspåret';
+        
         let chartInstance = null;
-        let weatherData = []; // hourly data (1h)
-        let weatherDataDetailed = []; // minutely_15 data (15min)
-        let isDetailMode = false;
-        // guard to avoid re-entrant range/zoom changes causing recursive scriptable calls
-        let _isChangingRange = false;
         let mapInstance = null;
         let markerInstance = null;
+        let weatherData = []; 
+        let weatherDataDetailed = []; 
+        let favorites = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
 
-        updateLocationText();
+        // Start
+        init();
 
-        // MAP LOGIC
-        function openMap() {
-            document.getElementById('mapModal').style.display = 'flex';
-            if (!mapInstance) {
-                mapInstance = L.map('map').setView([currentLat, currentLon], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
-                markerInstance = L.marker([currentLat, currentLon], {draggable: true}).addTo(mapInstance);
-                mapInstance.on('click', function(e) { markerInstance.setLatLng(e.latlng); });
-            } else {
-                mapInstance.invalidateSize();
-                mapInstance.setView([currentLat, currentLon], 13);
-                markerInstance.setLatLng([currentLat, currentLon]);
-            }
-        }
-
-        function closeMap() { document.getElementById('mapModal').style.display = 'none'; }
-
-        // Info modal control
-        function openInfo() { document.getElementById('infoModal').style.display = 'flex'; }
-        function closeInfo() { document.getElementById('infoModal').style.display = 'none'; }
-
-        // Close info modal when clicking outside content
-        document.addEventListener('click', (e) => {
-            const info = document.getElementById('infoModal');
-            if (!info) return;
-            if (info.style.display === 'flex' && e.target === info) {
-                closeInfo();
-            }
-        });
-
-        function saveLocation() {
-            const pos = markerInstance.getLatLng();
-            currentLat = pos.lat; currentLon = pos.lng;
-            // Ask the user if they want to save as favorite
-            const want = window.confirm('Vill du spara denna plats som favorit?');
-            if (want) {
-                const name = window.prompt('Ange namn för favoriten:', currentName || 'Favorit');
-                if (name && name.trim().length) {
-                    currentName = name.trim();
-                    saveFavorite(currentName, currentLat, currentLon);
-                }
-            }
-
-            // Persist coords and name
-            localStorage.setItem('snowLat', currentLat);
-            localStorage.setItem('snowLon', currentLon);
-            localStorage.setItem('snowName', currentName);
-
-            // Update marker / map so we stay at the saved pos
-            if (markerInstance) {
-                markerInstance.setLatLng([currentLat, currentLon]);
-            }
-            if (mapInstance) {
-                mapInstance.setView([currentLat, currentLon], mapInstance.getZoom() || 13);
-            }
-
-            updateLocationText(); closeMap(); fetchData();
-        }
-
-        // Favorites management
-        function saveFavorite(name, lat, lon) {
-            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
-            // avoid duplicate names: replace if same name
-            const idx = list.findIndex(f => f.name === name);
-            const item = { name, lat, lon };
-            if (idx >= 0) list[idx] = item; else list.push(item);
-            localStorage.setItem('snowFavorites', JSON.stringify(list));
+        function init() {
+            ensureDefaultFavorite();
             populateFavorites();
+            updateLocationText();
+            fetchData();
         }
 
-        function populateFavorites() {
-            const sel = document.getElementById('favoritesSelect');
-            sel.innerHTML = '';
-            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
-            const emptyOpt = document.createElement('option');
-            emptyOpt.value = '';
-            emptyOpt.text = '— Välj favorit —';
-            sel.appendChild(emptyOpt);
-            list.forEach((f, i) => {
-                const opt = document.createElement('option');
-                opt.value = i.toString();
-                opt.text = `${f.name} (${f.lat.toFixed(3)}, ${f.lon.toFixed(3)})`;
-                sel.appendChild(opt);
-            });
-
-            // preselect current if it matches a favorite
-            const curIdx = list.findIndex(f => Math.abs(f.lat - currentLat) < 1e-6 && Math.abs(f.lon - currentLon) < 1e-6);
-            if (curIdx >= 0) sel.value = curIdx.toString(); else sel.value = '';
-            // update chips in modal
-            const chips = document.getElementById('favoriteChips');
-            chips.innerHTML = '';
-            list.forEach((f, i) => {
-                const btn = document.createElement('button');
-                btn.textContent = f.name;
-                btn.style.padding = '6px 8px';
-                btn.style.background = '#111827';
-                btn.style.color = '#e2e8f0';
-                btn.style.border = '1px solid #334155';
-                btn.style.borderRadius = '8px';
-                btn.style.cursor = 'pointer';
-                btn.onclick = () => {
-                    markerInstance.setLatLng([f.lat, f.lon]);
-                    mapInstance.setView([f.lat, f.lon], 13);
-                    currentLat = f.lat; currentLon = f.lon; currentName = f.name;
-                    localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
-                    updateLocationText();
-                };
-                chips.appendChild(btn);
-            });
-        }
-
-        // ensure default favorite exists
-        function ensureDefaultFavorite() {
-            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
-            const found = list.some(f => Math.abs(f.lat - currentLat) < 1e-6 && Math.abs(f.lon - currentLon) < 1e-6);
-            if (!found) {
-                list.unshift({ name: currentName || 'Sparbanksspåret', lat: currentLat, lon: currentLon });
-                localStorage.setItem('snowFavorites', JSON.stringify(list));
-            }
-        }
-
-        document.getElementById('gotoFavBtn').addEventListener('click', () => {
-            const sel = document.getElementById('favoritesSelect');
-            const idx = sel.value;
-            if (!idx) return;
-            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
-            const f = list[parseInt(idx)];
-            if (!f) return;
-            currentLat = f.lat; currentLon = f.lon; currentName = f.name;
-            localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
-            updateLocationText(); fetchData();
-        });
-
-        // Edit and delete favorite
-        document.getElementById('editFavBtn').addEventListener('click', () => {
-            const sel = document.getElementById('favoritesSelect');
-            const idx = sel.value;
-            if (!idx) return alert('Välj en favorit att redigera');
-            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
-            const f = list[parseInt(idx)];
-            const name = window.prompt('Nytt namn för favoriten:', f.name);
-            if (name && name.trim().length) {
-                f.name = name.trim();
-                list[parseInt(idx)] = f;
-                localStorage.setItem('snowFavorites', JSON.stringify(list));
-                populateFavorites();
-            }
-        });
-
-        document.getElementById('delFavBtn').addEventListener('click', () => {
-            const sel = document.getElementById('favoritesSelect');
-            const idx = sel.value;
-            if (!idx) return alert('Välj en favorit att ta bort');
-            if (!confirm('Ta bort vald favorit?')) return;
-            const list = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
-            list.splice(parseInt(idx), 1);
-            localStorage.setItem('snowFavorites', JSON.stringify(list));
-            populateFavorites();
-        });
-
-        // Map search (Nominatim)
-        let searchTimeout = null;
-        const searchInput = document.getElementById('mapSearch');
-        const searchBtn = document.getElementById('mapSearchBtn');
-        const resultsEl = document.getElementById('searchResults');
-
-        async function performSearch(q) {
-            if (!q || q.trim().length < 2) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; return; }
-            resultsEl.style.display = 'block';
-            resultsEl.innerHTML = '<div style="color:#94a3b8;padding:8px">Söker…</div>';
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(q)}`);
-                const json = await res.json();
-                resultsEl.innerHTML = '';
-                if (!json || json.length === 0) {
-                    resultsEl.innerHTML = '<div style="color:#94a3b8;padding:8px">Inga träffar</div>';
-                    return;
-                }
-                json.forEach((r, i) => {
-                    const div = document.createElement('div');
-                    div.className = 'search-result';
-                    div.innerText = r.display_name;
-                    div.onclick = () => {
-                        const lat = parseFloat(r.lat); const lon = parseFloat(r.lon);
-                        if (!mapInstance) openMap();
-                        markerInstance.setLatLng([lat, lon]);
-                        mapInstance.setView([lat, lon], 13);
-                        currentLat = lat; currentLon = lon; currentName = r.display_name.split(',')[0];
-                        localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
-                        updateLocationText();
-                        // leave modal open so user can Save Plats to save as favorite
-                        resultsEl.style.display = 'none';
-                    };
-                    resultsEl.appendChild(div);
-                });
-            } catch (err) {
-                resultsEl.innerHTML = '<div style="color:#fecaca;padding:8px">Fel vid sökning</div>';
-            }
-        }
-
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            const q = e.target.value;
-            searchTimeout = setTimeout(() => performSearch(q), 300);
-        });
-
-        searchBtn.addEventListener('click', () => performSearch(searchInput.value));
-
-        // Initialize favorites on load (ensure default is present first)
-        ensureDefaultFavorite();
-        populateFavorites();
-
-        function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} — Koord: ${currentLat.toFixed(3)}, ${currentLon.toFixed(3)}`; }
-
-        // LOADING UI
-        function showLoading(show) {
-            const el = document.getElementById('loadingOverlay');
-            el.style.display = show ? 'flex' : 'none';
-            document.getElementById('errorMsg').innerText = '';
-        }
-
-        // WEATHER DATA (Open-Meteo)
+        // --- DATA FETCHING ---
         async function fetchData() {
             showLoading(true);
-            // Hourly (10 days)
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&forecast_days=10&models=best_match`;
-            // Detailed minutely_15 (1 day)
-            const urlDetailed = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&forecast_days=1&models=best_match`;
-            try {
-                // Fetch hourly
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const json = await response.json();
-                weatherData = json.hourly.time.map((time, index) => {
-                    const temp = json.hourly.temperature_2m[index];
-                    const hum = json.hourly.relative_humidity_2m[index];
-                    const wind = json.hourly.wind_speed_10m[index];
-                    const dir = json.hourly.wind_direction_10m[index];
-                    const wetBulb = calculateWetBulb(temp, hum);
-                    return { x: time, temp, wetBulb, wind, dir };
-                });
+            document.getElementById('errorMsg').innerText = "";
+            
+            // HÄMTAR DATA FRÅN API (MED m/s FIX)
+            const urlHourly = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=10&models=best_match`;
+            const url15min = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=2&models=best_match`;
 
-                // Fetch detailed minutely_15
-                try {
-                    const r2 = await fetch(urlDetailed);
-                    if (r2.ok) {
-                        const j2 = await r2.json();
-                        if (j2.minutely_15 && j2.minutely_15.time) {
-                            weatherDataDetailed = j2.minutely_15.time.map((time, index) => {
-                                const temp = j2.minutely_15.temperature_2m[index];
-                                const hum = j2.minutely_15.relative_humidity_2m[index];
-                                const wind = j2.minutely_15.wind_speed_10m[index];
-                                const dir = j2.minutely_15.wind_direction_10m[index];
-                                const wetBulb = calculateWetBulb(temp, hum);
-                                return { x: time, temp, wetBulb, wind, dir };
-                            });
-                        } else {
-                            weatherDataDetailed = [];
-                        }
-                    } else {
-                        weatherDataDetailed = [];
+            try {
+                const [resHourly, res15] = await Promise.all([fetch(urlHourly), fetch(url15min)]);
+                
+                if(!resHourly.ok) throw new Error("Kunde inte hämta väderdata");
+                const jsonH = await resHourly.json();
+                
+                // Processa Hourly Data
+                weatherData = jsonH.hourly.time.map((t, i) => ({
+                    x: new Date(t).getTime(),
+                    temp: jsonH.hourly.temperature_2m[i],
+                    hum: jsonH.hourly.relative_humidity_2m[i],
+                    wind: jsonH.hourly.wind_speed_10m[i],
+                    dir: jsonH.hourly.wind_direction_10m[i],
+                    wetBulb: calculateWetBulb(jsonH.hourly.temperature_2m[i], jsonH.hourly.relative_humidity_2m[i])
+                }));
+
+                // Processa 15-min Data (om det finns)
+                if(res15.ok) {
+                    const json15 = await res15.json();
+                    if(json15.minutely_15) {
+                        weatherDataDetailed = json15.minutely_15.time.map((t, i) => ({
+                            x: new Date(t).getTime(),
+                            temp: json15.minutely_15.temperature_2m[i],
+                            hum: json15.minutely_15.relative_humidity_2m[i],
+                            wind: json15.minutely_15.wind_speed_10m[i],
+                            dir: json15.minutely_15.wind_direction_10m[i],
+                            wetBulb: calculateWetBulb(json15.minutely_15.temperature_2m[i], json15.minutely_15.relative_humidity_2m[i])
+                        }));
                     }
-                } catch (err) {
-                    console.warn('No detailed data:', err);
-                    weatherDataDetailed = [];
                 }
 
-                if (chartInstance) chartInstance.destroy();
-                createChart();
-            } catch (error) {
-                console.error('Fel vid hämtning:', error);
-                document.getElementById('errorMsg').innerText = 'Fel: Kunde inte hämta väderdata.';
-                weatherData = [];
-                weatherDataDetailed = [];
-                if (chartInstance) chartInstance.destroy();
+                drawChart();
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('errorMsg').innerText = "Fel: Kunde inte hämta data. Kontrollera nätverk.";
             } finally {
                 showLoading(false);
             }
         }
 
-        // WET BULB
+        // --- CHART LOGIC ---
         function calculateWetBulb(T, Rh) {
+            // Stull-formeln för Wet Bulb
             return T * Math.atan(0.151977 * Math.pow(Rh + 8.313659, 0.5)) + Math.atan(T + Rh) - Math.atan(Rh - 1.676331) + 0.00391838 * Math.pow(Rh, 1.5) * Math.atan(0.023101 * Rh) - 4.686035;
         }
 
-        // CREATE CHART
-        function createChart() {
+        function drawChart() {
             const ctx = document.getElementById('snowChart').getContext('2d');
-            const getDir = (d) => ['N','NÖ','Ö','SÖ','S','SV','V','NV'][Math.round(d/45)%8];
-            // Wind arrows plugin (draw small arrows at top showing wind direction)
-            const windPlugin = {
+            
+            if (chartInstance) chartInstance.destroy();
+
+            const initialData = weatherData;
+
+            // Plugin för vindpilar
+            const windArrowPlugin = {
                 id: 'windArrows',
-                afterDraw: function(chart) {
-                        if (!weatherData || weatherData.length === 0) return;
-                        const ctx = chart.ctx;
-                        const xScale = chart.scales.x;
-                        const yScale = chart.scales.y;
-                        const left = chart.chartArea.left;
-                        const right = chart.chartArea.right;
-                        const top = chart.chartArea.top + 8;
-                        // draw wet-bulb zone below threshold
-                        if (yScale) {
-                            const threshold = -2.5;
-                            const yPixel = yScale.getPixelForValue(threshold);
-                            ctx.save(); ctx.fillStyle = 'rgba(14, 165, 233, 0.12)'; ctx.fillRect(left, yPixel, right - left, chart.chartArea.bottom - yPixel); ctx.restore();
-                        }
-                        // limit number of arrows to ~40
-                        const step = Math.max(1, Math.ceil(weatherData.length / 40));
-                        for (let i = 0; i < weatherData.length; i += step) {
-                            const d = weatherData[i];
-                            const x = xScale.getPixelForValue((typeof d.x === 'number') ? d.x : new Date(d.x).getTime());
-                            if (x < left - 10 || x > right + 10) continue;
-                            drawArrow(ctx, x, top, d.dir);
-                        }
-                    }
+                afterDatasetsDraw(chart) {
+                    const ctx = chart.ctx;
+                    if(chart.scales.x.max - chart.scales.x.min > 86400000 * 3) return; // Rita inte pilar om > 3 dagar
+
+                    ctx.save();
+                    const dataPoints = chart.data.datasets[2].data;
+                    
+                    let step = 1;
+                    const visiblePoints = dataPoints.filter(dp => dp.x >= chart.scales.x.min && dp.x <= chart.scales.x.max).length;
+                    if(visiblePoints > 30) step = Math.ceil(visiblePoints / 30);
+
+                    dataPoints.forEach((dp, i) => {
+                        if (i % step !== 0) return;
+                        if (dp.x < chart.scales.x.min || dp.x > chart.scales.x.max) return;
+
+                        const x = chart.scales.x.getPixelForValue(dp.x);
+                        const y = chart.chartArea.top + 15;
+                        drawArrow(ctx, x, y, dp.dir);
+                    });
+                    ctx.restore();
+                }
             };
 
-            function drawArrow(ctx, x, y, deg) {
-                ctx.save();
-                ctx.translate(x, y);
-                // rotate: Chart canvas default 0 rad is to the right; wind dir is degrees from north (clockwise)
-                // convert so 0deg (N) points up: rotate by (deg) degrees clockwise then subtract 90deg
-                const rad = (deg - 90) * Math.PI / 180;
-                ctx.rotate(rad);
-                ctx.beginPath();
-                ctx.moveTo(-6, -4);
-                ctx.lineTo(8, 0);
-                ctx.lineTo(-6, 4);
-                ctx.closePath();
-                ctx.fillStyle = 'rgba(203, 213, 225, 0.9)';
-                ctx.fill();
-                ctx.restore();
-            }
-
-            // Register plugin (safe to call multiple times)
-            try { Chart.register(windPlugin); } catch (e) { /* ignore if already registered */ }
-
-            // Create chart and fallback on error
-            try {
-                chartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        datasets: [
-                            { label: 'Våttemperatur', data: weatherData.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, pointHitRadius: 20, tension: 0.3, yAxisID: 'y' },
-                            { label: 'Lufttemperatur', data: weatherData.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.3, yAxisID: 'y' },
-                            { label: 'Vind (m/s)', data: weatherData.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wind})), borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', borderWidth: 1, fill: true, pointRadius: 0, yAxisID: 'y1' }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: {
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.dataset.label || '';
-                                        if (label) label += ': ';
-                                        if (context.parsed.y !== null) label += context.parsed.y.toFixed(1);
-                                        if(context.dataset.label === 'Vind (m/s)') {
-                                            label += ` m/s (${getDir(weatherData[context.dataIndex].dir)})`;
-                                        }
-                                        if(context.dataset.label.includes('temperatur')) label += '°C';
-                                        return label;
-                                    }
-                                }
-                            },
-                            annotation: false,
-                            zoom: false
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Våttemperatur',
+                            data: initialData.map(d => ({x: d.x, y: d.wetBulb})),
+                            borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, tension: 0.4, yAxisID: 'y'
                         },
-                        scales: {
-                            x: { type: 'linear', grid: { color: '#334155' }, ticks: { color: '#cbd5e1', callback: function(val) { try { return new Date(val).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }); } catch (e) { return new Date(val).toString(); } } } },
-                            y: { type: 'linear', display: true, position: 'left', grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
-                            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fbbf24' }, min: 0 }
+                        {
+                            label: 'Lufttemp',
+                            data: initialData.map(d => ({x: d.x, y: d.temp})),
+                            borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.4, yAxisID: 'y'
+                        },
+                        {
+                            label: 'Vind (m/s)',
+                            data: initialData.map(d => ({x: d.x, y: d.wind, dir: d.dir})),
+                            borderColor: 'rgba(251, 191, 36, 0.5)', backgroundColor: 'rgba(251, 191, 36, 0.1)', fill: true, borderWidth: 1, pointRadius: 0, yAxisID: 'y1'
                         }
-                    });
-            } catch (err) {
-                console.error('Chart creation failed, falling back to minimal chart', err);
-                try {
-                    chartInstance = new Chart(ctx, {
-                        type: 'line',
-                        data: { datasets: [ { label: 'Lufttemperatur', data: weatherData.map(d => ({ x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.temp })), borderColor: '#94a3b8', borderWidth: 1, pointRadius: 0 } ] },
-                        options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear', ticks: { callback: function(v) { try { return new Date(v).toLocaleString(); } catch (e) { return String(v); } } } }, y: { type: 'linear' } } }
-                    });
-                } catch (err2) {
-                    console.error('Fallback chart also failed', err2);
-                    document.getElementById('errorMsg').innerText = 'Fel: Kunde inte rendera grafen.';
-                }
-            }
-            // Återställ zoom-knappar visuellt
-            // default to 10 days view
-            const defaultBtn = document.querySelector('.time-btn:last-child');
-            setRange(240, defaultBtn);
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                // HÄR ÄR FIXEN FÖR AXELN:
+                                minUnit: 'hour', // Visar aldrig minuter på axeln
+                                parser: 'yyyy-MM-dd HH:mm',
+                                tooltipFormat: 'd MMM HH:mm',
+                                displayFormats: { hour: 'HH:mm', day: 'd MMM' }
+                            },
+                            grid: { color: '#334155' },
+                            ticks: { 
+                                color: '#cbd5e1', 
+                                maxRotation: 0, 
+                                autoSkip: true,
+                                autoSkipPadding: 20,
+                                callback: function(val, index, ticks) {
+                                    const d = new Date(val);
+                                    // Visa datum vid midnatt (00:00), annars tid
+                                    if(d.getHours() === 0) {
+                                        return d.toLocaleDateString('sv-SE', {day: 'numeric', month: 'short'});
+                                    }
+                                    return d.toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'});
+                                }
+                            }
+                        },
+                        y: {
+                            display: true, 
+                            position: 'left', 
+                            grid: { color: '#334155' }, 
+                            ticks: { color: '#cbd5e1' },
+                            // HÄR HAR VI LÅST TEMPERATURSKALAN
+                            min: -30, 
+                            max: 20
+                        },
+                        y1: {
+                            display: true, 
+                            position: 'right', 
+                            grid: { drawOnChartArea: false }, 
+                            ticks: { color: '#fbbf24' }, 
+                            // HÄR HAR VI LÅST VINDSKALAN
+                            min: 0, 
+                            max: 30
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: {
+                                box1: { type: 'box', yMin: -30, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.15)', borderWidth: 0, yScaleID: 'y' },
+                                line1: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(14, 165, 233, 0.5)', borderWidth: 1, borderDash: [2, 2], label: { display: true, content: '-2.5°C', position: 'start', backgroundColor: 'transparent', color: '#38bdf8', font: {size:10} } }
+                            }
+                        },
+                        zoom: {
+                            pan: { enabled: true, mode: 'x' },
+                            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: updateDetailLevel }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    if (context.parsed.y !== null) label += context.parsed.y.toFixed(1);
+                                    if (context.dataset.label.includes('Vind')) label += ` m/s (${getWindDir(context.raw.dir)})`;
+                                    if(context.dataset.label.includes('temp')) label += '°C';
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                },
+                plugins: [windArrowPlugin]
+            });
 
-            // Simple wheel zoom handler (passive:false to avoid browser warning). This replaces the plugin wheel behavior.
-            (function attachWheel() {
-                const canvas = document.getElementById('snowChart');
-                if (!canvas) return;
-                function onWheel(e) {
-                    if (!chartInstance) return;
-                    if (_isChangingRange) return;
-                    e.preventDefault();
-                    _isChangingRange = true;
-                    try {
-                        const rect = canvas.getBoundingClientRect();
-                        const cx = e.clientX - rect.left;
-                        const xScale = chartInstance.scales.x;
-                        if (!xScale) return;
-                        const center = xScale.getValueForPixel(cx);
-                        const centerVal = (typeof center === 'number') ? center : (new Date(center)).getTime();
-                        const min = xScale.min; const max = xScale.max;
-                        const zoomFactor = e.deltaY > 0 ? 1.12 : 0.88; // out / in
-                        const newMin = centerVal - (centerVal - min) * zoomFactor;
-                        const newMax = centerVal + (max - centerVal) * zoomFactor;
-                        // clamp to data bounds
-                        const dataMin = chartInstance.data.datasets[0].data[0] && chartInstance.data.datasets[0].data[0].x;
-                        const dataMax = chartInstance.data.datasets[0].data[chartInstance.data.datasets[0].data.length - 1] && chartInstance.data.datasets[0].data[chartInstance.data.datasets[0].data.length - 1].x;
-                        chartInstance.options.scales.x.min = Math.max(newMin, dataMin || newMin);
-                        chartInstance.options.scales.x.max = Math.min(newMax, dataMax || newMax);
-                        try { chartInstance.update('none'); } catch (err) { console.error('chart.update() threw (wheel)', err); }
-                    } finally { _isChangingRange = false; }
-                }
-                canvas.addEventListener('wheel', onWheel, { passive: false });
-            })();
+            setRange(240, document.querySelector('.time-btn.active'));
         }
 
-        // TIDSSKALA
+        function drawArrow(ctx, x, y, deg) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate((deg * Math.PI) / 180);
+            ctx.beginPath();
+            ctx.moveTo(0, -6); ctx.lineTo(-4, 4); ctx.lineTo(0, 2); ctx.lineTo(4, 4);
+            ctx.closePath();
+            ctx.fillStyle = '#cbd5e1'; ctx.fill();
+            ctx.restore();
+        }
+
+        // --- INTERAKTION & LOGIK ---
+        
+        function updateDetailLevel({chart}) {
+            const min = chart.scales.x.min;
+            const max = chart.scales.x.max;
+            const diffHours = (max - min) / (1000 * 60 * 60);
+
+            let source = weatherData; 
+            
+            if (diffHours < 36 && weatherDataDetailed.length > 0) {
+                 const detailStart = weatherDataDetailed[0].x;
+                 const detailEnd = weatherDataDetailed[weatherDataDetailed.length-1].x;
+                 if(min >= detailStart && max <= detailEnd) source = weatherDataDetailed;
+            }
+
+            chart.data.datasets[0].data = source.map(d => ({x: d.x, y: d.wetBulb}));
+            chart.data.datasets[1].data = source.map(d => ({x: d.x, y: d.temp}));
+            chart.data.datasets[2].data = source.map(d => ({x: d.x, y: d.wind, dir: d.dir}));
+            chart.update('none');
+        }
+
         function setRange(hours, btn) {
             if(!chartInstance) return;
             document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-            if (btn && btn.classList) btn.classList.add('active');
+            if(btn) btn.classList.add('active');
 
-            const now = new Date();
-            const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
-            chartInstance.options.scales.x.min = now.getTime();
-            chartInstance.options.scales.x.max = future.getTime();
-            try {
-                chartInstance.update();
-            } catch (e) {
-                console.error('chart.update() threw', e);
-                try {
-                    console.debug('chart.options.scales.x', { type: chartInstance.options.scales.x.type, time: chartInstance.options.scales.x.time || null, min: chartInstance.options.scales.x.min, max: chartInstance.options.scales.x.max });
-                    console.debug('chart.options.plugins sample', { zoom: chartInstance.options.plugins && chartInstance.options.plugins.zoom, annotation: chartInstance.options.plugins && chartInstance.options.plugins.annotation });
-                    console.debug('dataset samples', chartInstance.data.datasets.map(ds => ({ label: ds.label, length: ds.data.length, sample: ds.data.slice(0,3) })));
-                } catch (e2) { console.error('while logging chart state', e2); }
-                throw e;
+            const now = Date.now();
+            const future = now + (hours * 60 * 60 * 1000);
+            chartInstance.zoomScale('x', {min: now, max: future}, 'default');
+            updateDetailLevel({chart: chartInstance});
+        }
+
+        function resetZoom() {
+            setRange(240, document.querySelector('.time-btn:nth-last-child(2)'));
+        }
+
+        function getWindDir(d) {
+            const dirs = ['N','NÖ','Ö','SÖ','S','SV','V','NV'];
+            return dirs[Math.round(d/45)%8];
+        }
+
+        function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
+        function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} (${currentLat.toFixed(3)}, ${currentLon.toFixed(3)})`; }
+
+        // --- MAP & FAVORITES LOGIC ---
+        function openMap() {
+            document.getElementById('mapModal').style.display = 'flex';
+            if(!mapInstance) {
+                mapInstance = L.map('map').setView([currentLat, currentLon], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
+                markerInstance = L.marker([currentLat, currentLon], {draggable: true}).addTo(mapInstance);
+                mapInstance.on('click', e => markerInstance.setLatLng(e.latlng));
+            } else {
+                setTimeout(() => { mapInstance.invalidateSize(); }, 100);
+                mapInstance.setView([currentLat, currentLon], 10);
+                markerInstance.setLatLng([currentLat, currentLon]);
             }
         }
-
-        // Global error hook to capture Chart.js scriptable errors and dump chart state for debugging
-        window.addEventListener('error', function (ev) {
-            try {
-                const msg = ev && ev.message ? ev.message : '';
-                const file = ev && ev.filename ? ev.filename : '';
-                if (msg && msg.includes('startsWith') || file && file.includes('chart.js')) {
-                    console.error('Captured global error:', ev.message, 'from', file);
-                    if (chartInstance) {
-                        try {
-                            console.debug('Dumping chart state due to error', { options: chartInstance.options && chartInstance.options.scales && chartInstance.options.scales.x, plugins: chartInstance.options && chartInstance.options.plugins, datasets: chartInstance.data.datasets.map(ds => ({label: ds.label, sample: ds.data && ds.data.slice && ds.data.slice(0,3)})) });
-                        } catch (e) { console.error('Error while dumping chart state', e); }
-                    }
-                }
-            } catch (e) { /* ignore */ }
-        });
-        // Start app
-        fetchData();
-        if(!localStorage.getItem('snowLat')) setTimeout(openMap, 500);
-
-        // --- Detail switching helpers ---
-        function updateDatasets(useDetailed) {
-            if (!chartInstance) return;
-            const src = useDetailed ? weatherDataDetailed : weatherData;
-            chartInstance.data.datasets[0].data = src.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wetBulb}));
-            chartInstance.data.datasets[1].data = src.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.temp}));
-            chartInstance.data.datasets[2].data = src.map(d => ({x: (typeof d.x === 'number') ? d.x : new Date(d.x).getTime(), y: d.wind}));
-        }
-
-        function trySwitchToDetailForRange(minMs, maxMs) {
-            if (_isChangingRange) return;
-            _isChangingRange = true;
-            try {
-                if (!weatherDataDetailed || weatherDataDetailed.length === 0) {
-                    switchToHourly();
-                    return;
-                }
-                const first = new Date(weatherDataDetailed[0].x).getTime();
-                const last = new Date(weatherDataDetailed[weatherDataDetailed.length - 1].x).getTime();
-                if (minMs >= first - 1000 && maxMs <= last + 1000) {
-                    switchToDetailed();
-                } else {
-                    switchToHourly();
-                }
-            } finally { _isChangingRange = false; }
-        }
-
-        function switchToDetailed() {
-            if (!chartInstance || isDetailMode) return;
-            isDetailMode = true;
-            updateDatasets(true);
-            adjustXAxisForSpan(chartInstance);
-            try { chartInstance.update(); } catch (e) { console.error('chart.update() threw (switchToDetailed)', e); try { console.debug('chart.options.scales.x', { type: chartInstance.options.scales.x.type, time: chartInstance.options.scales.x.time || null, min: chartInstance.options.scales.x.min, max: chartInstance.options.scales.x.max }); console.debug('chart.options.plugins sample', { zoom: chartInstance.options.plugins && chartInstance.options.plugins.zoom, annotation: chartInstance.options.plugins && chartInstance.options.plugins.annotation }); console.debug('dataset samples', chartInstance.data.datasets.map(ds => ({ label: ds.label, length: ds.data.length, sample: ds.data.slice(0,3) }))); } catch (e2) { console.error('while logging chart state', e2); } throw e; }
-        }
+        function closeMap() { document.getElementById('mapModal').style.display = 'none'; }
         
-        function switchToHourly() {
-            if (!chartInstance) return;
-            // if already hourly, just ensure datasets and axis are correct
-            isDetailMode = false;
-            updateDatasets(false);
-            adjustXAxisForSpan(chartInstance);
-            try {
-                chartInstance.update();
-            } catch (e) {
-                console.error('chart.update() threw (switchToHourly)', e);
-                try { console.debug('chart state at error', { options: chartInstance.options && chartInstance.options.scales && chartInstance.options.scales.x, datasets: chartInstance.data.datasets.map(ds => ({label: ds.label, len: ds.data.length})) }); } catch (e2) { /* ignore */ }
+        function saveLocation() {
+            const pos = markerInstance.getLatLng();
+            currentLat = pos.lat;
+            currentLon = pos.lng;
+            
+            if(confirm("Vill du spara som ny favorit?")) {
+                const name = prompt("Namn på plats:", currentName) || "Okänd plats";
+                saveFavoriteItem(name, currentLat, currentLon);
+                currentName = name;
+            } else {
+                currentName = "Vald plats";
+            }
+            
+            localStorage.setItem('snowLat', currentLat);
+            localStorage.setItem('snowLon', currentLon);
+            localStorage.setItem('snowName', currentName);
+            updateLocationText();
+            closeMap();
+            fetchData();
+        }
+
+        function ensureDefaultFavorite() {
+            if(!favorites.some(f => f.name === 'Sparbanksspåret')) {
+                favorites.unshift({name: 'Sparbanksspåret', lat: 58.503, lon: 13.088});
+                localStorage.setItem('snowFavorites', JSON.stringify(favorites));
             }
         }
-
-        // Adjust x-axis formatting depending on visible span (linear scale)
-        function adjustXAxisForSpan(chart) {
-            if (!chart || !chart.options || !chart.options.scales || !chart.options.scales.x) return;
-            const x = chart.scales.x;
-            const span = x.max - x.min;
-            const isSmall = span < 24 * 60 * 60 * 1000; // <24h
-            chart.options.scales.x.ticks = chart.options.scales.x.ticks || {};
-            chart.options.scales.x.ticks.callback = function(val) {
-                const date = new Date(val);
-                try {
-                    if (isSmall) return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-                    return date.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'short'});
-                } catch (e) {
-                    return date.toLocaleString();
-                }
-            };
-            try { chart.update('none'); } catch (e) { console.error('chart.update() threw (adjustXAxisForSpan)', e); }
+        function populateFavorites() {
+            const sel = document.getElementById('favoritesSelect');
+            sel.innerHTML = '<option value="">-- Favoriter --</option>';
+            favorites.forEach((f, i) => {
+                const opt = document.createElement('option');
+                opt.value = i; opt.text = f.name; sel.appendChild(opt);
+            });
+        }
+        function saveFavoriteItem(name, lat, lon) {
+            const existing = favorites.findIndex(f => f.name === name);
+            if(existing >= 0) favorites[existing] = {name, lat, lon};
+            else favorites.push({name, lat, lon});
+            localStorage.setItem('snowFavorites', JSON.stringify(favorites));
+            populateFavorites();
         }
 
-        // Override previous setRange to support preferDetailed flag
-        function setRange(hours, btn, preferDetailed = false) {
-            if(!chartInstance) return;
-            if (_isChangingRange) return;
-            _isChangingRange = true;
+        document.getElementById('gotoFavBtn').onclick = () => {
+            const idx = document.getElementById('favoritesSelect').value;
+            if(idx === "") return;
+            const fav = favorites[idx];
+            currentLat = fav.lat; currentLon = fav.lon; currentName = fav.name;
+            localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
+            updateLocationText(); fetchData();
+        };
+
+        document.getElementById('delFavBtn').onclick = () => {
+            const idx = document.getElementById('favoritesSelect').value;
+            if(idx === "") return alert("Välj en favorit att ta bort");
+            if(confirm("Är du säker?")) {
+                favorites.splice(idx, 1);
+                localStorage.setItem('snowFavorites', JSON.stringify(favorites));
+                populateFavorites();
+            }
+        };
+
+        document.getElementById('editFavBtn').onclick = () => {
+             const idx = document.getElementById('favoritesSelect').value;
+             if(idx === "") return alert("Välj en favorit");
+             const newName = prompt("Nytt namn:", favorites[idx].name);
+             if(newName) {
+                 favorites[idx].name = newName;
+                 localStorage.setItem('snowFavorites', JSON.stringify(favorites));
+                 populateFavorites();
+                 currentName = newName;
+                 updateLocationText();
+             }
+        };
+
+        document.getElementById('mapSearchBtn').onclick = async () => {
+            const q = document.getElementById('mapSearch').value;
+            const resDiv = document.getElementById('searchResults');
+            if(!q) return;
+            resDiv.style.display = 'block';
+            resDiv.innerHTML = '<div style="padding:10px; color:#94a3b8;">Söker...</div>';
             try {
-                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-                if (btn && btn.classList) btn.classList.add('active');
-                const now = new Date();
-                const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
-                chartInstance.options.scales.x.min = now.getTime();
-                chartInstance.options.scales.x.max = future.getTime();
-                if (preferDetailed) {
-                    trySwitchToDetailForRange(now.getTime(), future.getTime());
-                } else {
-                    const span = future.getTime() - now.getTime();
-                    if (span > 24 * 60 * 60 * 1000) switchToHourly(); else trySwitchToDetailForRange(now.getTime(), future.getTime());
-                }
-                try { chartInstance.update(); } catch (e) { console.error('chart.update() threw (setRange)', e); }
-            } finally { _isChangingRange = false; }
-        }
+                const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+                const data = await r.json();
+                resDiv.innerHTML = '';
+                if(data.length === 0) resDiv.innerHTML = '<div style="padding:10px;">Inga träffar</div>';
+                data.forEach(place => {
+                    const d = document.createElement('div');
+                    d.className = 'search-result';
+                    d.innerText = place.display_name.split(',')[0];
+                    d.onclick = () => {
+                        const lat = parseFloat(place.lat); const lon = parseFloat(place.lon);
+                        markerInstance.setLatLng([lat, lon]); mapInstance.setView([lat, lon], 12);
+                        resDiv.style.display = 'none';
+                    };
+                    resDiv.appendChild(d);
+                });
+            } catch(e) { resDiv.innerHTML = 'Fel vid sökning'; }
+        };
+
+        function openInfo() { document.getElementById('infoModal').style.display = 'flex'; }
+        function closeInfo() { document.getElementById('infoModal').style.display = 'none'; }
     </script>
 </body>
 </html>
