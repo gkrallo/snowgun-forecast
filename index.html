@@ -218,7 +218,7 @@
         let currentName = localStorage.getItem('snowName') || 'Sparbanksspåret';
         
         let chartInstance = null;
-        let calcChartInstance = null; // Ny graf-instans för kalkylatorn
+        let calcChartInstance = null; 
         let mapInstance = null;
         let markerInstance = null;
         let weatherData = []; 
@@ -352,15 +352,30 @@
                     },
                     plugins: { 
                         legend: { display: false }, 
-                        // --- HÄR ÄR MARKERINGEN ÅTERSTÄLLD ---
                         annotation: {
                             annotations: {
                                 box1: { type: 'box', yMin: -30, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.15)', borderWidth: 0, yScaleID: 'y' },
                                 line1: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(14, 165, 233, 0.5)', borderWidth: 1, borderDash: [2, 2], label: { display: true, content: '-2.5°C', position: 'start', backgroundColor: 'transparent', color: '#38bdf8', font: {size:10} } }
                             }
                         },
-                        // ------------------------------------
-                        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: updateDetailLevel } } 
+                        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: updateDetailLevel } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) label += ': ';
+                                    
+                                    // FIX: Tvinga 1 decimal och byt punkt till komma
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(1).replace('.', ',');
+                                    }
+
+                                    if (context.dataset.label.includes('Vind')) label += ` m/s (${getWindDir(context.raw.dir)})`;
+                                    if(context.dataset.label.includes('temp')) label += '°C';
+                                    return label;
+                                }
+                            }
+                        }
                     }
                 },
                 plugins: [windArrowPlugin, verticalHoverLine]
@@ -417,20 +432,16 @@
             const quality = parseInt(document.getElementById('qualityInput').value);
             document.getElementById('qualityValue').innerText = quality;
 
-            // Straff och tröskelvärden
             const waterPenalty = Math.max(0, waterTemp * 0.5); 
             const qualityPenalty = (10 - quality) * 0.4;
             
             const fanThreshold = -2.0 - qualityPenalty;
             const lanceThreshold = -4.0 - qualityPenalty;
 
-            // Använd detaljdata om möjligt, annars timdata. Ta bara framtida punkter.
             const now = Date.now();
             let ds = (weatherDataDetailed.length > 0) ? weatherDataDetailed : weatherData;
-            // Filtrera data: Från nu och 48h framåt
             const futureData = ds.filter(d => d.x >= now && d.x <= now + (48 * 3600 * 1000));
 
-            // Räkna ut kapacitet för varje tidpunkt
             const fanData = [];
             const lanceData = [];
             let nextFanStart = null;
@@ -439,21 +450,14 @@
             futureData.forEach(pt => {
                 const effectiveWB = pt.wetBulb + waterPenalty;
                 
-                // Kapacitetsformel (0-100%)
-                // Om kallare än threshold, öka kapacitet.
-                // Vi antar att vid exakt threshold är det "marginal" (ca 10-20%).
-                // Vid 5 grader under threshold är det 100%.
-                
-                // FLÄKT
                 let fanCap = 0;
                 if(effectiveWB <= fanThreshold) {
                     const diff = fanThreshold - effectiveWB;
-                    fanCap = Math.min(100, 20 + (diff * 16)); // Aggressiv kurva
+                    fanCap = Math.min(100, 20 + (diff * 16)); 
                     if(!nextFanStart) nextFanStart = pt.x;
                 }
                 fanData.push({x: pt.x, y: fanCap});
 
-                // LANS
                 let lanceCap = 0;
                 if(effectiveWB <= lanceThreshold) {
                     const diff = lanceThreshold - effectiveWB;
@@ -463,11 +467,8 @@
                 lanceData.push({x: pt.x, y: lanceCap});
             });
 
-            // Uppdatera Text-display för Starttider
             updatePredictionText('predFanTime', nextFanStart);
             updatePredictionText('predLanceTime', nextLanceStart);
-
-            // Rita/Uppdatera Grafen
             drawCalcChart(fanData, lanceData);
         }
 
@@ -478,12 +479,10 @@
                 el.className = "pred-val text-red";
             } else {
                 const d = new Date(time);
-                // Om det är inom 30 min, skriv "NU"
                 if (time - Date.now() < 30 * 60000) {
                      el.innerText = "KÖR NU!";
                      el.className = "pred-val text-green";
                 } else {
-                    // Formatera snyggt: "Idag 22:00" eller "Imorgon 04:00"
                     const today = new Date().getDate();
                     const targetDay = d.getDate();
                     const prefix = (today === targetDay) ? "Idag" : "Imorgon";
@@ -506,7 +505,7 @@
                         {
                             label: 'Fläkt Kapacitet',
                             data: fanData,
-                            borderColor: '#86efac', // Green
+                            borderColor: '#86efac', 
                             backgroundColor: 'rgba(134, 239, 172, 0.1)',
                             fill: true,
                             borderWidth: 2,
@@ -516,7 +515,7 @@
                         {
                             label: 'Lans Kapacitet',
                             data: lanceData,
-                            borderColor: '#60a5fa', // Blue
+                            borderColor: '#60a5fa', 
                             backgroundColor: 'rgba(96, 165, 250, 0.1)',
                             fill: true,
                             borderWidth: 2,
