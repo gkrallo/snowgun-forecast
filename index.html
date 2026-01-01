@@ -365,7 +365,6 @@
                                     let label = context.dataset.label || '';
                                     if (label) label += ': ';
                                     
-                                    // FIX: Tvinga 1 decimal och byt punkt till komma
                                     if (context.parsed.y !== null) {
                                         label += context.parsed.y.toFixed(1).replace('.', ',');
                                     }
@@ -539,7 +538,12 @@
                     scales: {
                         x: {
                             type: 'time',
-                            time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                            time: { 
+                                unit: 'hour', 
+                                displayFormats: { hour: 'HH:mm' },
+                                // FIX: Tvinga 24-timmarsformat även i denna hover-ruta
+                                tooltipFormat: 'd MMM HH:mm'
+                            },
                             grid: { display: false },
                             ticks: { color: '#64748b', maxTicksLimit: 6 }
                         },
