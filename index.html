@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Snöprognos</title>
+    <title>Snöprognos Pro+</title>
     <meta name="theme-color" content="#0f172a">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -35,7 +35,7 @@
         
         /* Modals */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .modal-content { background: #1e293b; width: 100%; max-width: 600px; max-height: 90%; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; position: relative; }
+        .modal-content { background: #1e293b; width: 100%; max-width: 600px; max-height: 95%; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; position: relative; }
         .modal-header { padding: 15px; text-align: center; background: #0f172a; border-bottom: 1px solid #334155; }
         .modal-body { padding: 20px; overflow-y: auto; color: #cbd5e1; line-height: 1.6; }
         .modal-footer { padding: 15px; display: flex; gap: 10px; justify-content: center; background: #0f172a; border-top: 1px solid #334155; }
@@ -46,13 +46,24 @@
         .info-title { font-size: 1.1rem; color: #38bdf8; margin: 0 0 10px 0; font-weight: bold; display: flex; align-items: center; gap: 8px; }
         .highlight-box { background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; padding: 10px; margin: 10px 0; border-radius: 4px; }
         
-        /* Matrix Table for Snow Theory */
-        .snow-matrix { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 10px; text-align: center; }
-        .snow-matrix th { background: #0f172a; padding: 6px; color: #94a3b8; border: 1px solid #334155; }
-        .snow-matrix td { padding: 6px; border: 1px solid #334155; color: #fff; font-weight: bold; }
-        .bg-green { background-color: rgba(34, 197, 94, 0.25); color: #86efac !important; }
-        .bg-yellow { background-color: rgba(234, 179, 8, 0.25); color: #fde047 !important; }
-        .bg-red { background-color: rgba(239, 68, 68, 0.25); color: #fca5a5 !important; }
+        /* Calculator Specific Styles */
+        .calc-group { margin-bottom: 15px; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #334155; }
+        .calc-label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 6px; font-weight: bold; }
+        .calc-input { width: 100%; background: #1e293b; border: 1px solid #475569; color: #fff; padding: 8px; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        
+        /* Prediction Summary */
+        .prediction-box { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 15px; display: flex; justify-content: space-between; gap: 10px; }
+        .pred-item { flex: 1; text-align: center; }
+        .pred-label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+        .pred-val { font-weight: bold; font-size: 0.95rem; color: #fff; }
+        .text-green { color: #86efac; }
+        .text-red { color: #fca5a5; }
+
+        .calc-chart-container { height: 200px; width: 100%; margin-top: 15px; border-top: 1px solid #334155; padding-top: 15px; }
+
+        /* Slider Styling */
+        input[type=range] { width: 100%; margin: 10px 0; accent-color: #38bdf8; }
+        .slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: #94a3b8; }
 
         /* Map specific */
         #map { flex-grow: 1; width: 100%; min-height: 300px; }
@@ -62,6 +73,7 @@
         .cancel-btn { background-color: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
         .icon-btn { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
         .icon-btn:hover { background:#1e293b; border-color:#94a3b8; }
+        .calc-btn { background:#0ea5e9; border:none; color:white; padding:6px 10px; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:0.9rem;}
 
         /* Loading & Error */
         #loadingOverlay { display: none; position: absolute; inset: 0; background: rgba(2,6,23,0.7); z-index: 200; align-items: center; justify-content: center; border-radius: 12px; }
@@ -72,7 +84,8 @@
         /* Search & Select */
         .search-result { padding:10px; border-bottom:1px solid #334155; cursor:pointer; }
         .search-result:hover { background:#334155; }
-        select { background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px; max-width: 150px; }
+        select { background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px; max-width: 150px; cursor: pointer;}
+        select:hover { border-color: #94a3b8; }
     </style>
 </head>
 <body>
@@ -80,6 +93,7 @@
     <div class="header">
         <h1>❄️ Snöprognos</h1>
         <div style="display:flex; gap:10px;">
+            <button class="calc-btn" onclick="openCalc()">🧮 Kalkylator</button>
             <button class="settings-btn" onclick="openInfo()" title="Info">ℹ️</button>
             <button class="settings-btn" onclick="openMap()" title="Karta">📍</button>
         </div>
@@ -90,7 +104,6 @@
             <span id="locationDisplay" style="font-size:0.9rem; color:#cbd5e1; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Laddar...</span>
         </div>
         <select id="favoritesSelect"></select>
-        <button id="gotoFavBtn" class="icon-btn" title="Gå till favorit">➡️</button>
         <button id="editFavBtn" class="icon-btn" title="Redigera namn">✏️</button>
         <button id="delFavBtn" class="icon-btn" title="Ta bort">🗑️</button>
     </div>
@@ -112,6 +125,52 @@
     </div>
     <div class="legend">Zooma: Nyp / Scrolla • Panorera: Dra • Röd: Varmt • Blå: Snö (Wet-bulb &lt; -2.5)</div>
     <div id="errorMsg" class="error"></div>
+
+    <div id="calcModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header"><h3>Produktionskalkylator</h3></div>
+            <div class="modal-body">
+                
+                <div class="calc-group">
+                    <label class="calc-label">🌡️ Vattentemperatur (°C)</label>
+                    <input type="number" id="waterTempInput" class="calc-input" value="1.5" step="0.1" oninput="updateCalc()">
+                </div>
+
+                <div class="calc-group">
+                    <label class="calc-label">❄️ Önskad Kvalitet (1=Torr, 10=Blöt)</label>
+                    <input type="range" id="qualityInput" min="1" max="10" value="5" step="1" oninput="updateCalc()">
+                    <div class="slider-labels">
+                        <span>Puder (1)</span>
+                        <span id="qualityValue" style="color:#38bdf8; font-weight:bold;">5</span>
+                        <span>Bas (10)</span>
+                    </div>
+                </div>
+
+                <div class="prediction-box">
+                    <div class="pred-item">
+                        <span class="pred-label">Start Fläkt</span>
+                        <span id="predFanTime" class="pred-val">--:--</span>
+                    </div>
+                    <div class="pred-item" style="border-left:1px solid #334155;">
+                        <span class="pred-label">Start Lans</span>
+                        <span id="predLanceTime" class="pred-val">--:--</span>
+                    </div>
+                </div>
+
+                <div style="text-align:center; font-size:0.8rem; color:#94a3b8;">
+                    Trendkurva (Kommande 48h)
+                </div>
+
+                <div class="calc-chart-container">
+                    <canvas id="calcChart"></canvas>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeCalc()" style="background:#334155;">Stäng</button>
+            </div>
+        </div>
+    </div>
 
     <div id="mapModal" class="modal-overlay">
         <div class="modal-content" style="height: 80%;">
@@ -135,94 +194,16 @@
         <div class="modal-content">
             <div class="modal-header"><h3>Information & Teori</h3></div>
             <div class="modal-body">
-                
                 <div class="info-section">
                     <h4 class="info-title">📱 Så fungerar appen</h4>
                     <p>Grafen visar <strong>Våttemperatur (Wet-bulb)</strong> vilket är det viktigaste måttet för snötillverkning. </p>
-                    <ul style="padding-left:20px; color:#94a3b8; margin:5px 0;">
-                        <li><strong>Blå zon:</strong> (Wet-bulb < -2.5°C) Snöproduktion möjlig.</li>
-                        <li><strong>Vind:</strong> Pilar visar riktning. Gult område är vindstyrka.</li>
-                    </ul>
                 </div>
-
                 <div class="info-section">
-                    <h4 class="info-title">🌡️ Våttemperatur – Vad är det?</h4>
-                    <p>En snökanon kyler inte bara med kyla, utan med <em>avdunstning</em>. När vattendropparna lämnar kanonen avdunstar en del av vattnet, vilket stjäl värme från droppen och kyler den inifrån.</p>
-                    <p><strong>Våttemperaturen</strong> är den lägsta temperatur en vattendroppe kan nå genom enbart avdunstning. Det är därför man kan göra snö även om termometern visar +1°C, så länge luften är torr nog!</p>
-                    <div class="highlight-box">
-                        <strong>Tumregel:</strong> Torr luft är din bästa vän. <br>Hög fuktighet = Svårt att göra snö.
-                    </div>
+                    <h4 class="info-title">💨 Kalkylatorn</h4>
+                    <p>Kalkylatorn använder <strong>framtida prognosdata</strong> för att räkna ut när du kan starta.</p>
+                    <p><strong>Vattentemp:</strong> Varmt vatten straffar systemet och kräver kallare luft.</p>
+                    <p><strong>Kvalitet:</strong> Att göra torr snö (lågt värde) kräver mycket kallare temperaturer än att göra blöt "bassnö".</p>
                 </div>
-
-                <div class="info-section">
-                    <h4 class="info-title">💧 Parametrarnas effekt</h4>
-                    <p><strong>Lufttemperatur & Fuktighet:</strong> Dessa två skapar tillsammans Våttemperaturen. Se tabellen nedan för att se hur de samspelar.</p>
-                    <p><strong>Vattentemperatur:</strong> Ofta bortglömd men kritisk. Optimalt vatten in i systemet bör vara <strong>+0,5°C till +1,5°C</strong>.</p>
-                    <ul style="padding-left:20px; color:#94a3b8; margin:5px 0;">
-                        <li>Om vattnet är varmt (t.ex. +4°C) måste kanonen slösa energi på att kyla vattnet till fryspunkten innan det kan bli snö.</li>
-                        <li>Detta minskar snömängden drastiskt och kräver kallare utetemperatur för att kompensera.</li>
-                    </ul>
-                </div>
-
-                <div class="info-section">
-                    <h4 class="info-title">📊 Snötabell (Våttemp)</h4>
-                    <p style="font-size:0.9rem; color:#94a3b8;">Tabellen visar vilken våttemperatur du får vid olika grader och luftfuktighet.</p>
-                    
-                    <table class="snow-matrix">
-                        <thead>
-                            <tr>
-                                <th>Luft</th>
-                                <th>40% Rh</th>
-                                <th>60% Rh</th>
-                                <th>80% Rh</th>
-                                <th>100% Rh</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>+2°C</td>
-                                <td class="bg-yellow">-2.5°</td> <td class="bg-red">-0.5°</td>
-                                <td class="bg-red">+1.0°</td>
-                                <td class="bg-red">+2.0°</td>
-                            </tr>
-                            <tr>
-                                <td>0°C</td>
-                                <td class="bg-green">-4.0°</td>
-                                <td class="bg-yellow">-2.3°</td> <td class="bg-red">-1.0°</td>
-                                <td class="bg-red">0.0°</td>
-                            </tr>
-                            <tr>
-                                <td>-2°C</td>
-                                <td class="bg-green">-5.5°</td>
-                                <td class="bg-green">-4.0°</td>
-                                <td class="bg-green">-3.0°</td>
-                                <td class="bg-yellow">-2.0°</td>
-                            </tr>
-                            <tr>
-                                <td>-4°C</td>
-                                <td class="bg-green">-7.0°</td>
-                                <td class="bg-green">-6.0°</td>
-                                <td class="bg-green">-5.0°</td>
-                                <td class="bg-green">-4.0°</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div style="font-size:0.8rem; margin-top:8px; display:flex; gap:10px; justify-content:center;">
-                        <span style="color:#86efac">● Bra Snö</span>
-                        <span style="color:#fde047">● Gränsfall/Slask</span>
-                        <span style="color:#fca5a5">● Ingen Snö</span>
-                    </div>
-                </div>
-
-                <div class="info-section">
-                    <h4 class="info-title">❄️ Snökvalitet</h4>
-                    <ul style="padding-left:20px; color:#cbd5e1;">
-                        <li><strong>Vid -2.5°C (Våttemp):</strong> "Startsnö". Tung, blöt (hög densitet). Bygger bra botten men sliter på utrustningen och ger mindre volym.</li>
-                        <li><strong>Vid -5.0°C till -10°C:</strong> Effektiv produktion. Snön är torrare, lättare och kanonerna kan köra mer vatten = mer snö på backen.</li>
-                        <li><strong>Kallare än -15°C:</strong> Mycket torr snö ("Pudersnö"), men risk för att små droppar fryser innan de landar och blåser bort som damm.</li>
-                    </ul>
-                </div>
-
             </div>
             <div class="modal-footer">
                 <button class="cancel-btn" onclick="closeInfo()" style="background:#334155;">Stäng</button>
@@ -237,6 +218,7 @@
         let currentName = localStorage.getItem('snowName') || 'Sparbanksspåret';
         
         let chartInstance = null;
+        let calcChartInstance = null; // Ny graf-instans för kalkylatorn
         let mapInstance = null;
         let markerInstance = null;
         let weatherData = []; 
@@ -258,7 +240,6 @@
             showLoading(true);
             document.getElementById('errorMsg').innerText = "";
             
-            // HÄMTAR DATA FRÅN API (MED m/s FIX)
             const urlHourly = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=10&models=best_match`;
             const url15min = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=2&models=best_match`;
 
@@ -268,7 +249,6 @@
                 if(!resHourly.ok) throw new Error("Kunde inte hämta väderdata");
                 const jsonH = await resHourly.json();
                 
-                // Processa Hourly Data
                 weatherData = jsonH.hourly.time.map((t, i) => ({
                     x: new Date(t).getTime(),
                     temp: jsonH.hourly.temperature_2m[i],
@@ -278,7 +258,6 @@
                     wetBulb: calculateWetBulb(jsonH.hourly.temperature_2m[i], jsonH.hourly.relative_humidity_2m[i])
                 }));
 
-                // Processa 15-min Data (om det finns)
                 if(res15.ok) {
                     const json15 = await res15.json();
                     if(json15.minutely_15) {
@@ -303,37 +282,29 @@
             }
         }
 
-        // --- CHART LOGIC ---
         function calculateWetBulb(T, Rh) {
-            // Stull-formeln för Wet Bulb
             return T * Math.atan(0.151977 * Math.pow(Rh + 8.313659, 0.5)) + Math.atan(T + Rh) - Math.atan(Rh - 1.676331) + 0.00391838 * Math.pow(Rh, 1.5) * Math.atan(0.023101 * Rh) - 4.686035;
         }
 
+        // --- MAIN CHART ---
         function drawChart() {
             const ctx = document.getElementById('snowChart').getContext('2d');
-            
             if (chartInstance) chartInstance.destroy();
 
-            const initialData = weatherData;
-
-            // Plugin för vindpilar
             const windArrowPlugin = {
                 id: 'windArrows',
                 afterDatasetsDraw(chart) {
                     const ctx = chart.ctx;
-                    if(chart.scales.x.max - chart.scales.x.min > 86400000 * 3) return; // Rita inte pilar om > 3 dagar
+                    if(chart.scales.x.max - chart.scales.x.min > 86400000 * 3) return;
 
                     ctx.save();
                     const dataPoints = chart.data.datasets[2].data;
-                    
                     let step = 1;
                     const visiblePoints = dataPoints.filter(dp => dp.x >= chart.scales.x.min && dp.x <= chart.scales.x.max).length;
                     if(visiblePoints > 30) step = Math.ceil(visiblePoints / 30);
-
                     dataPoints.forEach((dp, i) => {
                         if (i % step !== 0) return;
                         if (dp.x < chart.scales.x.min || dp.x > chart.scales.x.max) return;
-
                         const x = chart.scales.x.getPixelForValue(dp.x);
                         const y = chart.chartArea.top + 15;
                         drawArrow(ctx, x, y, dp.dir);
@@ -342,24 +313,215 @@
                 }
             };
 
+            const verticalHoverLine = {
+                id: 'verticalHoverLine',
+                afterDraw: (chart) => {
+                    if (chart.tooltip?._active?.length) {
+                        const x = chart.tooltip._active[0].element.x;
+                        const yAxis = chart.scales.y;
+                        const ctx = chart.ctx;
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(x, yAxis.top);
+                        ctx.lineTo(x, yAxis.bottom);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                        ctx.setLineDash([5, 5]);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+            };
+
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     datasets: [
+                        { label: 'Våttemperatur', data: weatherData.map(d => ({x: d.x, y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
+                        { label: 'Lufttemp', data: weatherData.map(d => ({x: d.x, y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.4, yAxisID: 'y' },
+                        { label: 'Vind (m/s)', data: weatherData.map(d => ({x: d.x, y: d.wind, dir: d.dir})), borderColor: 'rgba(251, 191, 36, 0.5)', backgroundColor: 'rgba(251, 191, 36, 0.1)', fill: true, borderWidth: 1, pointRadius: 0, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                    scales: {
+                        x: { type: 'time', time: { minUnit: 'hour', parser: 'yyyy-MM-dd HH:mm', tooltipFormat: 'd MMM HH:mm', displayFormats: { hour: 'HH:mm', day: 'd MMM' } }, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
+                        y: { display: true, position: 'left', grid: { color: '#334155' }, ticks: { color: '#cbd5e1' }, min: -30, max: 20 },
+                        y1: { display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fbbf24' }, min: 0, max: 30 }
+                    },
+                    plugins: { 
+                        legend: { display: false }, 
+                        // --- HÄR ÄR MARKERINGEN ÅTERSTÄLLD ---
+                        annotation: {
+                            annotations: {
+                                box1: { type: 'box', yMin: -30, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.15)', borderWidth: 0, yScaleID: 'y' },
+                                line1: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(14, 165, 233, 0.5)', borderWidth: 1, borderDash: [2, 2], label: { display: true, content: '-2.5°C', position: 'start', backgroundColor: 'transparent', color: '#38bdf8', font: {size:10} } }
+                            }
+                        },
+                        // ------------------------------------
+                        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: updateDetailLevel } } 
+                    }
+                },
+                plugins: [windArrowPlugin, verticalHoverLine]
+            });
+            setRange(240, document.querySelector('.time-btn.active'));
+        }
+
+        function drawArrow(ctx, x, y, deg) {
+            ctx.save(); ctx.translate(x, y); ctx.rotate((deg * Math.PI) / 180);
+            ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(-4, 4); ctx.lineTo(0, 2); ctx.lineTo(4, 4); ctx.closePath();
+            ctx.fillStyle = '#cbd5e1'; ctx.fill(); ctx.restore();
+        }
+
+        function updateDetailLevel({chart}) {
+            const min = chart.scales.x.min;
+            const max = chart.scales.x.max;
+            const diffHours = (max - min) / (1000 * 60 * 60);
+            let source = weatherData; 
+            if (diffHours < 36 && weatherDataDetailed.length > 0) {
+                 const detailStart = weatherDataDetailed[0].x;
+                 const detailEnd = weatherDataDetailed[weatherDataDetailed.length-1].x;
+                 if(min >= detailStart && max <= detailEnd) source = weatherDataDetailed;
+            }
+            chart.data.datasets[0].data = source.map(d => ({x: d.x, y: d.wetBulb}));
+            chart.data.datasets[1].data = source.map(d => ({x: d.x, y: d.temp}));
+            chart.data.datasets[2].data = source.map(d => ({x: d.x, y: d.wind, dir: d.dir}));
+            chart.update(); 
+        }
+
+        function setRange(hours, btn) {
+            if(!chartInstance) return;
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+            const now = Date.now();
+            const future = now + (hours * 60 * 60 * 1000);
+            chartInstance.zoomScale('x', {min: now, max: future}, 'default');
+            updateDetailLevel({chart: chartInstance});
+        }
+
+        function resetZoom() { setRange(240, document.querySelector('.time-btn:nth-last-child(2)')); }
+        function getWindDir(d) { const dirs = ['N','NÖ','Ö','SÖ','S','SV','V','NV']; return dirs[Math.round(d/45)%8]; }
+        function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
+        function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} (${currentLat.toFixed(3)}, ${currentLon.toFixed(3)})`; }
+
+        // --- CALC LOGIC & PREDICTION ---
+        function openCalc() {
+            document.getElementById('calcModal').style.display = 'flex';
+            updateCalc();
+        }
+        function closeCalc() { document.getElementById('calcModal').style.display = 'none'; }
+
+        function updateCalc() {
+            const waterTemp = parseFloat(document.getElementById('waterTempInput').value) || 0;
+            const quality = parseInt(document.getElementById('qualityInput').value);
+            document.getElementById('qualityValue').innerText = quality;
+
+            // Straff och tröskelvärden
+            const waterPenalty = Math.max(0, waterTemp * 0.5); 
+            const qualityPenalty = (10 - quality) * 0.4;
+            
+            const fanThreshold = -2.0 - qualityPenalty;
+            const lanceThreshold = -4.0 - qualityPenalty;
+
+            // Använd detaljdata om möjligt, annars timdata. Ta bara framtida punkter.
+            const now = Date.now();
+            let ds = (weatherDataDetailed.length > 0) ? weatherDataDetailed : weatherData;
+            // Filtrera data: Från nu och 48h framåt
+            const futureData = ds.filter(d => d.x >= now && d.x <= now + (48 * 3600 * 1000));
+
+            // Räkna ut kapacitet för varje tidpunkt
+            const fanData = [];
+            const lanceData = [];
+            let nextFanStart = null;
+            let nextLanceStart = null;
+
+            futureData.forEach(pt => {
+                const effectiveWB = pt.wetBulb + waterPenalty;
+                
+                // Kapacitetsformel (0-100%)
+                // Om kallare än threshold, öka kapacitet.
+                // Vi antar att vid exakt threshold är det "marginal" (ca 10-20%).
+                // Vid 5 grader under threshold är det 100%.
+                
+                // FLÄKT
+                let fanCap = 0;
+                if(effectiveWB <= fanThreshold) {
+                    const diff = fanThreshold - effectiveWB;
+                    fanCap = Math.min(100, 20 + (diff * 16)); // Aggressiv kurva
+                    if(!nextFanStart) nextFanStart = pt.x;
+                }
+                fanData.push({x: pt.x, y: fanCap});
+
+                // LANS
+                let lanceCap = 0;
+                if(effectiveWB <= lanceThreshold) {
+                    const diff = lanceThreshold - effectiveWB;
+                    lanceCap = Math.min(100, 20 + (diff * 16));
+                    if(!nextLanceStart) nextLanceStart = pt.x;
+                }
+                lanceData.push({x: pt.x, y: lanceCap});
+            });
+
+            // Uppdatera Text-display för Starttider
+            updatePredictionText('predFanTime', nextFanStart);
+            updatePredictionText('predLanceTime', nextLanceStart);
+
+            // Rita/Uppdatera Grafen
+            drawCalcChart(fanData, lanceData);
+        }
+
+        function updatePredictionText(elId, time) {
+            const el = document.getElementById(elId);
+            if(!time) {
+                el.innerText = "Ingen start (48h)";
+                el.className = "pred-val text-red";
+            } else {
+                const d = new Date(time);
+                // Om det är inom 30 min, skriv "NU"
+                if (time - Date.now() < 30 * 60000) {
+                     el.innerText = "KÖR NU!";
+                     el.className = "pred-val text-green";
+                } else {
+                    // Formatera snyggt: "Idag 22:00" eller "Imorgon 04:00"
+                    const today = new Date().getDate();
+                    const targetDay = d.getDate();
+                    const prefix = (today === targetDay) ? "Idag" : "Imorgon";
+                    const timeStr = d.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'});
+                    el.innerText = `${prefix} ${timeStr}`;
+                    el.className = "pred-val text-green";
+                }
+            }
+        }
+
+        function drawCalcChart(fanData, lanceData) {
+            const ctx = document.getElementById('calcChart').getContext('2d');
+            
+            if (calcChartInstance) calcChartInstance.destroy();
+
+            calcChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
                         {
-                            label: 'Våttemperatur',
-                            data: initialData.map(d => ({x: d.x, y: d.wetBulb})),
-                            borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, tension: 0.4, yAxisID: 'y'
+                            label: 'Fläkt Kapacitet',
+                            data: fanData,
+                            borderColor: '#86efac', // Green
+                            backgroundColor: 'rgba(134, 239, 172, 0.1)',
+                            fill: true,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.4
                         },
                         {
-                            label: 'Lufttemp',
-                            data: initialData.map(d => ({x: d.x, y: d.temp})),
-                            borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.4, yAxisID: 'y'
-                        },
-                        {
-                            label: 'Vind (m/s)',
-                            data: initialData.map(d => ({x: d.x, y: d.wind, dir: d.dir})),
-                            borderColor: 'rgba(251, 191, 36, 0.5)', backgroundColor: 'rgba(251, 191, 36, 0.1)', fill: true, borderWidth: 1, pointRadius: 0, yAxisID: 'y1'
+                            label: 'Lans Kapacitet',
+                            data: lanceData,
+                            borderColor: '#60a5fa', // Blue
+                            backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                            fill: true,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.4
                         }
                     ]
                 },
@@ -367,139 +529,33 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: true, labels: { color: '#94a3b8', font: {size: 10}, boxWidth: 10 } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.y.toFixed(0)}%`
+                            }
+                        }
+                    },
                     scales: {
                         x: {
                             type: 'time',
-                            time: {
-                                // HÄR ÄR FIXEN FÖR AXELN:
-                                minUnit: 'hour', // Visar aldrig minuter på axeln
-                                parser: 'yyyy-MM-dd HH:mm',
-                                tooltipFormat: 'd MMM HH:mm',
-                                displayFormats: { hour: 'HH:mm', day: 'd MMM' }
-                            },
-                            grid: { color: '#334155' },
-                            ticks: { 
-                                color: '#cbd5e1', 
-                                maxRotation: 0, 
-                                autoSkip: true,
-                                autoSkipPadding: 20,
-                                callback: function(val, index, ticks) {
-                                    const d = new Date(val);
-                                    // Visa datum vid midnatt (00:00), annars tid
-                                    if(d.getHours() === 0) {
-                                        return d.toLocaleDateString('sv-SE', {day: 'numeric', month: 'short'});
-                                    }
-                                    return d.toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'});
-                                }
-                            }
+                            time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                            grid: { display: false },
+                            ticks: { color: '#64748b', maxTicksLimit: 6 }
                         },
                         y: {
-                            display: true, 
-                            position: 'left', 
-                            grid: { color: '#334155' }, 
-                            ticks: { color: '#cbd5e1' },
-                            // HÄR HAR VI LÅST TEMPERATURSKALAN
-                            min: -30, 
-                            max: 20
-                        },
-                        y1: {
-                            display: true, 
-                            position: 'right', 
-                            grid: { drawOnChartArea: false }, 
-                            ticks: { color: '#fbbf24' }, 
-                            // HÄR HAR VI LÅST VINDSKALAN
-                            min: 0, 
-                            max: 30
-                        }
-                    },
-                    plugins: {
-                        legend: { display: false },
-                        annotation: {
-                            annotations: {
-                                box1: { type: 'box', yMin: -30, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.15)', borderWidth: 0, yScaleID: 'y' },
-                                line1: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(14, 165, 233, 0.5)', borderWidth: 1, borderDash: [2, 2], label: { display: true, content: '-2.5°C', position: 'start', backgroundColor: 'transparent', color: '#38bdf8', font: {size:10} } }
-                            }
-                        },
-                        zoom: {
-                            pan: { enabled: true, mode: 'x' },
-                            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: updateDetailLevel }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) label += ': ';
-                                    if (context.parsed.y !== null) label += context.parsed.y.toFixed(1);
-                                    if (context.dataset.label.includes('Vind')) label += ` m/s (${getWindDir(context.raw.dir)})`;
-                                    if(context.dataset.label.includes('temp')) label += '°C';
-                                    return label;
-                                }
-                            }
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: '#334155' },
+                            ticks: { color: '#64748b', callback: (v) => v + '%' }
                         }
                     }
-                },
-                plugins: [windArrowPlugin]
+                }
             });
-
-            setRange(240, document.querySelector('.time-btn.active'));
         }
 
-        function drawArrow(ctx, x, y, deg) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate((deg * Math.PI) / 180);
-            ctx.beginPath();
-            ctx.moveTo(0, -6); ctx.lineTo(-4, 4); ctx.lineTo(0, 2); ctx.lineTo(4, 4);
-            ctx.closePath();
-            ctx.fillStyle = '#cbd5e1'; ctx.fill();
-            ctx.restore();
-        }
-
-        // --- INTERAKTION & LOGIK ---
-        
-        function updateDetailLevel({chart}) {
-            const min = chart.scales.x.min;
-            const max = chart.scales.x.max;
-            const diffHours = (max - min) / (1000 * 60 * 60);
-
-            let source = weatherData; 
-            
-            if (diffHours < 36 && weatherDataDetailed.length > 0) {
-                 const detailStart = weatherDataDetailed[0].x;
-                 const detailEnd = weatherDataDetailed[weatherDataDetailed.length-1].x;
-                 if(min >= detailStart && max <= detailEnd) source = weatherDataDetailed;
-            }
-
-            chart.data.datasets[0].data = source.map(d => ({x: d.x, y: d.wetBulb}));
-            chart.data.datasets[1].data = source.map(d => ({x: d.x, y: d.temp}));
-            chart.data.datasets[2].data = source.map(d => ({x: d.x, y: d.wind, dir: d.dir}));
-            chart.update('none');
-        }
-
-        function setRange(hours, btn) {
-            if(!chartInstance) return;
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-            if(btn) btn.classList.add('active');
-
-            const now = Date.now();
-            const future = now + (hours * 60 * 60 * 1000);
-            chartInstance.zoomScale('x', {min: now, max: future}, 'default');
-            updateDetailLevel({chart: chartInstance});
-        }
-
-        function resetZoom() {
-            setRange(240, document.querySelector('.time-btn:nth-last-child(2)'));
-        }
-
-        function getWindDir(d) {
-            const dirs = ['N','NÖ','Ö','SÖ','S','SV','V','NV'];
-            return dirs[Math.round(d/45)%8];
-        }
-
-        function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
-        function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} (${currentLat.toFixed(3)}, ${currentLon.toFixed(3)})`; }
-
-        // --- MAP & FAVORITES LOGIC ---
+        // --- MAP & FAVORITES ---
         function openMap() {
             document.getElementById('mapModal').style.display = 'flex';
             if(!mapInstance) {
@@ -519,21 +575,13 @@
             const pos = markerInstance.getLatLng();
             currentLat = pos.lat;
             currentLon = pos.lng;
-            
             if(confirm("Vill du spara som ny favorit?")) {
                 const name = prompt("Namn på plats:", currentName) || "Okänd plats";
                 saveFavoriteItem(name, currentLat, currentLon);
                 currentName = name;
-            } else {
-                currentName = "Vald plats";
-            }
-            
-            localStorage.setItem('snowLat', currentLat);
-            localStorage.setItem('snowLon', currentLon);
-            localStorage.setItem('snowName', currentName);
-            updateLocationText();
-            closeMap();
-            fetchData();
+            } else { currentName = "Vald plats"; }
+            localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
+            updateLocationText(); closeMap(); fetchData();
         }
 
         function ensureDefaultFavorite() {
@@ -547,7 +595,9 @@
             sel.innerHTML = '<option value="">-- Favoriter --</option>';
             favorites.forEach((f, i) => {
                 const opt = document.createElement('option');
-                opt.value = i; opt.text = f.name; sel.appendChild(opt);
+                opt.value = i; opt.text = f.name;
+                if(f.name === currentName) opt.selected = true;
+                sel.appendChild(opt);
             });
         }
         function saveFavoriteItem(name, lat, lon) {
@@ -558,9 +608,8 @@
             populateFavorites();
         }
 
-        document.getElementById('gotoFavBtn').onclick = () => {
-            const idx = document.getElementById('favoritesSelect').value;
-            if(idx === "") return;
+        document.getElementById('favoritesSelect').onchange = (e) => {
+            const idx = e.target.value; if(idx === "") return;
             const fav = favorites[idx];
             currentLat = fav.lat; currentLon = fav.lon; currentName = fav.name;
             localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
@@ -573,6 +622,7 @@
             if(confirm("Är du säker?")) {
                 favorites.splice(idx, 1);
                 localStorage.setItem('snowFavorites', JSON.stringify(favorites));
+                if(favorites[idx]?.name === currentName) currentName = "Vald plats"; 
                 populateFavorites();
             }
         };
@@ -582,11 +632,8 @@
              if(idx === "") return alert("Välj en favorit");
              const newName = prompt("Nytt namn:", favorites[idx].name);
              if(newName) {
-                 favorites[idx].name = newName;
-                 localStorage.setItem('snowFavorites', JSON.stringify(favorites));
-                 populateFavorites();
-                 currentName = newName;
-                 updateLocationText();
+                 favorites[idx].name = newName; localStorage.setItem('snowFavorites', JSON.stringify(favorites));
+                 currentName = newName; populateFavorites(); updateLocationText();
              }
         };
 
@@ -594,16 +641,14 @@
             const q = document.getElementById('mapSearch').value;
             const resDiv = document.getElementById('searchResults');
             if(!q) return;
-            resDiv.style.display = 'block';
-            resDiv.innerHTML = '<div style="padding:10px; color:#94a3b8;">Söker...</div>';
+            resDiv.style.display = 'block'; resDiv.innerHTML = '<div style="padding:10px; color:#94a3b8;">Söker...</div>';
             try {
                 const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
                 const data = await r.json();
                 resDiv.innerHTML = '';
                 if(data.length === 0) resDiv.innerHTML = '<div style="padding:10px;">Inga träffar</div>';
                 data.forEach(place => {
-                    const d = document.createElement('div');
-                    d.className = 'search-result';
+                    const d = document.createElement('div'); d.className = 'search-result';
                     d.innerText = place.display_name.split(',')[0];
                     d.onclick = () => {
                         const lat = parseFloat(place.lat); const lon = parseFloat(place.lon);
