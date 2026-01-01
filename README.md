@@ -2,7 +2,7 @@
 
 A web-based dashboard designed to help snowmakers optimize production by visualizing **Wet-bulb temperature** forecasts. The app combines precise weather data with snowmaking theory to identify optimal start windows for both fan guns and lances.
 
-![App Screenshot](screenshot.png)
+### 🔗 [Click here to open the Live App](https://gkrallo.github.io/snowgun-forecast/)
 
 ## 🚀 Features
 
