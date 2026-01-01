@@ -1,47 +1,59 @@
 # ❄️ Snowgun Forecast
 
-A web-based dashboard designed to help snowmakers optimize production by visualizing **Wet-bulb temperature** forecasts. The app combines precise weather data with snowmaking theory to identify optimal start windows.
+A web-based dashboard designed to help snowmakers optimize production by visualizing **Wet-bulb temperature** forecasts. The app combines precise weather data with snowmaking theory to identify optimal start windows for both fan guns and lances.
 
-![App Screenshot](screenshot.png) ## 🚀 Features
+![App Screenshot](screenshot.png)
 
-* **Wet-bulb Calculation:** Automatically calculates wet-bulb temperature based on ambient temperature and relative humidity using the Stull formula.
+## 🚀 Features
+
+### 🌤️ Forecast & Visualization
+* **Wet-bulb Calculation:** Automatically calculates wet-bulb temperature using the Stull formula (high precision for low temps).
 * **Interactive Charts:** Zoomable and pannable charts powered by **Chart.js**.
-    * Visualizes wet-bulb, dry-bulb, and wind speed.
+    * **Smart Hover:** Shows precise data for any time point with a vertical crosshair guide.
     * **Custom Wind Arrows:** Visualizes wind direction directly on the timeline.
-    * **Smart Time Axis:** Switches between date and time display based on zoom level.
-* **Location Management:**
-    * Interactive map selection using **Leaflet**.
-    * Search for locations via Nominatim (OpenStreetMap).
-    * Save locations as **Favorites** (stored locally in browser).
-* **Mobile First:** Responsive design optimized for use in the field on mobile devices.
+    * **Visual Thresholds:** Clear visual indicators for the -2.5°C wet-bulb threshold (Start zone).
+* **Smart Time Axis:** Seamlessly switches between hourly view and date view based on zoom level.
 
-## 🌡️ The Science: Wet-bulb Temperature
+### 🧮 Production Calculator (New!)
+A dedicated tool for simulation and decision support:
+* **Machine Logic:** Differentiates between **Fan Guns** (resilient, early start) and **Lances** (efficient, requires colder temps).
+* **Custom Parameters:** Input your actual **Water Temperature** and desired **Snow Quality** (1-10 slider).
+* **Forecasting:** Projects your specific settings onto the weather forecast to predict:
+    * Exact start times for both machine types.
+    * Production capacity (%) trend for the next 48 hours.
 
-Snow production depends on heat exchange, not just ambient temperature. The critical metric is **Wet-bulb Temperature ($T_w$)**, which accounts for the cooling effect of evaporation.
+### 📍 Location Management
+* **Interactive Map:** Select any location worldwide using **Leaflet**.
+* **Smart Favorites:** Save locations locally. The app automatically detects if your current view matches a favorite.
+* **Search:** Integrated search via Nominatim (OpenStreetMap).
 
-* **Dry Air (Low Humidity):** Allows water droplets to evaporate, cooling them internally. Snow can be made even at ambient temperatures slightly above 0°C.
-* **Humid Air (High Humidity):** Less evaporation occurs. You need colder ambient temperatures to freeze water.
+## 🌡️ The Science: Snowmaking Physics
 
-**Thresholds used in this app:**
-* **< -2.5°C $T_w$:** Start threshold. Snow is wet/heavy (High density).
-* **< -5.0°C $T_w$:** Efficient production. Drier snow, higher water flow allowed.
+Snow production depends on heat exchange. The critical metric is **Wet-bulb Temperature ($T_w$)**, which accounts for the cooling effect of evaporation.
+
+### Key Factors modeled in the Calculator:
+1.  **Water Temperature:** Warmer water acts as a "penalty" on the wet-bulb temperature. Every degree of heat must be removed before freezing can occur.
+2.  **Snow Quality:**
+    * **Dry Snow (Quality 1):** Requires significantly colder temperatures to freeze small droplets completely before landing.
+    * **Wet/Base Snow (Quality 10):** Can be produced at warmer (marginal) temperatures.
+
+**Base Thresholds (adjustable via calculator):**
+* **Fan Guns:** Generally start around **-2.0°C $T_w$**.
+* **Lances:** Generally start around **-4.0°C to -5.0°C $T_w$**.
 
 ## 🛠️ Technical Stack
 
-This project is built as a lightweight, single-file application (SPA) requiring no backend server.
+This project is built as a lightweight, single-file application (SPA) hosted on GitHub Pages.
 
 * **Core:** HTML5, CSS3, Vanilla JavaScript (ES6+).
 * **Visualization:** [Chart.js](https://www.chartjs.org/) with `chartjs-plugin-zoom` and `chartjs-plugin-annotation`.
 * **Mapping:** [Leaflet.js](https://leafletjs.com/) with OpenStreetMap tiles.
 * **Data Handling:** `date-fns` for robust time manipulation.
 
-### Key Functions
+### Key Algorithms
 
-* `calculateWetBulb(T, Rh)`: Implements the **Stull (2011)** formula to derive wet-bulb temperature using `Math.atan` and `Math.pow` calculations for high precision at low temperatures.
-* `fetchData()`: Asynchronous function that fetches data in parallel (Promise.all) for:
-    * **Hourly data (10 days):** General forecast.
-    * **15-min data (2 days):** High-resolution forecast for immediate planning.
-* `drawChart()`: Configures the canvas. Includes a **custom Chart.js plugin** (`windArrowPlugin`) that draws rotated wind direction arrows along the top of the chart area, optimizing rendering to avoid clutter during zoom.
+* `calculateWetBulb(T, Rh)`: Implements the **Stull (2011)** formula.
+* `updateCalc()`: The core of the new calculator. It filters future forecast data (next 48h), applies penalties based on water temp and quality sliders, and calculates a dynamic capacity percentage (0-100%) for both fan and lance curves.
 
 ## ☁️ Weather Data API
 
