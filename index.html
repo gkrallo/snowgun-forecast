@@ -430,7 +430,7 @@
         }
 
         function drawArrow(ctx, x, y, deg) {
-            ctx.save(); ctx.translate(x, y); ctx.rotate((deg * Math.PI) / 180);
+            ctx.save(); ctx.translate(x, y); ctx.rotate(((deg + 180) * Math.PI) / 180);
             ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(-4, 4); ctx.lineTo(0, 2); ctx.lineTo(4, 4); ctx.closePath();
             ctx.fillStyle = '#cbd5e1'; ctx.fill(); ctx.restore();
         }
