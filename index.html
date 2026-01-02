@@ -203,6 +203,10 @@
                 <div class="info-section">
                     <h4 class="info-title">📱 Så fungerar appen</h4>
                     <p>Grafen visar <strong>Våttemperatur (Wet-bulb)</strong> vilket är det viktigaste måttet för snötillverkning. </p>
+                    <ul style="padding-left:20px; color:#94a3b8; margin:5px 0;">
+                        <li><strong>Gul yta:</strong> Medelvind (10m).</li>
+                        <li><strong>Streckad linje:</strong> Byvind (Gusts) - maxvinden.</li>
+                    </ul>
                 </div>
                 <div class="info-section">
                     <h4 class="info-title">💨 Kalkylatorn</h4>
@@ -246,8 +250,9 @@
             showLoading(true);
             document.getElementById('errorMsg').innerText = "";
             
-            const urlHourly = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=10&models=best_match`;
-            const url15min = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=2&models=best_match`;
+            // FIX: Lagt till wind_gusts_10m i anropen
+            const urlHourly = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=10&models=best_match`;
+            const url15min = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=2&models=best_match`;
 
             try {
                 const [resHourly, res15] = await Promise.all([fetch(urlHourly), fetch(url15min)]);
@@ -260,6 +265,7 @@
                     temp: jsonH.hourly.temperature_2m[i],
                     hum: jsonH.hourly.relative_humidity_2m[i],
                     wind: jsonH.hourly.wind_speed_10m[i],
+                    gust: jsonH.hourly.wind_gusts_10m[i], // Ny data: Byvind
                     dir: jsonH.hourly.wind_direction_10m[i],
                     wetBulb: calculateWetBulb(jsonH.hourly.temperature_2m[i], jsonH.hourly.relative_humidity_2m[i])
                 }));
@@ -272,6 +278,7 @@
                             temp: json15.minutely_15.temperature_2m[i],
                             hum: json15.minutely_15.relative_humidity_2m[i],
                             wind: json15.minutely_15.wind_speed_10m[i],
+                            gust: json15.minutely_15.wind_gusts_10m[i], // Ny data: Byvind
                             dir: json15.minutely_15.wind_direction_10m[i],
                             wetBulb: calculateWetBulb(json15.minutely_15.temperature_2m[i], json15.minutely_15.relative_humidity_2m[i])
                         }));
@@ -304,6 +311,9 @@
                     if(chart.scales.x.max - chart.scales.x.min > 86400000 * 3) return;
 
                     ctx.save();
+                    // Vi använder fortfarande medelvinden för att bestämma var pilarna ritas, 
+                    // men hämtar data från dataset 3 (index 2 är byvind nu om vi lägger till den sist, eller tvärtom)
+                    // dataset 2 = medelvind, dataset 3 = byvind. Vi kör på dataset 2.
                     const dataPoints = chart.data.datasets[2].data;
                     let step = 1;
                     const visiblePoints = dataPoints.filter(dp => dp.x >= chart.scales.x.min && dp.x <= chart.scales.x.max).length;
@@ -345,7 +355,29 @@
                     datasets: [
                         { label: 'Våttemperatur', data: weatherData.map(d => ({x: d.x, y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
                         { label: 'Lufttemp', data: weatherData.map(d => ({x: d.x, y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.4, yAxisID: 'y' },
-                        { label: 'Vind (m/s)', data: weatherData.map(d => ({x: d.x, y: d.wind, dir: d.dir})), borderColor: 'rgba(251, 191, 36, 0.5)', backgroundColor: 'rgba(251, 191, 36, 0.1)', fill: true, borderWidth: 1, pointRadius: 0, yAxisID: 'y1' }
+                        // Medelvind (Dataset 2)
+                        { 
+                            label: 'Medelvind (m/s)', 
+                            data: weatherData.map(d => ({x: d.x, y: d.wind, dir: d.dir})), 
+                            borderColor: 'rgba(251, 191, 36, 0.5)', 
+                            backgroundColor: 'rgba(251, 191, 36, 0.1)', 
+                            fill: true, 
+                            borderWidth: 1, 
+                            pointRadius: 0, 
+                            yAxisID: 'y1' 
+                        },
+                        // FIX: Nytt dataset för Byvind (Gusts) (Dataset 3)
+                        { 
+                            label: 'Byvind (m/s)', 
+                            data: weatherData.map(d => ({x: d.x, y: d.gust})), 
+                            borderColor: '#fbbf24', // Samma gula färg
+                            borderDash: [5, 5], // Streckad linje
+                            backgroundColor: 'transparent',
+                            fill: false, 
+                            borderWidth: 1, 
+                            pointRadius: 0, 
+                            yAxisID: 'y1' 
+                        }
                     ]
                 },
                 options: {
@@ -375,8 +407,17 @@
                                         label += context.parsed.y.toFixed(1).replace('.', ',');
                                     }
 
-                                    if (context.dataset.label.includes('Vind')) label += ` m/s (${getWindDir(context.raw.dir)})`;
-                                    if(context.dataset.label.includes('temp')) label += '°C';
+                                    // Visa vindriktning endast på medelvind-raden
+                                    if (context.dataset.label === 'Medelvind (m/s)') {
+                                        label += ` m/s (${getWindDir(context.raw.dir)})`;
+                                    } 
+                                    // För byvind och temp, bara enhet
+                                    else if (context.dataset.label.includes('Byvind')) {
+                                        label += ' m/s';
+                                    }
+                                    else if(context.dataset.label.includes('temp')) {
+                                        label += '°C';
+                                    }
                                     return label;
                                 }
                             }
@@ -407,6 +448,8 @@
             chart.data.datasets[0].data = source.map(d => ({x: d.x, y: d.wetBulb}));
             chart.data.datasets[1].data = source.map(d => ({x: d.x, y: d.temp}));
             chart.data.datasets[2].data = source.map(d => ({x: d.x, y: d.wind, dir: d.dir}));
+            // FIX: Uppdatera även Byvind-datasetet (index 3)
+            chart.data.datasets[3].data = source.map(d => ({x: d.x, y: d.gust}));
             chart.update(); 
         }
 
@@ -547,7 +590,6 @@
                             time: { 
                                 unit: 'hour', 
                                 displayFormats: { hour: 'HH:mm' },
-                                // FIX: Tvinga 24-timmarsformat även i denna hover-ruta
                                 tooltipFormat: 'd MMM HH:mm'
                             },
                             grid: { display: false },
