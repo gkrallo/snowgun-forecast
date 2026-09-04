@@ -1,718 +1,2265 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Snöprognos Pro+</title>
-    <meta name="theme-color" content="#0f172a">
-    
-    <meta property="og:title" content="Snöprognos Pro+">
-    <meta property="og:description" content="Optimera snöproduktionen med prognoser för våttemperatur (Wet-bulb) och produktionskalkylator.">
-    <meta property="og:image" content="preview.png">
-    <meta property="og:url" content="https://gkrallo.github.io/snowgun-forecast/">
-    <meta property="og:type" content="website">
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Snöprognos — snögruppen</title>
+<meta name="theme-color" content="#0b1220">
+<meta name="description" content="Våttemperatur, vind och körfönster för snöproduktion i längdskidspår.">
+<meta property="og:title" content="Snöprognos">
+<meta property="og:description" content="Våttemperatur, vind och körfönster för snöproduktion i längdskidspår.">
+<meta property="og:image" content="https://gkrallo.github.io/snowgun-forecast/preview.png">
+<meta property="og:url" content="https://gkrallo.github.io/snowgun-forecast/">
+<meta property="og:type" content="website">
 
-    <style>
-        body { background-color: #1e293b; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 10px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-        
-        /* Header */
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        h1 { font-size: 1.1rem; margin: 0; color: #e2e8f0; }
-        .settings-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #94a3b8; padding: 0; }
-        
-        /* Controls & Favs */
-        .controls { display: flex; justify-content: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
-        .fav-controls { display:flex; align-items:center; gap:8px; margin-bottom: 10px; flex-wrap: wrap; }
-        
-        button.time-btn { background-color: #334155; border: 1px solid #475569; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-size: 0.8rem; }
-        button.time-btn:active, button.time-btn.active { background-color: #3b82f6; border-color: #3b82f6; }
-        
-        /* Chart area */
-        .chart-container { flex-grow: 1; position: relative; min-height: 250px; background: #0f172a; border-radius: 12px; padding: 10px; border: 1px solid #334155; overflow: hidden; }
-        .legend { font-size: 0.75rem; text-align: center; margin-top: 5px; color: #94a3b8; }
-        
-        /* Modals */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-        .modal-content { background: #1e293b; width: 100%; max-width: 600px; max-height: 95%; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #475569; position: relative; }
-        .modal-header { padding: 15px; text-align: center; background: #0f172a; border-bottom: 1px solid #334155; }
-        .modal-body { padding: 20px; overflow-y: auto; color: #cbd5e1; line-height: 1.6; }
-        .modal-footer { padding: 15px; display: flex; gap: 10px; justify-content: center; background: #0f172a; border-top: 1px solid #334155; }
-        
-        /* Info Content Styles */
-        .info-section { margin-bottom: 25px; border-bottom: 1px solid #334155; padding-bottom: 15px; }
-        .info-section:last-child { border-bottom: none; }
-        .info-title { font-size: 1.1rem; color: #38bdf8; margin: 0 0 10px 0; font-weight: bold; display: flex; align-items: center; gap: 8px; }
-        .highlight-box { background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; padding: 10px; margin: 10px 0; border-radius: 4px; }
-        
-        /* Calculator Specific Styles */
-        .calc-group { margin-bottom: 15px; background: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #334155; }
-        .calc-label { display: block; font-size: 0.85rem; color: #94a3b8; margin-bottom: 6px; font-weight: bold; }
-        .calc-input { width: 100%; background: #1e293b; border: 1px solid #475569; color: #fff; padding: 8px; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
-        
-        /* Prediction Summary */
-        .prediction-box { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 15px; display: flex; justify-content: space-between; gap: 10px; }
-        .pred-item { flex: 1; text-align: center; }
-        .pred-label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
-        .pred-val { font-weight: bold; font-size: 0.95rem; color: #fff; }
-        .text-green { color: #86efac; }
-        .text-red { color: #fca5a5; }
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-        .calc-chart-container { height: 200px; width: 100%; margin-top: 15px; border-top: 1px solid #334155; padding-top: 15px; }
+<style>
+:root{
+  --bg:#0b1220; --surface:#141f33; --surface-2:#1b2942; --line:#2b3b57;
+  --ink:#e8eef7; --ink-dim:#93a4bd; --ink-faint:#68789a;
+  --ice:#3fb9f0; --wind:#f0b429; --go:#4ade80; --warn:#fbbf24; --stop:#f87171;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.45;
+  padding:10px 10px calc(14px + env(safe-area-inset-bottom));
+  max-width:820px; margin:0 auto;
+  -webkit-text-size-adjust:100%;
+}
+.num{font-variant-numeric:tabular-nums}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--ice); outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-        /* Slider Styling */
-        input[type=range] { width: 100%; margin: 10px 0; accent-color: #38bdf8; }
-        .slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; color: #94a3b8; }
+/* header */
+.topbar{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.topbar h1{font-size:1.05rem; margin:0; font-weight:650; letter-spacing:-.01em; flex:1;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.iconbtn{background:var(--surface); border:1px solid var(--line); color:var(--ink);
+  min-width:40px; height:40px; border-radius:11px; font-size:1.05rem; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; padding:0 9px; gap:5px}
+.iconbtn:hover{border-color:var(--ink-faint)}
+.iconbtn.primary{background:#0d5f86; border-color:#1281b3}
 
-        /* Map specific */
-        #map { flex-grow: 1; width: 100%; min-height: 300px; }
-        
-        /* Buttons */
-        .save-btn { background-color: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .cancel-btn { background-color: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .icon-btn { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; }
-        .icon-btn:hover { background:#1e293b; border-color:#94a3b8; }
-        .calc-btn { background:#0ea5e9; border:none; color:white; padding:6px 10px; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px; font-size:0.9rem;}
+.placebar{display:flex; align-items:center; gap:7px; margin-bottom:12px; flex-wrap:wrap}
+.placebar select{flex:1; min-width:120px; background:var(--surface); color:var(--ink);
+  border:1px solid var(--line); padding:8px; border-radius:10px; font-size:.9rem}
+.stamp{font-size:.75rem; color:var(--ink-faint); width:100%}
 
-        /* Loading & Error */
-        #loadingOverlay { display: none; position: absolute; inset: 0; background: rgba(2,6,23,0.7); z-index: 200; align-items: center; justify-content: center; border-radius: 12px; }
-        .spinner { border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #3b82f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-right: 10px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .error { color: #fca5a5; font-size: 0.9rem; text-align: center; margin-top: 5px; min-height: 20px; }
+/* status hero */
+.hero{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:14px; margin-bottom:10px; position:relative; overflow:hidden}
+.hero::before{content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--edge,var(--line))}
+.hero-top{display:flex; align-items:flex-start; gap:12px; margin-bottom:12px}
+.verdict{flex:1}
+.verdict-word{font-size:1.5rem; font-weight:700; letter-spacing:-.02em; line-height:1.1; color:var(--edge,var(--ink))}
+.verdict-why{font-size:.85rem; color:var(--ink-dim); margin-top:3px}
+.wb-big{text-align:right; line-height:1}
+.wb-big .v{font-size:2.3rem; font-weight:700; letter-spacing:-.03em; color:var(--ice)}
+.wb-big .l{font-size:.7rem; color:var(--ink-faint); display:block; margin-top:4px}
 
-        /* Search & Select */
-        .search-result { padding:10px; border-bottom:1px solid #334155; cursor:pointer; }
-        .search-result:hover { background:#334155; }
-        select { background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:6px; border-radius:6px; max-width: 150px; cursor: pointer;}
-        select:hover { border-color: #94a3b8; }
-    </style>
+.readout{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+  border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.readout div{background:var(--surface-2); padding:8px 6px; text-align:center}
+.readout .k{display:block; font-size:.68rem; color:var(--ink-faint); margin-bottom:2px}
+.readout .v{font-size:.95rem; font-weight:650}
+
+.windows{margin-bottom:10px; display:flex; flex-direction:column; gap:6px}
+.win{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--go);
+  border-radius:10px; padding:9px 12px; font-size:.88rem; display:flex; justify-content:space-between; gap:10px}
+.win.marginal{border-left-color:var(--warn)}
+.win .t{font-weight:650}
+.win .d{color:var(--ink-dim)}
+.win.none{border-left-color:var(--stop); color:var(--ink-dim)}
+
+/* tabs */
+.tabs{display:flex; gap:4px; background:var(--surface); border:1px solid var(--line);
+  padding:4px; border-radius:12px; margin-bottom:10px}
+.tabs button{flex:1; background:transparent; border:none; color:var(--ink-dim);
+  padding:9px 6px; border-radius:9px; font-size:.85rem; font-weight:600; cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--surface-2); color:var(--ink)}
+.panel[hidden]{display:none}
+
+.rangebar{display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap}
+.rangebar button{background:var(--surface); border:1px solid var(--line); color:var(--ink-dim);
+  padding:6px 11px; border-radius:9px; font-size:.8rem; font-weight:600; cursor:pointer}
+.rangebar button.active{background:#0d5f86; border-color:#1281b3; color:#fff}
+
+.chartbox{position:relative; height:44vh; min-height:250px; max-height:400px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:10px 8px 4px}
+.caption{font-size:.72rem; color:var(--ink-faint); text-align:center; margin:6px 0 0}
+.err{color:var(--stop); font-size:.85rem; text-align:center; min-height:18px; margin-top:6px}
+
+#loading{display:none; position:absolute; inset:0; background:rgba(11,18,32,.75);
+  align-items:center; justify-content:center; gap:10px; border-radius:var(--radius); z-index:5}
+.spin{width:22px; height:22px; border:3px solid rgba(255,255,255,.15); border-top-color:var(--ice);
+  border-radius:50%; animation:sp .9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* hour table */
+.htable{width:100%; border-collapse:collapse; font-size:.82rem}
+.htable th{position:sticky; top:0; background:var(--surface-2); color:var(--ink-faint);
+  font-weight:600; font-size:.7rem; padding:7px 5px; text-align:right; border-bottom:1px solid var(--line)}
+.htable th:first-child,.htable td:first-child{text-align:left}
+.htable td{padding:7px 5px; text-align:right; border-bottom:1px solid rgba(43,59,87,.5)}
+.htable tbody tr[data-state="go"]{background:rgba(74,222,128,.07)}
+.htable tbody tr[data-state="marginal"]{background:rgba(251,191,36,.07)}
+.htable tbody tr.newday td{border-top:2px solid var(--line)}
+.dot{display:inline-block; width:9px; height:9px; border-radius:50%; vertical-align:middle}
+.dot.go{background:var(--go)} .dot.marginal{background:var(--warn)} .dot.stop{background:var(--stop)}
+.scroller{max-height:56vh; overflow:auto; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius); padding:0 10px}
+
+/* wind panel */
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:14px; margin-bottom:10px}
+.card h2{font-size:.95rem; margin:0 0 10px; font-weight:650}
+.card h3{font-size:.85rem; margin:14px 0 6px; font-weight:650; color:var(--ink)}
+.field{margin-bottom:12px}
+.field label{display:block; font-size:.78rem; color:var(--ink-dim); margin-bottom:5px; font-weight:600}
+.field input[type=number],.field input[type=text]{width:100%; background:var(--bg); border:1px solid var(--line);
+  color:var(--ink); padding:9px 10px; border-radius:9px; font-size:1rem}
+.field input[type=range]{width:100%; accent-color:var(--ice)}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.hint{font-size:.75rem; color:var(--ink-faint); margin-top:4px; line-height:1.4}
+.advice{background:var(--surface-2); border-radius:10px; padding:11px 12px; font-size:.87rem; line-height:1.5}
+.advice b{color:var(--ice)}
+.pill{display:inline-block; padding:2px 9px; border-radius:999px; font-size:.72rem; font-weight:700}
+.pill.go{background:rgba(74,222,128,.16); color:var(--go)}
+.pill.marginal{background:rgba(251,191,36,.16); color:var(--warn)}
+.pill.stop{background:rgba(248,113,113,.16); color:var(--stop)}
+
+/* modal */
+.overlay{display:none; position:fixed; inset:0; background:rgba(3,7,15,.86); z-index:1000;
+  align-items:center; justify-content:center; padding:14px}
+.overlay.open{display:flex}
+.sheet{background:var(--surface); width:100%; max-width:620px; max-height:92vh; border-radius:16px;
+  display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
+.sheet header{padding:14px 16px; background:var(--bg); border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:10px}
+.sheet header h2{margin:0; font-size:1rem; flex:1}
+.sheet .body{padding:16px; overflow-y:auto; color:var(--ink); line-height:1.6}
+.sheet footer{padding:12px 16px; background:var(--bg); border-top:1px solid var(--line);
+  display:flex; gap:10px; justify-content:flex-end}
+.btn{border:none; padding:10px 18px; border-radius:10px; font-weight:650; cursor:pointer; font-size:.9rem}
+.btn.ghost{background:var(--surface-2); color:var(--ink)}
+.btn.go{background:#16a34a; color:#fff}
+#map{flex:1; min-height:300px}
+
+/* planeringskarta */
+#planWrap{position:relative; border-radius:12px; overflow:hidden; border:1px solid var(--line)}
+#planMap{height:min(52vh,420px); background:var(--surface-2)}
+#windRose{position:absolute; right:10px; top:10px; width:74px; height:74px; z-index:500; pointer-events:none}
+#windRose svg{width:100%; height:100%}
+.leaflet-container{background:#0e1a2c; font-family:inherit}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface); color:var(--ink); border:1px solid var(--line)}
+.leaflet-popup-content{margin:11px 13px}
+.gun-icon{background:none; border:none}
+.timerow{display:flex; align-items:center; gap:10px; margin-top:12px}
+.timerow input[type=range]{flex:1; accent-color:var(--wind)}
+.timerow .tl{font-size:.78rem; color:var(--ink-dim); min-width:132px; text-align:right}
+.gunbar{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:10px}
+.gunbar button{background:var(--surface-2); border:1px solid var(--line); color:var(--ink);
+  padding:8px 12px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer}
+.gunbar button.armed{background:var(--ice); border-color:var(--ice); color:#03121c}
+.gunbar .count{margin-left:auto; font-size:.78rem; color:var(--ink-faint)}
+.empty{text-align:center; padding:26px 16px; color:var(--ink-dim)}
+.empty p{margin:0 0 14px; font-size:.9rem}
+.filebtn{display:inline-block; background:var(--ice); color:#03121c; padding:10px 18px;
+  border-radius:10px; font-weight:650; cursor:pointer; font-size:.9rem}
+.filebtn input{display:none}
+.plannote{font-size:.8rem; color:var(--ink-dim); margin-top:9px; min-height:18px}
+
+/* info modal */
+.infonav{display:flex; gap:5px; overflow-x:auto; padding:10px 16px; background:var(--bg);
+  border-bottom:1px solid var(--line)}
+.infonav button{background:var(--surface-2); border:1px solid var(--line); color:var(--ink-dim);
+  padding:6px 12px; border-radius:999px; font-size:.78rem; white-space:nowrap; cursor:pointer; font-weight:600}
+.infonav button[aria-selected="true"]{background:var(--ice); border-color:var(--ice); color:#03121c}
+.chapter[hidden]{display:none}
+.chapter h3{color:var(--ice); font-size:1.02rem; margin:22px 0 8px; font-weight:650}
+.chapter h3:first-child{margin-top:0}
+.chapter p{margin:0 0 11px}
+.chapter ul{margin:0 0 11px; padding-left:20px}
+.chapter li{margin-bottom:5px}
+.figure{background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; margin:14px 0}
+.figure svg,.figure canvas{display:block; width:100%; height:auto}
+.figcap{font-size:.76rem; color:var(--ink-faint); margin-top:9px; line-height:1.45}
+.note{border-left:3px solid var(--ice); background:rgba(63,185,240,.08); padding:10px 12px;
+  border-radius:0 8px 8px 0; margin:12px 0; font-size:.88rem}
+.tbl{width:100%; border-collapse:collapse; font-size:.83rem; margin:10px 0}
+.tbl th{text-align:left; color:var(--ink-faint); font-weight:600; font-size:.74rem;
+  padding:6px 8px; border-bottom:1px solid var(--line)}
+.tbl td{padding:6px 8px; border-bottom:1px solid rgba(43,59,87,.5)}
+.searchrow{display:flex; gap:8px; margin-top:10px}
+.searchrow input{flex:1; background:var(--surface); color:var(--ink); border:1px solid var(--line);
+  padding:9px; border-radius:9px}
+.hit{padding:10px; border-bottom:1px solid var(--line); cursor:pointer; font-size:.88rem}
+.hit:hover{background:var(--surface-2)}
+</style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>❄️ Snöprognos</h1>
-        <div style="display:flex; gap:10px;">
-            <button class="calc-btn" onclick="openCalc()">🧮 Kalkylator</button>
-            <button class="settings-btn" onclick="openInfo()" title="Info">ℹ️</button>
-            <button class="settings-btn" onclick="openMap()" title="Karta">📍</button>
+<div class="topbar">
+  <h1>❄️ Snöprognos</h1>
+  <button class="iconbtn" id="btnRefresh" title="Hämta ny prognos">↻</button>
+  <button class="iconbtn" id="btnInfo" title="Så fungerar snötillverkning">ℹ️</button>
+  <button class="iconbtn" id="btnMap" title="Byt plats">📍</button>
+  <button class="iconbtn primary" id="btnSettings" title="Inställningar">⚙️</button>
+</div>
+
+<div class="placebar">
+  <select id="favSelect" aria-label="Plats"></select>
+  <button class="iconbtn" id="btnRenameFav" title="Byt namn">✏️</button>
+  <button class="iconbtn" id="btnDelFav" title="Ta bort plats">🗑️</button>
+  <span class="stamp" id="stamp">Hämtar prognos…</span>
+</div>
+
+<section class="hero" id="hero">
+  <div class="hero-top">
+    <div class="verdict">
+      <div class="verdict-word" id="verdictWord">Läser av</div>
+      <div class="verdict-why" id="verdictWhy">Hämtar väderdata för platsen.</div>
+    </div>
+    <div class="wb-big"><span class="v num" id="wbNow">–</span><span class="l">våttemp nu</span></div>
+  </div>
+  <div class="readout">
+    <div><span class="k">Luft</span><span class="v num" id="roAir">–</span></div>
+    <div><span class="k">Fukt</span><span class="v num" id="roRh">–</span></div>
+    <div><span class="k">Vind</span><span class="v num" id="roWind">–</span></div>
+    <div><span class="k">Tvärvind</span><span class="v num" id="roCross">–</span></div>
+  </div>
+</section>
+
+<div class="windows" id="windows"></div>
+
+<div class="tabs" role="tablist">
+  <button role="tab" id="tabGraph" aria-selected="true" aria-controls="panelGraph">Graf</button>
+  <button role="tab" id="tabHours" aria-selected="false" aria-controls="panelHours">Timme för timme</button>
+  <button role="tab" id="tabWind" aria-selected="false" aria-controls="panelWind">Vind &amp; sikte</button>
+</div>
+
+<div class="panel" id="panelGraph" role="tabpanel">
+  <div class="rangebar">
+    <button data-h="12">12 h</button>
+    <button data-h="24">24 h</button>
+    <button data-h="72">3 dygn</button>
+    <button data-h="120">5 dygn</button>
+    <button data-h="240" class="active">10 dygn</button>
+  </div>
+  <div class="chartbox">
+    <div id="loading"><div class="spin"></div><span>Hämtar väderdata…</span></div>
+    <canvas id="mainChart"></canvas>
+  </div>
+  <p class="caption">Blå yta = våttemperatur under startgränsen. Pilarna pekar dit vinden blåser. Nyp eller scrolla för att zooma, dra för att panorera.</p>
+  <div class="err" id="err"></div>
+</div>
+
+<div class="panel" id="panelHours" role="tabpanel" hidden>
+  <div class="rangebar">
+    <button data-hours-span="12" class="active">12 h</button>
+    <button data-hours-span="24">24 h</button>
+    <button data-hours-span="48">48 h</button>
+  </div>
+  <div class="scroller">
+    <table class="htable">
+      <thead><tr><th>Tid</th><th>Våttemp</th><th>Luft</th><th>RF</th><th>Vind</th><th>By</th><th>Från</th><th>Tvär</th><th></th></tr></thead>
+      <tbody id="hourBody"></tbody>
+    </table>
+  </div>
+  <p class="caption">Tvär = vindens komposant tvärs spåret, den som blåser snön av spåret. Grön rad = full drift, gul = marginellt.</p>
+</div>
+
+<div class="panel" id="panelWind" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Spåret och vinden</h2>
+
+    <div class="empty" id="emptyTrack">
+      <p>Läs in en GPX-fil från en runda i spåret, så räknar appen tvärvinden för varje sträcka i stället för en enda riktning.</p>
+      <label class="filebtn">Välj GPX-fil<input type="file" id="gpxInput" accept=".gpx,application/gpx+xml,text/xml"></label>
+      <p style="margin-top:14px; font-size:.8rem; color:var(--ink-faint)">Samsung Health, Strava, Garmin och Polar exporterar alla GPX. Flera varv går bra — appen behåller ett.</p>
+    </div>
+
+    <p class="plannote" id="tempBanner" hidden style="background:rgba(248,113,113,.1); border-left:3px solid var(--stop); padding:9px 11px; border-radius:0 8px 8px 0; color:var(--ink); margin-bottom:10px"></p>
+
+    <div id="planWrap" hidden>
+      <div id="planMap"></div>
+      <div id="windRose"></div>
+    </div>
+
+    <div id="planControls" hidden>
+      <div class="timerow">
+        <input type="range" id="timeSlider" min="0" max="48" step="1" value="0" aria-label="Tidpunkt i prognosen">
+        <span class="tl" id="timeLabel">nu</span>
+      </div>
+      <div class="gunbar">
+        <button id="addFan">Placera fläkt</button>
+        <button id="addLance">Placera lans</button>
+        <button id="clearGuns">Rensa kanoner</button>
+        <label class="filebtn" style="padding:8px 12px; font-size:.82rem; background:var(--surface-2); color:var(--ink); border:1px solid var(--line)">
+          Byt spår<input type="file" id="gpxInput2" accept=".gpx,application/gpx+xml,text/xml"></label>
+        <span class="count" id="gunCount"></span>
+      </div>
+      <p class="caption" id="planSummary" style="text-align:left; margin-top:10px"></p>
+      <button class="btn ghost" id="useWhole" hidden style="margin-top:8px; font-size:.8rem; padding:7px 12px">Använd hela loggen i stället</button>
+      <p class="plannote" id="planNote"></p>
+      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Tryck på en kanon för riktningsråd.</p>
+    </div>
+  </div>
+
+  <div class="card" id="compassCard">
+    <h2>Så ska kanonen riktas nu</h2>
+    <div class="figure"><svg id="compass" viewBox="0 0 340 300" role="img" aria-labelledby="compassTitle"><title id="compassTitle">Kompass med spårriktning, vind och beräknad träffpunkt</title></svg></div>
+    <div class="advice" id="aimAdvice">Ställ in spårets riktning under &#9881;&#65039; så räknar appen ut hur långt snön driver och åt vilket håll du ska sikta.</div>
+  </div>
+
+  <div class="card">
+    <h2>Vindens tim-för-tim-utveckling</h2>
+    <div class="chartbox" style="height:230px"><canvas id="windChart"></canvas></div>
+    <p class="caption">Gul linje = medelvind, streckad = byar, blå = tvärvindskomposant mot spåret.</p>
+  </div>
+</div>
+
+<div class="overlay" id="settingsModal">
+  <div class="sheet">
+    <header><h2>Inställningar för anläggningen</h2></header>
+    <div class="body">
+      <h3 style="margin-top:0">Spår och kanon</h3>
+      <div class="field">
+        <label for="trailBearing">Spårets riktning (grader, 0 = norr)</label>
+        <input type="number" id="trailBearing" min="0" max="359" step="1" value="90">
+        <p class="hint" id="bearingHint">Åt vilket håll löper spårsträckan du snöar på? Ett spår som går rakt öst–väst är 90. Läser du in en GPX-fil under Vind &amp; sikte används spårets verkliga geometri i stället, och då spelar det här fältet ingen roll.</p>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="throwHeight">Kastbanans höjd (m)</label>
+          <input type="number" id="throwHeight" min="2" max="40" step="1" value="8">
         </div>
-    </div>
-
-    <div class="fav-controls">
-        <div style="flex-grow:1; overflow:hidden;">
-            <span id="locationDisplay" style="font-size:0.9rem; color:#cbd5e1; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Laddar...</span>
+        <div class="field">
+          <label for="throwDist">Kastlängd (m)</label>
+          <input type="number" id="throwDist" min="5" max="80" step="1" value="30">
         </div>
-        <select id="favoritesSelect"></select>
-        <button id="editFavBtn" class="icon-btn" title="Redigera namn">✏️</button>
-        <button id="delFavBtn" class="icon-btn" title="Ta bort">🗑️</button>
-    </div>
+      </div>
+      <p class="hint" style="margin-top:-4px" id="hangHint"></p>
+      <div class="field">
+        <label for="trailWidth">Spårets bredd att träffa (m)</label>
+        <input type="number" id="trailWidth" min="2" max="30" step="1" value="6">
+        <p class="hint">Hur bred yta ni vill lägga snön på. Driver snön längre än halva bredden hamnar den utanför.</p>
+      </div>
 
-    <div class="controls">
-        <button onclick="setRange(12, this)" class="time-btn">12h</button>
-        <button onclick="setRange(24, this)" class="time-btn">24h</button>
-        <button onclick="setRange(72, this)" class="time-btn">3 Dygn</button>
-        <button onclick="setRange(120, this)" class="time-btn">5 Dygn</button>
-        <button onclick="setRange(240, this)" class="time-btn active">10 Dygn</button>
-        <button onclick="resetZoom()" class="time-btn" style="border-color:#fbbf24; color:#fbbf24;">Reset Zoom</button>
-    </div>
-
-    <div class="chart-container">
-        <div id="loadingOverlay">
-            <div class="spinner"></div><div style="color:#e2e8f0;">Hämtar väderdata...</div>
+      <h3>Aggregat</h3>
+      <div class="row2">
+        <div class="field">
+          <label for="fanCount">Antal fläktkanoner</label>
+          <input type="number" id="fanCount" min="0" max="99" step="1" value="6">
         </div>
-        <canvas id="snowChart"></canvas>
-    </div>
-    <div class="legend">Zooma: Nyp / Scrolla • Panorera: Dra • Röd: Varmt • Blå: Snö (Wet-bulb &lt; -2.5)</div>
-    <div id="errorMsg" class="error"></div>
-
-    <div id="calcModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header"><h3>Produktionskalkylator</h3></div>
-            <div class="modal-body">
-                
-                <div class="calc-group">
-                    <label class="calc-label">🌡️ Vattentemperatur (°C)</label>
-                    <input type="number" id="waterTempInput" class="calc-input" value="1.5" step="0.1" oninput="updateCalc()">
-                </div>
-
-                <div class="calc-group">
-                    <label class="calc-label">❄️ Önskad Kvalitet (1=Torr, 10=Blöt)</label>
-                    <input type="range" id="qualityInput" min="1" max="10" value="5" step="1" oninput="updateCalc()">
-                    <div class="slider-labels">
-                        <span>Puder (1)</span>
-                        <span id="qualityValue" style="color:#38bdf8; font-weight:bold;">5</span>
-                        <span>Bas (10)</span>
-                    </div>
-                </div>
-
-                <div class="prediction-box">
-                    <div class="pred-item">
-                        <span class="pred-label">Start Fläkt</span>
-                        <span id="predFanTime" class="pred-val">--:--</span>
-                    </div>
-                    <div class="pred-item" style="border-left:1px solid #334155;">
-                        <span class="pred-label">Start Lans</span>
-                        <span id="predLanceTime" class="pred-val">--:--</span>
-                    </div>
-                </div>
-
-                <div style="text-align:center; font-size:0.8rem; color:#94a3b8;">
-                    Trendkurva (Kommande 48h)
-                </div>
-
-                <div class="calc-chart-container">
-                    <canvas id="calcChart"></canvas>
-                </div>
-
-            </div>
-            <div class="modal-footer">
-                <button class="cancel-btn" onclick="closeCalc()" style="background:#334155;">Stäng</button>
-            </div>
+        <div class="field">
+          <label for="lanceCount">Antal lansar</label>
+          <input type="number" id="lanceCount" min="0" max="199" step="1" value="33">
         </div>
-    </div>
+      </div>
+      <p class="hint" style="margin-top:-4px">Styr hur många ni kan placera ut på kartan under Vind &amp; sikte.</p>
 
-    <div id="mapModal" class="modal-overlay">
-        <div class="modal-content" style="height: 80%;">
-            <div class="modal-header">
-                <h3>Välj Plats</h3>
-                <div style="display:flex; gap:8px; margin-top:10px;">
-                    <input id="mapSearch" placeholder="Sök plats..." style="flex:1; background:#0f172a; color:#fff; border:1px solid #334155; padding:8px; border-radius:6px;">
-                    <button id="mapSearchBtn" class="icon-btn">🔍</button>
-                </div>
-                <div id="searchResults" style="display:none; max-height:150px; overflow-y:auto; background:#1e293b; border:1px solid #334155; margin-top:5px; text-align:left;"></div>
-            </div>
-            <div id="map"></div>
-            <div class="modal-footer">
-                <button class="cancel-btn" onclick="closeMap()">Avbryt</button>
-                <button class="save-btn" onclick="saveLocation()">Spara Plats</button>
-            </div>
+      <h3>Vatten och snökvalitet</h3>
+      <div class="field">
+        <label for="waterTemp">Vattentemperatur (°C)</label>
+        <input type="number" id="waterTemp" min="-1" max="20" step="0.1" value="1.5">
+      </div>
+      <div class="field">
+        <label for="quality">Önskad snökvalitet: <span id="qualityLabel">5 — allroundsnö</span></label>
+        <input type="range" id="quality" min="1" max="10" step="1" value="5">
+        <p class="hint">1 = torr puder som kräver mycket kyla. 10 = blöt bassnö som går att göra nära gränsen men blir tung och isig.</p>
+      </div>
+
+      <h3>Gränser för start och stopp</h3>
+      <div class="row2">
+        <div class="field">
+          <label for="fanBase">Startgräns fläktkanon (°C våttemp)</label>
+          <input type="number" id="fanBase" step="0.1" value="-2.5">
         </div>
-    </div>
-
-    <div id="infoModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header"><h3>Information & Teori</h3></div>
-            <div class="modal-body">
-                <div class="info-section">
-                    <h4 class="info-title">📱 Så fungerar appen</h4>
-                    <p>Grafen visar <strong>Våttemperatur (Wet-bulb)</strong> vilket är det viktigaste måttet för snötillverkning. </p>
-                    <ul style="padding-left:20px; color:#94a3b8; margin:5px 0;">
-                        <li><strong>Gul yta:</strong> Medelvind (10m).</li>
-                        <li><strong>Streckad linje:</strong> Byvind (Gusts) - maxvinden.</li>
-                    </ul>
-                </div>
-                <div class="info-section">
-                    <h4 class="info-title">💨 Kalkylatorn</h4>
-                    <p>Kalkylatorn använder <strong>framtida prognosdata</strong> för att räkna ut när du kan starta.</p>
-                    <p><strong>Vattentemp:</strong> Varmt vatten straffar systemet och kräver kallare luft.</p>
-                    <p><strong>Kvalitet:</strong> Att göra torr snö (lågt värde) kräver mycket kallare temperaturer än att göra blöt "bassnö".</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="cancel-btn" onclick="closeInfo()" style="background:#334155;">Stäng</button>
-            </div>
+        <div class="field">
+          <label for="lanceBase">Startgräns lans (°C våttemp)</label>
+          <input type="number" id="lanceBase" step="0.1" value="-4.0">
         </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="windWarn">Vind: börja vara försiktig (m/s)</label>
+          <input type="number" id="windWarn" step="0.5" value="5">
+        </div>
+        <div class="field">
+          <label for="windStop">Vind: stoppa (m/s)</label>
+          <input type="number" id="windStop" step="0.5" value="9">
+        </div>
+      </div>
+      <p class="hint" style="margin-top:-4px">Justera efter er egen erfarenhet. Gränserna styr både färgerna i tabellen och körfönstren högst upp.</p>
+
+      <h3>Beräkningsmodell</h3>
+      <div class="field">
+        <label for="wbModel">Formel för våttemperatur</label>
+        <select id="wbModel" style="width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--line); padding:9px; border-radius:9px">
+          <option value="psychro">Psykrometrisk med lufttryck (noggrannast)</option>
+          <option value="stull">Stull 2011 (samma som i gamla appen)</option>
+        </select>
+        <p class="hint" id="modelDelta"></p>
+      </div>
     </div>
+    <footer>
+      <button class="btn ghost" id="btnResetSettings">Återställ</button>
+      <button class="btn go" id="btnCloseSettings">Klar</button>
+    </footer>
+  </div>
+</div>
 
-    <script>
-        // --- INSTÄLLNINGAR & STATE ---
-        let currentLat = parseFloat(localStorage.getItem('snowLat')) || 58.503; 
-        let currentLon = parseFloat(localStorage.getItem('snowLon')) || 13.088; 
-        let currentName = localStorage.getItem('snowName') || 'Sparbanksspåret';
-        
-        let chartInstance = null;
-        let calcChartInstance = null; 
-        let mapInstance = null;
-        let markerInstance = null;
-        let weatherData = []; 
-        let weatherDataDetailed = []; 
-        let favorites = JSON.parse(localStorage.getItem('snowFavorites') || '[]');
+<div class="overlay" id="mapModal">
+  <div class="sheet" style="height:82vh">
+    <header>
+      <h2>Välj plats</h2>
+    </header>
+    <div style="padding:12px 16px; background:var(--bg); border-bottom:1px solid var(--line)">
+      <div class="searchrow">
+        <input id="mapSearch" placeholder="Sök ort eller spår…" autocomplete="off">
+        <button class="iconbtn" id="btnSearch">🔍</button>
+      </div>
+      <div id="hits" style="display:none; max-height:150px; overflow:auto; margin-top:8px; background:var(--surface); border:1px solid var(--line); border-radius:9px"></div>
+    </div>
+    <div id="map"></div>
+    <footer>
+      <button class="btn ghost" id="btnCancelMap">Avbryt</button>
+      <button class="btn go" id="btnSaveMap">Använd platsen</button>
+    </footer>
+  </div>
+</div>
 
-        // Start
-        init();
+<div class="overlay" id="infoModal">
+  <div class="sheet">
+    <header><h2>Snötillverkning — så funkar det</h2></header>
+    <nav class="infonav" id="infoNav">
+      <button data-ch="c1" aria-selected="true">Grunderna</button>
+      <button data-ch="c2" aria-selected="false">Våttemperatur</button>
+      <button data-ch="c3" aria-selected="false">Vatten &amp; kvalitet</button>
+      <button data-ch="c4" aria-selected="false">Vind &amp; sikte</button>
+      <button data-ch="c5" aria-selected="false">Nattens rutin</button>
+      <button data-ch="c6" aria-selected="false">Om appen</button>
+    </nav>
+    <div class="body" id="infoBody"></div>
+    <footer><button class="btn ghost" id="btnCloseInfo">Stäng</button></footer>
+  </div>
+</div>
 
-        function init() {
-            ensureDefaultFavorite();
-            populateFavorites();
-            updateLocationText();
-            fetchData();
-        }
+<script>
+"use strict";
 
-        // --- DATA FETCHING ---
-        async function fetchData() {
-            showLoading(true);
-            document.getElementById('errorMsg').innerText = "";
-            
-            // FIX: Lagt till wind_gusts_10m i anropen
-            const urlHourly = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=10&models=best_match`;
-            const url15min = `https://api.open-meteo.com/v1/forecast?latitude=${currentLat}&longitude=${currentLon}&minutely_15=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m&wind_speed_unit=ms&forecast_days=2&models=best_match`;
+/* ==========================================================================
+   1. INSTÄLLNINGAR OCH TILLSTÅND
+   ========================================================================== */
 
-            try {
-                const [resHourly, res15] = await Promise.all([fetch(urlHourly), fetch(url15min)]);
-                
-                if(!resHourly.ok) throw new Error("Kunde inte hämta väderdata");
-                const jsonH = await resHourly.json();
-                
-                weatherData = jsonH.hourly.time.map((t, i) => ({
-                    x: new Date(t).getTime(),
-                    temp: jsonH.hourly.temperature_2m[i],
-                    hum: jsonH.hourly.relative_humidity_2m[i],
-                    wind: jsonH.hourly.wind_speed_10m[i],
-                    gust: jsonH.hourly.wind_gusts_10m[i], // Ny data: Byvind
-                    dir: jsonH.hourly.wind_direction_10m[i],
-                    wetBulb: calculateWetBulb(jsonH.hourly.temperature_2m[i], jsonH.hourly.relative_humidity_2m[i])
-                }));
+const DEFAULTS = {
+  trailBearing: 90,   // spårets riktning i grader
+  throwHeight: 8,     // m, hur högt kanonen kastar
+  throwDist: 30,      // m, hur långt kanonen kastar
+  trailWidth: 6,      // m, ytan vi vill träffa
+  waterTemp: 1.5,     // °C
+  quality: 5,         // 1 = torr puder, 10 = blöt bassnö
+  fanBase: -2.5,      // °C våttemp, startgräns fläktkanon
+  lanceBase: -4.0,    // °C våttemp, startgräns lans
+  windWarn: 5,        // m/s
+  windStop: 9,        // m/s
+  fanCount: 6,        // antal fläktkanoner
+  lanceCount: 33,     // antal lansar
+  wbModel: "psychro"
+};
 
-                if(res15.ok) {
-                    const json15 = await res15.json();
-                    if(json15.minutely_15) {
-                        weatherDataDetailed = json15.minutely_15.time.map((t, i) => ({
-                            x: new Date(t).getTime(),
-                            temp: json15.minutely_15.temperature_2m[i],
-                            hum: json15.minutely_15.relative_humidity_2m[i],
-                            wind: json15.minutely_15.wind_speed_10m[i],
-                            gust: json15.minutely_15.wind_gusts_10m[i], // Ny data: Byvind
-                            dir: json15.minutely_15.wind_direction_10m[i],
-                            wetBulb: calculateWetBulb(json15.minutely_15.temperature_2m[i], json15.minutely_15.relative_humidity_2m[i])
-                        }));
-                    }
-                }
+let S = loadSettings();
+let place = {
+  lat: num(localStorage.getItem("snowLat"), 58.503),
+  lon: num(localStorage.getItem("snowLon"), 13.088),
+  name: localStorage.getItem("snowName") || "Sparbanksspåret"
+};
+let favorites = safeParse(localStorage.getItem("snowFavorites"), []);
 
-                drawChart();
+let hourly = [];      // hela 10-dygnsprognosen, 1 h upplösning
+let fine = [];        // 15-minutersdata för de närmaste dygnen
+let series = [];      // fine + hourly hopslagna, det vi räknar på
+let fetchedAt = null;
+let mainChart = null, windChart = null, wbCanvas = null;
+let mapInstance = null, marker = null;
+let currentRangeHours = 240;
+let hoursSpan = 12;
+let refreshTimer = null;
 
-            } catch (err) {
-                console.error(err);
-                document.getElementById('errorMsg').innerText = "Fel: Kunde inte hämta data. Kontrollera nätverk.";
-            } finally {
-                showLoading(false);
+function num(v, fallback) { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; }
+function safeParse(s, fallback) { try { return JSON.parse(s) ?? fallback; } catch { return fallback; } }
+
+function loadSettings() {
+  const stored = safeParse(localStorage.getItem("snowSettings"), {});
+  return { ...DEFAULTS, ...stored };
+}
+function saveSettings() {
+  localStorage.setItem("snowSettings", JSON.stringify(S));
+}
+
+/* ==========================================================================
+   2. FYSIK: VÅTTEMPERATUR
+   --------------------------------------------------------------------------
+   Våttemperaturen är den lägsta temperatur en vattendroppe kan kylas ned till
+   genom att avdunsta i den omgivande luften. Den avgör om droppen hinner
+   frysa innan den landar, och den är alltid lägre än lufttemperaturen.
+   ========================================================================== */
+
+// Mättnadsångtryck över vatten (hPa) enligt Buck 1996.
+function saturationVapourPressure(T) {
+  return 6.1121 * Math.exp((18.678 - T / 234.5) * T / (257.14 + T));
+}
+
+// Psykrometrisk lösning: hitta det Tw där en våt termometer hamnar i jämvikt.
+// Tar hänsyn till lufttrycket, vilket Stulls formel inte gör.
+function wetBulbPsychrometric(T, rh, pressure_hPa) {
+  const P = Number.isFinite(pressure_hPa) ? pressure_hPa : 1013.25;
+  const e = Math.max(0.01, (rh / 100) * saturationVapourPressure(T));
+  const residual = (Tw) => {
+    const gamma = 6.53e-4 * (1 + 0.000944 * Tw) * P;
+    return saturationVapourPressure(Tw) - gamma * (T - Tw) - e;
+  };
+  let lo = T - 45, hi = T;
+  if (residual(lo) > 0) return lo;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (residual(mid) < 0) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// Stull (2011) — empirisk approximation, kalibrerad för tryck vid havsytan.
+function wetBulbStull(T, rh) {
+  const R = Math.min(99, Math.max(5, rh));
+  return T * Math.atan(0.151977 * Math.sqrt(R + 8.313659))
+       + Math.atan(T + R)
+       - Math.atan(R - 1.676331)
+       + 0.00391838 * Math.pow(R, 1.5) * Math.atan(0.023101 * R)
+       - 4.686035;
+}
+
+function wetBulb(T, rh, pressure) {
+  if (!Number.isFinite(T) || !Number.isFinite(rh)) return NaN;
+  return S.wbModel === "stull" ? wetBulbStull(T, rh) : wetBulbPsychrometric(T, rh, pressure);
+}
+
+// Daggpunkt — bra att visa, och en snabb kontroll av hur torr luften är.
+function dewPoint(T, rh) {
+  const e = Math.max(0.01, (rh / 100) * saturationVapourPressure(T));
+  const l = Math.log(e / 6.1121);
+  return (257.14 * l) / (18.678 - l);
+}
+
+/* ==========================================================================
+   3. PRODUKTIONSMODELL
+   --------------------------------------------------------------------------
+   Startgränsen flyttas av två saker: hur torr snö vi vill ha, och hur varmt
+   vattnet är. Kapaciteten växer sedan ju längre under gränsen vi kommer.
+   ========================================================================== */
+
+// Torr snö kräver att hela droppen hinner frysa. Ju torrare snö, desto
+// kallare måste det vara. Kvalitet 10 (bassnö) kör på grundgränsen.
+function qualityOffset(q) { return (10 - q) * 0.40; }
+
+// Varmt vatten bär med sig värme som måste bort innan frysningen ens börjar.
+// Energimässigt är det ~1,3 % extra värme per grad, men i praktiken märks det
+// mest genom att droppen behöver längre tid, alltså en kallare startgräns.
+function waterOffset(waterTemp) { return Math.max(0, (waterTemp - 0.5)) * 0.15; }
+
+// base  = går det att göra snö överhuvudtaget (klassiska startgränsen)
+// target = kallt nog för den kvalitet ni faktiskt siktar på
+function thresholds() {
+  const w = waterOffset(S.waterTemp);
+  const q = qualityOffset(S.quality);
+  return { base: S.fanBase - w, target: S.fanBase - w - q, lance: S.lanceBase - w - q, quality: q, water: w };
+}
+
+// Kapacitet i procent av vad kanonen klarar, som funktion av hur långt under
+// startgränsen våttemperaturen ligger. Mättar mot 100 % ungefär 5 grader under.
+function capacity(wb, threshold, waterTemp) {
+  if (!Number.isFinite(wb) || wb > threshold) return 0;
+  const margin = threshold - wb;
+  const base = 100 * (1 - Math.exp(-margin / 1.9));
+  const waterPenalty = 1 - Math.min(0.35, Math.max(0, waterTemp - 0.5) * 0.015);
+  return Math.max(0, Math.min(100, base * waterPenalty));
+}
+
+// Vilken snökvalitet klarar vi vid en given våttemperatur?
+function achievableQuality(wb, waterTemp) {
+  const margin = S.fanBase - waterOffset(waterTemp) - wb;
+  if (margin < 0) return null;
+  return Math.max(1, Math.min(10, Math.round(10 - margin / 0.40)));
+}
+
+/* ==========================================================================
+   4. VINDGEOMETRI
+   --------------------------------------------------------------------------
+   Meteorologisk vindriktning anger var vinden kommer IFRÅN. Snön driver åt
+   motsatt håll. Det som förstör läggningen är komposanten tvärs spåret.
+   ========================================================================== */
+
+function toRad(d) { return d * Math.PI / 180; }
+function normDeg(d) { return ((d % 360) + 360) % 360; }
+
+function windGeometry(speed, fromDir, bearing) {
+  const blowsTo = normDeg(fromDir + 180);
+  // Vinkeln mellan vindens färdriktning och spårets riktning.
+  let rel = normDeg(blowsTo - bearing);
+  const along = speed * Math.cos(toRad(rel));   // längs spåret, harmlöst
+  const across = speed * Math.sin(toRad(rel));  // tvärs spåret, problemet
+  return { blowsTo, rel, along, across, crossAbs: Math.abs(across) };
+}
+
+// Hur långt driver snön i sidled innan den landar?
+// Fallhastigheten för konstsnö ligger runt 1,2 m/s. Tyngdpunkten i fanan
+// landar tidigare än svansen, därför faktorn 0,6 på hela hangtiden.
+const SETTLE_SPEED = 1.2;
+function driftDistance(crossSpeed, height) {
+  const hangTime = Math.max(1, height) / SETTLE_SPEED;
+  return { hangTime, centre: crossSpeed * hangTime * 0.6, tail: crossSpeed * hangTime };
+}
+
+// Hur många grader ska kanonen vridas mot vinden för att fanan ska landa rätt?
+function aimCorrection(centreDrift, throwDist) {
+  const deg = Math.atan2(centreDrift, Math.max(5, throwDist)) * 180 / Math.PI;
+  return deg;
+}
+
+const DIRS16 = ["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSV","SV","VSV","V","VNV","NV","NNV"];
+function dirName(deg) { return DIRS16[Math.round(normDeg(deg) / 22.5) % 16]; }
+
+/* ==========================================================================
+   5. BEDÖMNING AV EN TIDPUNKT
+   ========================================================================== */
+
+function assess(pt) {
+  const th = thresholds();
+  const wc = windContext(pt);
+  // Med ett inläst spår är tvärvinden inte ett tal utan en fördelning. Hero och
+  // tabell använder medianen; kartan visar sanningen segment för segment.
+  const geo = windGeometry(pt.wind, pt.dir, S.trailBearing);
+  geo.crossAbs = wc.median;
+  geo.spread = wc;
+  const drift = driftDistance(geo.crossAbs, S.throwHeight);
+  const fanCap = capacity(pt.wb, th.base, S.waterTemp);
+  const lanceCap = capacity(pt.wb, th.lance, S.waterTemp);
+
+  let state = "go";
+  const reasons = [];
+
+  if (!(pt.wb <= th.base)) {
+    state = "stop";
+    reasons.push(`våttemp ${fmt(pt.wb)} °C är över startgränsen ${fmt(th.base)} °C`);
+  } else if (pt.wb > th.target) {
+    state = "marginal";
+    const q = achievableQuality(pt.wb, S.waterTemp);
+    reasons.push(`${fmt(pt.wb)} °C räcker till kvalitet ${q} men ni har valt ${S.quality}`);
+  } else if (pt.wb > th.base - 0.5) {
+    state = "marginal";
+    reasons.push(`våttemp ${fmt(pt.wb)} °C ligger precis på gränsen`);
+  }
+
+  const gust = Number.isFinite(pt.gust) ? pt.gust : pt.wind;
+  if (gust >= S.windStop || pt.wind >= S.windStop) {
+    state = "stop";
+    reasons.push(`vinden ${fmt(pt.wind)} m/s (byar ${fmt(gust)}) är över stoppgränsen`);
+  } else if (pt.wind >= S.windWarn && state !== "stop") {
+    state = "marginal";
+    reasons.push(`${fmt(pt.wind)} m/s kräver att kanonerna riktas om`);
+  }
+
+  // Driver snön längre i sidled än halva spårbredden hamnar den utanför.
+  if (state !== "stop" && drift.centre > S.trailWidth / 2) {
+    if (state === "go") state = "marginal";
+    reasons.push(`snön driver ca ${Math.round(drift.centre)} m i sidled, spåret är ${S.trailWidth} m brett`);
+  }
+  if (state === "stop" && wc.mode !== "manual" && wc.min * 1 < wc.max * 0.5) {
+    reasons.push(`tvärvinden varierar ${fmt(wc.min)}–${fmt(wc.max)} m/s längs spåret`);
+  }
+
+  return { state, reasons, geo, drift, fanCap, lanceCap, th };
+}
+
+function fmt(v, dec = 1) {
+  return Number.isFinite(v) ? v.toFixed(dec).replace(".", ",") : "–";
+}
+
+/* ==========================================================================
+   6. HÄMTNING AV VÄDERDATA
+   --------------------------------------------------------------------------
+   timeformat=unixtime ger tidsstämplar i sekunder sedan 1970 i UTC. Det är
+   entydigt. Standardformatet (ISO utan tidszon) tolkas av webbläsaren som
+   lokal tid trots att Open-Meteo menar UTC, vilket förskjuter hela prognosen
+   en till två timmar.
+   ========================================================================== */
+
+const VARS = "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure";
+
+function buildUrl(kind) {
+  const base = "https://api.open-meteo.com/v1/forecast";
+  const q = new URLSearchParams({
+    latitude: place.lat.toFixed(4),
+    longitude: place.lon.toFixed(4),
+    wind_speed_unit: "ms",
+    timeformat: "unixtime",
+    models: "best_match"
+  });
+  if (kind === "hourly") { q.set("hourly", VARS); q.set("forecast_days", "10"); }
+  else { q.set("minutely_15", VARS); q.set("forecast_days", "3"); }
+  return `${base}?${q}`;
+}
+
+function mapBlock(block) {
+  if (!block || !block.time) return [];
+  return block.time.map((t, i) => {
+    const temp = block.temperature_2m[i];
+    const rh = block.relative_humidity_2m[i];
+    const pres = block.surface_pressure ? block.surface_pressure[i] : undefined;
+    return {
+      x: t * 1000,
+      temp, rh, pressure: pres,
+      wind: block.wind_speed_10m[i],
+      gust: block.wind_gusts_10m ? block.wind_gusts_10m[i] : null,
+      dir: block.wind_direction_10m[i],
+      wb: wetBulb(temp, rh, pres),
+      dew: dewPoint(temp, rh)
+    };
+  }).filter(d => Number.isFinite(d.temp));
+}
+
+// 15-minutersdata där den finns, timdata därefter. Utan detta slutar
+// kalkylen där finupplösningen tar slut, långt före 48 timmar.
+function mergeSeries() {
+  if (!fine.length) return hourly.slice();
+  const cutoff = fine[fine.length - 1].x;
+  return fine.concat(hourly.filter(d => d.x > cutoff));
+}
+
+async function fetchData() {
+  setLoading(true);
+  setError("");
+  try {
+    const [rH, rF] = await Promise.all([
+      fetch(buildUrl("hourly")),
+      fetch(buildUrl("fine")).catch(() => null)
+    ]);
+    if (!rH || !rH.ok) throw new Error("Vädertjänsten svarade inte");
+    const jH = await rH.json();
+    hourly = mapBlock(jH.hourly);
+    if (!hourly.length) throw new Error("Prognosen kom tom");
+
+    fine = [];
+    if (rF && rF.ok) {
+      const jF = await rF.json();
+      fine = mapBlock(jF.minutely_15);
+    }
+    series = mergeSeries();
+    fetchedAt = Date.now();
+    cacheSnapshot();
+    renderAll();
+  } catch (e) {
+    console.error(e);
+    if (restoreSnapshot()) {
+      setError("Ingen kontakt med vädertjänsten. Visar senast hämtade prognos.");
+    } else {
+      setError("Ingen kontakt med vädertjänsten. Kontrollera nätet och tryck ↻.");
+    }
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Sparad kopia så att appen visar något även utan täckning ute i spåret.
+function cacheSnapshot() {
+  try {
+    localStorage.setItem("snowCache", JSON.stringify({
+      at: fetchedAt, lat: place.lat, lon: place.lon,
+      hourly: hourly.map(stripped), fine: fine.map(stripped)
+    }));
+  } catch { /* full lagring, strunt i det */ }
+}
+function stripped(d) {
+  return { x: d.x, temp: d.temp, rh: d.rh, pressure: d.pressure, wind: d.wind, gust: d.gust, dir: d.dir };
+}
+function restoreSnapshot() {
+  const c = safeParse(localStorage.getItem("snowCache"), null);
+  if (!c || Math.abs(c.lat - place.lat) > 0.01 || Math.abs(c.lon - place.lon) > 0.01) return false;
+  const rehydrate = a => (a || []).map(d => ({ ...d, wb: wetBulb(d.temp, d.rh, d.pressure), dew: dewPoint(d.temp, d.rh) }));
+  hourly = rehydrate(c.hourly);
+  fine = rehydrate(c.fine);
+  if (!hourly.length) return false;
+  series = mergeSeries();
+  fetchedAt = c.at;
+  renderAll();
+  return true;
+}
+
+// Byter man formel eller vattentemperatur behöver våttemperaturen räknas om.
+function recomputeSeries() {
+  const redo = a => a.forEach(d => { d.wb = wetBulb(d.temp, d.rh, d.pressure); });
+  redo(hourly); redo(fine);
+  series = mergeSeries();
+}
+
+/* ==========================================================================
+   7. KÖRFÖNSTER
+   --------------------------------------------------------------------------
+   Sammanhängande perioder där allt stämmer. Det är den enda siffra som
+   egentligen behövs klockan två på natten: hur länge till kan vi köra?
+   ========================================================================== */
+
+function findWindows(fromTs, toTs) {
+  const pts = series.filter(d => d.x >= fromTs && d.x <= toTs);
+  const out = [];
+  let open = null;
+  for (const pt of pts) {
+    const a = assess(pt);
+    const usable = a.state !== "stop";
+    if (usable && !open) open = { start: pt.x, end: pt.x, marginal: a.state === "marginal", minWb: pt.wb };
+    else if (usable && open) {
+      open.end = pt.x;
+      if (a.state === "marginal") open.marginal = true;
+      open.minWb = Math.min(open.minWb, pt.wb);
+    } else if (!usable && open) { out.push(open); open = null; }
+  }
+  if (open) out.push(open);
+  // Korta glapp på under en timme är inte värda att bryta produktionen för.
+  const merged = [];
+  for (const w of out) {
+    const prev = merged[merged.length - 1];
+    if (prev && w.start - prev.end < 75 * 60000) {
+      prev.end = w.end; prev.marginal = prev.marginal || w.marginal;
+      prev.minWb = Math.min(prev.minWb, w.minWb);
+    } else merged.push({ ...w });
+  }
+  return merged.filter(w => w.end - w.start >= 60 * 60000);
+}
+
+function durationText(ms) {
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+function daysAhead(ts) {
+  const startOf = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  return Math.round((startOf(new Date(ts)) - startOf(new Date())) / 86400000);
+}
+function dayPrefix(ts) {
+  const d = new Date(ts), days = daysAhead(ts);
+  if (days === 0) return d.getHours() >= 18 || d.getHours() < 5 ? "i natt" : "i dag";
+  if (days === 1) return "i morgon";
+  if (days === 2) return "i övermorgon";
+  return d.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "short" });
+}
+function shortDay(ts) {
+  return new Date(ts).toLocaleDateString("sv-SE", { weekday: "short" }).replace(".", "");
+}
+function clock(ts) {
+  return new Date(ts).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* ==========================================================================
+   13. SPÅRGEOMETRI FRÅN GPX
+   --------------------------------------------------------------------------
+   Ett längdspår har inte en riktning, det har en per meter. Sparbanksspåret
+   svänger genom alla väderstreck, så samma vind kan vara ofarlig på en raksträcka
+   och omöjlig på nästa. Därför räknas tvärvinden per segment.
+   ========================================================================== */
+
+let track = safeParse(localStorage.getItem("snowTrack"), null);
+let guns = safeParse(localStorage.getItem("snowGuns"), []);
+let segments = [];
+let planMap = null, planLayers = null, gunLayers = null;
+let addMode = null;
+let sliderOffsetH = 0;
+
+const EARTH = 6371000;
+
+function haversine(a, b) {
+  const la = toRad(a[0]), lb = toRad(b[0]);
+  const h = Math.sin((lb - la) / 2) ** 2 +
+            Math.cos(la) * Math.cos(lb) * Math.sin(toRad(b[1] - a[1]) / 2) ** 2;
+  return 2 * EARTH * Math.asin(Math.sqrt(h));
+}
+
+function segBearing(a, b) {
+  const la = toRad(a[0]), lb = toRad(b[0]), dl = toRad(b[1] - a[1]);
+  const y = Math.sin(dl) * Math.cos(lb);
+  const x = Math.cos(la) * Math.sin(lb) - Math.sin(la) * Math.cos(lb) * Math.cos(dl);
+  return normDeg(Math.atan2(y, x) * 180 / Math.PI);
+}
+
+/* --- inläsning och städning --- */
+
+function parseGpx(text) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("Filen gick inte att läsa som GPX.");
+  const nodes = [...doc.querySelectorAll("trkpt, rtept")];
+  if (nodes.length < 10) throw new Error("Hittade inga spårpunkter i filen.");
+  const pts = nodes.map(n => [parseFloat(n.getAttribute("lat")), parseFloat(n.getAttribute("lon"))])
+                   .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  const name = doc.querySelector("trk > name")?.textContent?.trim() || "";
+  return { pts, name };
+}
+
+// Har man åkt flera varv räcker det med ett. Leta efter den punkt längre fram
+// på rundan som ligger tillbaka på samma ställe, och klipp där.
+function extractLap(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1], pts[i]));
+  let best = null;
+  for (let i = 0; i < pts.length / 2; i += 5) {
+    for (let j = i + 1; j < pts.length; j++) {
+      if (cum[j] - cum[i] < 400) continue;
+      if (haversine(pts[i], pts[j]) < 20) {
+        if (!best || cum[j] - cum[i] > best.len) best = { i, j, len: cum[j] - cum[i] };
+        break;
+      }
+    }
+  }
+  return best ? pts.slice(best.i, best.j + 1) : pts;
+}
+
+// Douglas–Peucker: kastar punkter som ligger på linjen mellan sina grannar.
+// En GPS-logg med en punkt i sekunden blir några tiotal punkter utan att
+// geometrin ändras mer än ett par meter.
+function simplify(pts, tolerance) {
+  if (pts.length < 3) return pts.slice();
+  const k = Math.cos(toRad(pts[0][0]));
+  const perp = (p, a, b) => {
+    const ax = a[1] * k, ay = a[0], bx = b[1] * k, by = b[0], px = p[1] * k, py = p[0];
+    const dx = bx - ax, dy = by - ay;
+    if (!dx && !dy) return Math.hypot(px - ax, py - ay) * 111320;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) * 111320;
+  };
+  const keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [s, e] = stack.pop();
+    let dmax = 0, idx = -1;
+    for (let i = s + 1; i < e; i++) {
+      const d = perp(pts[i], pts[s], pts[e]);
+      if (d > dmax) { dmax = d; idx = i; }
+    }
+    if (dmax > tolerance && idx > 0) { keep[idx] = 1; stack.push([s, idx], [idx, e]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+function buildTrack(raw, { singleLap = true, tolerance = 3 } = {}) {
+  let pts = raw.pts.filter((p, i, a) => i === 0 || haversine(a[i - 1], p) > 0.5);
+  if (singleLap) pts = extractLap(pts);
+  pts = simplify(pts, tolerance).map(p => [+p[0].toFixed(6), +p[1].toFixed(6)]);
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += haversine(pts[i - 1], pts[i]);
+  return { pts, length: Math.round(len), name: raw.name, importedAt: Date.now() };
+}
+
+function saveTrack(t) {
+  track = t;
+  if (t) localStorage.setItem("snowTrack", JSON.stringify(t));
+  else localStorage.removeItem("snowTrack");
+  buildSegments();
+}
+
+function buildSegments() {
+  segments = [];
+  if (!track || track.pts.length < 2) return;
+  for (let i = 1; i < track.pts.length; i++) {
+    const a = track.pts[i - 1], b = track.pts[i];
+    const len = haversine(a, b);
+    if (len < 1) continue;
+    segments.push({ a, b, len, bearing: segBearing(a, b), mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] });
+  }
+}
+
+function trackCentre() {
+  if (!segments.length) return [place.lat, place.lon];
+  const lat = segments.reduce((s, x) => s + x.mid[0], 0) / segments.length;
+  const lon = segments.reduce((s, x) => s + x.mid[1], 0) / segments.length;
+  return [lat, lon];
+}
+
+function nearestSegment(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const s of segments) {
+    const d = haversine([lat, lon], s.mid);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best ? { seg: best, dist: bd } : null;
+}
+
+/* --- vindbilden över hela spåret --- */
+
+// Hur illa en given tvärvind är avgörs av om snön hamnar innanför spårbredden.
+function segState(cross, baseState) {
+  if (baseState === "stop") return "stop";
+  const drift = driftDistance(cross, S.throwHeight).centre;
+  if (drift <= S.trailWidth / 2) return baseState === "marginal" ? "marginal" : "go";
+  if (drift <= S.trailWidth) return "marginal";
+  return "stop";
+}
+
+// Ett representativt värde för hero och tabell. Med kanoner utplacerade räknas
+// bara de lägen ni faktiskt kör på, annars hela spåret viktat efter längd.
+function windContext(pt) {
+  const geoAt = b => Math.abs(pt.wind * Math.sin(toRad(normDeg(normDeg(pt.dir + 180) - b))));
+
+  if (guns.length && segments.length) {
+    const vals = guns.map(g => {
+      const n = nearestSegment(g.lat, g.lon);
+      return { gun: g, bearing: n ? n.seg.bearing : S.trailBearing, cross: n ? geoAt(n.seg.bearing) : geoAt(S.trailBearing) };
+    });
+    const sorted = vals.map(v => v.cross).sort((a, b) => a - b);
+    return { mode: "guns", perGun: vals, median: sorted[Math.floor(sorted.length / 2)],
+             min: sorted[0], max: sorted[sorted.length - 1], count: guns.length };
+  }
+  if (segments.length) {
+    const total = segments.reduce((s, x) => s + x.len, 0);
+    const rows = segments.map(s => ({ cross: geoAt(s.bearing), len: s.len })).sort((a, b) => a.cross - b.cross);
+    let acc = 0, median = rows[0].cross;
+    for (const r of rows) { acc += r.len; if (acc >= total / 2) { median = r.cross; break; } }
+    return { mode: "track", median, min: rows[0].cross, max: rows[rows.length - 1].cross, count: segments.length };
+  }
+  const c = geoAt(S.trailBearing);
+  return { mode: "manual", median: c, min: c, max: c, count: 1 };
+}
+
+/* ==========================================================================
+   14. PLANERINGSKARTAN
+   ========================================================================== */
+
+const GUN_LIMIT = () => ({ fan: S.fanCount, lance: S.lanceCount });
+
+function gunIcon(type, state) {
+  const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[state] || "#93a4bd";
+  const body = type === "fan"
+    ? `<circle cx="13" cy="13" r="9" fill="${col}" stroke="#0b1220" stroke-width="2"/>
+       <path d="M13 6v14M6.5 9.5l13 7M19.5 9.5l-13 7" stroke="#0b1220" stroke-width="1.6" stroke-linecap="round"/>`
+    : `<rect x="9" y="3" width="8" height="20" rx="4" fill="${col}" stroke="#0b1220" stroke-width="2"/>`;
+  return L.divIcon({
+    className: "gun-icon", iconSize: [26, 26], iconAnchor: [13, 13],
+    html: `<svg width="26" height="26" viewBox="0 0 26 26">${body}</svg>`
+  });
+}
+
+function sliderPoint() {
+  const target = Date.now() + sliderOffsetH * 3600000;
+  if (!series.length) return null;
+  let best = series[0], bd = Infinity;
+  for (const d of series) { const x = Math.abs(d.x - target); if (x < bd) { bd = x; best = d; } }
+  return best;
+}
+
+function ensurePlanMap() {
+  if (planMap) { planMap.invalidateSize(); return true; }
+  // Leaflet mäter fel på ett dolt element. Vänta tills fliken faktiskt visas.
+  if ($("panelWind").hidden) return false;
+  const c = trackCentre();
+  planMap = L.map("planMap", { zoomControl: true, attributionControl: true }).setView(c, 15);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { attribution: "© OpenStreetMap", maxZoom: 19 }).addTo(planMap);
+  planLayers = L.layerGroup().addTo(planMap);
+  gunLayers = L.layerGroup().addTo(planMap);
+  return true;
+  planMap.on("click", e => {
+    if (!addMode) return;
+    addGun(addMode, e.latlng.lat, e.latlng.lng);
+  });
+}
+
+function addGun(type, lat, lon) {
+  const limits = GUN_LIMIT();
+  const have = guns.filter(g => g.type === type).length;
+  if (have >= limits[type]) {
+    setPlanNote(`Alla ${limits[type]} ${type === "fan" ? "fläktkanoner" : "lansar"} är redan utplacerade. Flytta en i stället, eller höj antalet under ⚙️.`);
+    return;
+  }
+  guns.push({ id: (crypto.randomUUID?.() || String(Date.now() + Math.random())), type, lat: +lat.toFixed(6), lon: +lon.toFixed(6) });
+  persistGuns();
+  renderPlan();
+  renderHero();
+  renderHours();
+}
+
+function persistGuns() { localStorage.setItem("snowGuns", JSON.stringify(guns)); }
+
+function setPlanNote(txt) { $("planNote").textContent = txt || ""; }
+
+function renderPlan() {
+  const hasTrack = !!(track && segments.length);
+  $("emptyTrack").hidden = hasTrack;
+  $("planWrap").hidden = !hasTrack;
+  $("planControls").hidden = !hasTrack;
+  $("compassCard").hidden = hasTrack;
+  if (!hasTrack) return;
+
+  const ready = ensurePlanMap();
+  const pt = sliderPoint();
+  if (!pt) return;
+  const base = assess(pt);
+  const blowsTo = normDeg(pt.dir + 180);
+
+  if (!ready) return;
+  planLayers.clearLayers();
+  const colors = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" };
+  let good = 0, total = 0;
+  for (const s of segments) {
+    const cross = Math.abs(pt.wind * Math.sin(toRad(normDeg(blowsTo - s.bearing))));
+    const st = segState(cross, "go"); // kartan visar vindbilden, temperaturen står i banderollen
+    total += s.len; if (st === "go") good += s.len;
+    L.polyline([s.a, s.b], { color: colors[st], weight: 7, opacity: .9, lineCap: "round" })
+      .bindTooltip(`${dirName(s.bearing)}-riktning · tvärvind ${fmt(cross)} m/s · drift ${Math.round(driftDistance(cross, S.throwHeight).centre)} m`,
+        { sticky: true })
+      .addTo(planLayers);
+  }
+
+  gunLayers.clearLayers();
+  guns.forEach(g => {
+    const n = nearestSegment(g.lat, g.lon);
+    const bearing = n ? n.seg.bearing : S.trailBearing;
+    const cross = Math.abs(pt.wind * Math.sin(toRad(normDeg(blowsTo - bearing))));
+    const drift = driftDistance(cross, S.throwHeight);
+    const st = segState(cross, "go");
+    const across = pt.wind * Math.sin(toRad(normDeg(blowsTo - bearing)));
+    const upwind = across >= 0 ? "vänster" : "höger";
+    const corr = Math.round(aimCorrection(drift.centre, S.throwDist));
+    const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st), draggable: true }).addTo(gunLayers);
+    m.bindPopup(
+      `<div style="font:13px/1.5 sans-serif; min-width:180px">
+        <b>${g.type === "fan" ? "Fläktkanon" : "Lans"}</b><br>
+        Spåret löper ${dirName(bearing)} här.<br>
+        Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
+        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}<br>
+        <a href="#" data-del="${g.id}" style="color:#dc2626">Ta bort</a>
+       </div>`);
+    m.on("dragend", ev => {
+      const p = ev.target.getLatLng();
+      g.lat = +p.lat.toFixed(6); g.lon = +p.lng.toFixed(6);
+      persistGuns(); renderPlan(); renderHero(); renderHours();
+    });
+    m.on("popupopen", ev => {
+      ev.popup.getElement().querySelector("[data-del]")?.addEventListener("click", e => {
+        e.preventDefault();
+        guns = guns.filter(x => x.id !== g.id);
+        persistGuns(); renderPlan(); renderHero(); renderHours();
+      });
+    });
+  });
+
+  if (!planMap._fitted) {
+    planMap.fitBounds(L.polyline(track.pts).getBounds(), { padding: [24, 24] });
+    planMap._fitted = true;
+  }
+
+  // vindrosen i kartans hörn
+  const rose = $("windRose");
+  rose.innerHTML = `
+    <svg viewBox="0 0 74 74">
+      <circle cx="37" cy="37" r="30" fill="rgba(11,18,32,.82)" stroke="#2b3b57"/>
+      <text x="37" y="13" fill="#68789a" font-size="8" text-anchor="middle">N</text>
+      <g transform="rotate(${blowsTo.toFixed(0)} 37 37)">
+        <path d="M37 17 L44 40 L37 36 L30 40 Z" fill="#f0b429"/>
+      </g>
+      <text x="37" y="58" fill="#e8eef7" font-size="10" text-anchor="middle" font-weight="600">${fmt(pt.wind, 0)} m/s</text>
+      <text x="37" y="68" fill="#93a4bd" font-size="8" text-anchor="middle">från ${dirName(pt.dir)}</text>
+    </svg>`;
+
+  const pct = Math.round(good / total * 100);
+  const när = sliderOffsetH === 0 ? "Med vinden just nu" : `${dayPrefix(pt.x)} ${clock(pt.x)}`;
+  $("planSummary").innerHTML =
+    `${när} landar snön innanför spårbredden på <b>${pct} %</b> av spåret ` +
+    `(${Math.round(good)} av ${Math.round(total)} m). ` +
+    (guns.length ? `${guns.filter(g => g.type === "fan").length} fläktar och ${guns.filter(g => g.type === "lance").length} lansar utplacerade.`
+                 : "Placera ut aggregaten så får varje kanon ett eget riktningsråd.");
+
+  // Kartan svarar på var snön hamnar. Om det inte går att göra snö alls just
+  // då är det en annan fråga, och den hör hemma i en egen banderoll.
+  const banner = $("tempBanner");
+  const tooWarm = base.reasons.some(r => r.includes("våttemp"));
+  banner.hidden = !tooWarm;
+  if (tooWarm) banner.textContent =
+    `${sliderOffsetH === 0 ? "Just nu" : dayPrefix(pt.x) + " " + clock(pt.x)} är våttemperaturen ${fmt(pt.wb)} °C, ` +
+    `över startgränsen ${fmt(base.th.base)} °C. Färgerna visar bara hur vinden ligger — dra reglaget till ett körfönster för att planera på riktigt.`;
+  $("gunCount").textContent =
+    `Fläkt ${guns.filter(g => g.type === "fan").length}/${S.fanCount} · Lans ${guns.filter(g => g.type === "lance").length}/${S.lanceCount}`;
+  $("timeLabel").textContent = sliderOffsetH === 0
+    ? "nu" : `${dayPrefix(pt.x)} ${clock(pt.x)} · ${fmt(pt.wb)} °C våttemp`;
+}
+
+/* --- inläsning av GPX-fil --- */
+
+async function handleGpxFile(file) {
+  if (!file) return;
+  setPlanNote("Läser " + file.name + "…");
+  try {
+    const text = await file.text();
+    const raw = parseGpx(text);
+    const single = buildTrack(raw, { singleLap: true, tolerance: 3 });
+    const whole = buildTrack(raw, { singleLap: false, tolerance: 3 });
+    const looped = whole.length > single.length * 1.6;
+    saveTrack(single);
+    if (planMap) { planMap._fitted = false; }
+    renderPlan();
+    renderAll();
+    setPlanNote(
+      `Läste in ${single.pts.length} punkter, ${single.length} m.` +
+      (looped ? ` Filen innehöll ${(whole.length / single.length).toFixed(1)} varv — appen behöll ett.` : "") +
+      ` Stämmer det inte kan du läsa in hela loggen i stället.`);
+    $("useWhole").hidden = !looped;
+    $("useWhole").onclick = () => {
+      saveTrack(whole);
+      if (planMap) planMap._fitted = false;
+      renderPlan(); renderAll();
+      setPlanNote(`Använder hela loggen: ${whole.pts.length} punkter, ${whole.length} m.`);
+      $("useWhole").hidden = true;
+    };
+  } catch (e) {
+    setPlanNote("Kunde inte läsa filen: " + e.message);
+  }
+}
+
+/* ==========================================================================
+   8. RENDERING
+   ========================================================================== */
+
+const $ = id => document.getElementById(id);
+function setLoading(on) { $("loading").style.display = on ? "flex" : "none"; }
+function setError(msg) { $("err").textContent = msg; }
+
+function currentPoint() {
+  const now = Date.now();
+  if (!series.length) return null;
+  let best = series[0], bestDiff = Infinity;
+  for (const d of series) {
+    const diff = Math.abs(d.x - now);
+    if (diff < bestDiff) { bestDiff = diff; best = d; }
+  }
+  return bestDiff <= 3 * 3600000 ? best : null;
+}
+
+function renderAll() {
+  renderStamp();
+  renderHero();
+  renderWindows();
+  renderHours();
+  renderMainChart();
+  renderWindChart();
+  renderCompass();
+  renderPlan();
+  renderModelDelta();
+}
+
+function renderStamp() {
+  const el = $("stamp");
+  if (!fetchedAt) { el.textContent = ""; return; }
+  const age = Math.round((Date.now() - fetchedAt) / 60000);
+  const ageTxt = age < 1 ? "nyss" : age < 60 ? `för ${age} min sedan` : `för ${Math.round(age / 60)} h sedan`;
+  el.textContent = `Prognos hämtad ${ageTxt} · ${place.lat.toFixed(3)}, ${place.lon.toFixed(3)}`;
+}
+
+const STATE_COLOR = { go: "var(--go)", marginal: "var(--warn)", stop: "var(--stop)" };
+const STATE_WORD = { go: "Kör", marginal: "Marginellt", stop: "Vänta" };
+
+function renderHero() {
+  const pt = currentPoint();
+  const hero = $("hero");
+  if (!pt) {
+    hero.style.setProperty("--edge", "var(--line)");
+    $("verdictWord").textContent = "Ingen data";
+    $("verdictWhy").textContent = "Prognosen täcker inte den här tidpunkten.";
+    return;
+  }
+  const a = assess(pt);
+  hero.style.setProperty("--edge", STATE_COLOR[a.state]);
+  $("verdictWord").textContent = STATE_WORD[a.state];
+
+  let why;
+  if (a.state === "go") {
+    const q = achievableQuality(pt.wb, S.waterTemp);
+    why = `${Math.round(a.fanCap)} % kapacitet på fläkt` +
+          (a.lanceCap > 0 ? `, ${Math.round(a.lanceCap)} % på lans` : ", ännu för varmt för lans") +
+          (q ? ` · räcker till kvalitet ${q}` : "");
+  } else {
+    why = a.reasons[0] ? a.reasons[0].charAt(0).toUpperCase() + a.reasons[0].slice(1) + "." : "";
+    if (a.reasons.length > 1) why += " " + a.reasons[1].charAt(0).toUpperCase() + a.reasons[1].slice(1) + ".";
+  }
+  $("verdictWhy").textContent = why;
+
+  $("wbNow").textContent = fmt(pt.wb);
+  $("roAir").textContent = fmt(pt.temp) + "°";
+  $("roRh").textContent = Math.round(pt.rh) + "%";
+  $("roWind").textContent = `${fmt(pt.wind, 0)} ${dirName(pt.dir)}`;
+  $("roCross").textContent = fmt(a.geo.crossAbs, 1);
+}
+
+function renderWindows() {
+  const box = $("windows");
+  box.innerHTML = "";
+  if (!series.length) return;
+  const now = Date.now();
+  const wins = findWindows(now, now + 10 * 86400000).slice(0, 5);
+
+  if (!wins.length) {
+    box.innerHTML = `<div class="win none"><span>Inget körfönster inom 10 dygn</span><span class="d">för varmt eller för blåsigt</span></div>`;
+    return;
+  }
+  wins.forEach((w, i) => {
+    const div = document.createElement("div");
+    div.className = "win" + (w.marginal ? " marginal" : "");
+    const running = w.start <= now + 20 * 60000;
+    // Sträcker sig fönstret över midnatt behövs veckodagen på sluttiden,
+    // annars ser ett dygnslångt fönster ut som en kvart.
+    const endTxt = daysAhead(w.end) === daysAhead(w.start)
+      ? clock(w.end) : `${clock(w.end)} ${shortDay(w.end)}`;
+    const label = running
+      ? `Kör nu → ${endTxt}`
+      : `${dayPrefix(w.start)} ${clock(w.start)} → ${endTxt}`;
+    div.innerHTML = `<span class="t">${label}</span>` +
+      `<span class="d num">${durationText(w.end - w.start)} · lägst ${fmt(w.minWb)} °C</span>`;
+    if (i === 0 && running) div.querySelector(".t").style.color = "var(--go)";
+    box.appendChild(div);
+  });
+}
+
+function renderHours() {
+  const body = $("hourBody");
+  body.innerHTML = "";
+  const now = Date.now();
+  const end = now + hoursSpan * 3600000;
+  // Kvartsupplösning första sex timmarna, därefter varje hel timme.
+  const pts = series.filter(d => d.x >= now - 900000 && d.x <= end)
+    .filter(d => d.x < now + 6 * 3600000 ? true : new Date(d.x).getMinutes() === 0);
+
+  let lastDay = null;
+  for (const pt of pts) {
+    const a = assess(pt);
+    const tr = document.createElement("tr");
+    tr.dataset.state = a.state;
+    const day = new Date(pt.x).getDate();
+    if (lastDay !== null && day !== lastDay) tr.className = "newday";
+    lastDay = day;
+    const gust = Number.isFinite(pt.gust) ? fmt(pt.gust, 0) : "–";
+    tr.innerHTML =
+      `<td>${clock(pt.x)}</td>` +
+      `<td class="num" style="color:var(--ice);font-weight:650">${fmt(pt.wb)}</td>` +
+      `<td class="num">${fmt(pt.temp)}</td>` +
+      `<td class="num">${Math.round(pt.rh)}</td>` +
+      `<td class="num">${fmt(pt.wind, 0)}</td>` +
+      `<td class="num" style="color:var(--ink-faint)">${gust}</td>` +
+      `<td>${dirName(pt.dir)}</td>` +
+      `<td class="num">${fmt(a.geo.crossAbs, 1)}</td>` +
+      `<td><span class="dot ${a.state}"></span></td>`;
+    tr.title = a.reasons.join(" · ") || "Alla villkor uppfyllda";
+    body.appendChild(tr);
+  }
+  if (!pts.length) body.innerHTML = `<tr><td colspan="9" style="color:var(--ink-faint);padding:16px">Ingen data för perioden.</td></tr>`;
+}
+
+/* --- huvudgrafen --- */
+
+const nowLinePlugin = {
+  id: "nowLine",
+  afterDatasetsDraw(chart) {
+    const x = chart.scales.x.getPixelForValue(Date.now());
+    if (x < chart.chartArea.left || x > chart.chartArea.right) return;
+    const c = chart.ctx;
+    c.save();
+    c.beginPath(); c.moveTo(x, chart.chartArea.top); c.lineTo(x, chart.chartArea.bottom);
+    c.lineWidth = 1.5; c.strokeStyle = "rgba(232,238,247,.55)"; c.stroke();
+    c.fillStyle = "rgba(232,238,247,.75)"; c.font = "10px sans-serif"; c.textAlign = "left";
+    c.fillText("nu", x + 4, chart.chartArea.top + 10);
+    c.restore();
+  }
+};
+
+const windArrowPlugin = {
+  id: "windArrows",
+  afterDatasetsDraw(chart) {
+    const sc = chart.scales.x;
+    if (sc.max - sc.min > 4 * 86400000) return;
+    const pts = chart.data.datasets[2].data;
+    const visible = pts.filter(p => p.x >= sc.min && p.x <= sc.max);
+    if (!visible.length) return;
+    const step = Math.max(1, Math.ceil(visible.length / 26));
+    const c = chart.ctx;
+    c.save();
+    visible.forEach((p, i) => {
+      if (i % step) return;
+      const x = sc.getPixelForValue(p.x);
+      const y = chart.chartArea.top + 14;
+      c.save();
+      c.translate(x, y);
+      c.rotate(toRad(p.dir + 180)); // pilen pekar dit vinden blåser
+      c.beginPath(); c.moveTo(0, -6); c.lineTo(-4, 4); c.lineTo(0, 2); c.lineTo(4, 4); c.closePath();
+      c.fillStyle = p.cross > S.windWarn ? "#f0b429" : "#a8b8d0";
+      c.fill(); c.restore();
+    });
+    c.restore();
+  }
+};
+
+const crosshairPlugin = {
+  id: "crosshair",
+  afterDraw(chart) {
+    if (!chart.tooltip?._active?.length) return;
+    const x = chart.tooltip._active[0].element.x;
+    const c = chart.ctx;
+    c.save();
+    c.beginPath(); c.moveTo(x, chart.chartArea.top); c.lineTo(x, chart.chartArea.bottom);
+    c.lineWidth = 1; c.strokeStyle = "rgba(255,255,255,.22)"; c.setLineDash([4, 4]); c.stroke();
+    c.restore();
+  }
+};
+
+function chartSource(minTs, maxTs) {
+  const hours = (maxTs - minTs) / 3600000;
+  if (hours <= 40 && fine.length) {
+    const a = fine[0].x, b = fine[fine.length - 1].x;
+    if (minTs >= a - 3600000 && maxTs <= b + 3600000) return fine;
+  }
+  return series;
+}
+
+function datasetsFrom(src) {
+  const th = thresholds();
+  return [
+    src.map(d => ({ x: d.x, y: d.wb })),
+    src.map(d => ({ x: d.x, y: d.temp })),
+    src.map(d => ({ x: d.x, y: d.wind, dir: d.dir, rh: d.rh, cross: windGeometry(d.wind, d.dir, S.trailBearing).crossAbs })),
+    src.map(d => ({ x: d.x, y: d.gust }))
+  ];
+}
+
+function renderMainChart() {
+  const th = thresholds();
+  const ctx = $("mainChart").getContext("2d");
+  if (mainChart) mainChart.destroy();
+  const src = series;
+  const d = datasetsFrom(src);
+
+  mainChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      datasets: [
+        { label: "Våttemperatur", data: d[0], borderColor: "#3fb9f0", borderWidth: 2.5, pointRadius: 0, tension: .25, yAxisID: "y" },
+        { label: "Lufttemperatur", data: d[1], borderColor: "#8697b3", borderWidth: 1, borderDash: [4, 4], pointRadius: 0, tension: .25, yAxisID: "y" },
+        { label: "Medelvind", data: d[2], borderColor: "rgba(240,180,41,.65)", backgroundColor: "rgba(240,180,41,.10)", fill: true, borderWidth: 1, pointRadius: 0, tension: .25, yAxisID: "y1" },
+        { label: "Byvind", data: d[3], borderColor: "rgba(240,180,41,.9)", borderDash: [3, 3], borderWidth: 1, pointRadius: 0, tension: .25, yAxisID: "y1" }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", axis: "x", intersect: false },
+      scales: {
+        x: { type: "time", time: { minUnit: "hour", tooltipFormat: "EEE d MMM HH:mm", displayFormats: { hour: "HH:mm", day: "d MMM" } },
+             grid: { color: "rgba(43,59,87,.6)" }, ticks: { color: "#93a4bd", maxRotation: 0, font: { size: 10 } } },
+        y: { position: "left", grid: { color: "rgba(43,59,87,.6)" }, ticks: { color: "#93a4bd", font: { size: 10 }, callback: v => v + "°" },
+             title: { display: false } },
+        y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#f0b429", font: { size: 10 }, callback: v => v + "" },
+              min: 0, suggestedMax: 12 }
+      },
+      plugins: {
+        legend: { display: false },
+        annotation: {
+          annotations: {
+            zone: { type: "box", yMin: -60, yMax: th.base, backgroundColor: "rgba(63,185,240,.13)", borderWidth: 0, yScaleID: "y" },
+            limit: { type: "line", yMin: th.base, yMax: th.base, borderColor: "rgba(63,185,240,.65)", borderWidth: 1, borderDash: [3, 3],
+              label: { display: true, content: `start ${fmt(th.base)}°`, position: "start", backgroundColor: "transparent", color: "#3fb9f0", font: { size: 10 } } },
+            target: { type: "line", yMin: th.target, yMax: th.target, borderColor: "rgba(96,165,250,.45)", borderWidth: 1, borderDash: [2, 5],
+              label: { display: true, content: `kvalitet ${S.quality} ${fmt(th.target)}°`, position: "end", backgroundColor: "transparent", color: "#60a5fa", font: { size: 10 } } }
+          }
+        },
+        zoom: {
+          pan: { enabled: true, mode: "x", onPanComplete: onViewChange },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: "x", onZoomComplete: onViewChange }
+        },
+        tooltip: {
+          backgroundColor: "#0b1220", borderColor: "#2b3b57", borderWidth: 1, padding: 10,
+          callbacks: {
+            label(c) {
+              const v = c.parsed.y;
+              if (!Number.isFinite(v)) return null;
+              switch (c.dataset.label) {
+                case "Våttemperatur": return `Våttemp ${fmt(v)} °C`;
+                case "Lufttemperatur": return `Luft ${fmt(v)} °C · RF ${Math.round(c.raw.rh ?? NaN) || "–"} %`;
+                case "Medelvind": return `Vind ${fmt(v)} m/s från ${dirName(c.raw.dir)} · tvärs ${fmt(c.raw.cross)} m/s`;
+                case "Byvind": return `Byar ${fmt(v)} m/s`;
+              }
+              return `${c.dataset.label}: ${fmt(v)}`;
+            },
+            afterBody(items) {
+              const wb = items.find(i => i.dataset.label === "Våttemperatur");
+              if (!wb) return "";
+              const cap = capacity(wb.parsed.y, th.base, S.waterTemp);
+              return cap > 0 ? `Fläktkapacitet ca ${Math.round(cap)} %` : "Under startgränsen krävs kallare luft";
             }
+          }
         }
+      }
+    },
+    plugins: [windArrowPlugin, crosshairPlugin, nowLinePlugin]
+  });
+  setRange(currentRangeHours);
+}
 
-        function calculateWetBulb(T, Rh) {
-            return T * Math.atan(0.151977 * Math.pow(Rh + 8.313659, 0.5)) + Math.atan(T + Rh) - Math.atan(Rh - 1.676331) + 0.00391838 * Math.pow(Rh, 1.5) * Math.atan(0.023101 * Rh) - 4.686035;
-        }
+function onViewChange({ chart }) {
+  const src = chartSource(chart.scales.x.min, chart.scales.x.max);
+  const d = datasetsFrom(src);
+  chart.data.datasets.forEach((ds, i) => { ds.data = d[i]; });
+  autoScaleY(chart);
+  chart.update("none");
+}
 
-        // --- MAIN CHART ---
-        function drawChart() {
-            const ctx = document.getElementById('snowChart').getContext('2d');
-            if (chartInstance) chartInstance.destroy();
+// Fast skala −30…+20 gjorde att hela kurvan klämdes ihop i mitten. Nu anpassas
+// axeln efter det som faktiskt syns, med startgränsen alltid i bild.
+function autoScaleY(chart) {
+  const sc = chart.scales.x;
+  const vis = series.filter(d => d.x >= sc.min && d.x <= sc.max);
+  if (!vis.length) return;
+  const th = thresholds();
+  const lo = Math.min(th.target - 1, ...vis.map(d => d.wb));
+  const hi = Math.max(th.base + 1, ...vis.map(d => d.temp));
+  const pad = Math.max(1.5, (hi - lo) * 0.12);
+  chart.options.scales.y.min = Math.floor(lo - pad);
+  chart.options.scales.y.max = Math.ceil(hi + pad);
+  const wmax = Math.max(...vis.map(d => Math.max(d.wind || 0, d.gust || 0)));
+  chart.options.scales.y1.max = Math.max(6, Math.ceil(wmax * 1.6));
+}
 
-            const windArrowPlugin = {
-                id: 'windArrows',
-                afterDatasetsDraw(chart) {
-                    const ctx = chart.ctx;
-                    if(chart.scales.x.max - chart.scales.x.min > 86400000 * 3) return;
+function setRange(hours) {
+  currentRangeHours = hours;
+  if (!mainChart) return;
+  const now = Date.now();
+  mainChart.zoomScale("x", { min: now - 1800000, max: now + hours * 3600000 }, "none");
+  onViewChange({ chart: mainChart });
+}
 
-                    ctx.save();
-                    // Vi använder fortfarande medelvinden för att bestämma var pilarna ritas, 
-                    // men hämtar data från dataset 3 (index 2 är byvind nu om vi lägger till den sist, eller tvärtom)
-                    // dataset 2 = medelvind, dataset 3 = byvind. Vi kör på dataset 2.
-                    const dataPoints = chart.data.datasets[2].data;
-                    let step = 1;
-                    const visiblePoints = dataPoints.filter(dp => dp.x >= chart.scales.x.min && dp.x <= chart.scales.x.max).length;
-                    if(visiblePoints > 30) step = Math.ceil(visiblePoints / 30);
-                    dataPoints.forEach((dp, i) => {
-                        if (i % step !== 0) return;
-                        if (dp.x < chart.scales.x.min || dp.x > chart.scales.x.max) return;
-                        const x = chart.scales.x.getPixelForValue(dp.x);
-                        const y = chart.chartArea.top + 15;
-                        drawArrow(ctx, x, y, dp.dir);
-                    });
-                    ctx.restore();
-                }
-            };
+/* --- vindgrafen --- */
 
-            const verticalHoverLine = {
-                id: 'verticalHoverLine',
-                afterDraw: (chart) => {
-                    if (chart.tooltip?._active?.length) {
-                        const x = chart.tooltip._active[0].element.x;
-                        const yAxis = chart.scales.y;
-                        const ctx = chart.ctx;
-                        ctx.save();
-                        ctx.beginPath();
-                        ctx.moveTo(x, yAxis.top);
-                        ctx.lineTo(x, yAxis.bottom);
-                        ctx.lineWidth = 1;
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-                        ctx.setLineDash([5, 5]);
-                        ctx.stroke();
-                        ctx.restore();
-                    }
-                }
-            };
+function renderWindChart() {
+  const ctx = $("windChart").getContext("2d");
+  if (windChart) windChart.destroy();
+  const now = Date.now();
+  const pts = series.filter(d => d.x >= now && d.x <= now + 48 * 3600000);
+  windChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      datasets: [
+        { label: "Medelvind", data: pts.map(d => ({ x: d.x, y: d.wind })), borderColor: "#f0b429", borderWidth: 2, pointRadius: 0, tension: .3 },
+        { label: "Byar", data: pts.map(d => ({ x: d.x, y: d.gust })), borderColor: "rgba(240,180,41,.55)", borderDash: [4, 4], borderWidth: 1, pointRadius: 0, tension: .3 },
+        { label: "Tvärs spåret", data: pts.map(d => ({ x: d.x, y: windGeometry(d.wind, d.dir, S.trailBearing).crossAbs })), borderColor: "#3fb9f0", backgroundColor: "rgba(63,185,240,.12)", fill: true, borderWidth: 2, pointRadius: 0, tension: .3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { type: "time", time: { tooltipFormat: "EEE HH:mm", displayFormats: { hour: "HH:mm" } },
+             grid: { display: false }, ticks: { color: "#68789a", font: { size: 10 }, maxTicksLimit: 7, maxRotation: 0 } },
+        y: { beginAtZero: true, grid: { color: "rgba(43,59,87,.6)" },
+             ticks: { color: "#68789a", font: { size: 10 }, callback: v => v + " m/s" } }
+      },
+      plugins: {
+        legend: { display: true, labels: { color: "#93a4bd", boxWidth: 10, font: { size: 10 } } },
+        annotation: { annotations: {
+          warn: { type: "line", yMin: S.windWarn, yMax: S.windWarn, borderColor: "rgba(251,191,36,.5)", borderWidth: 1, borderDash: [3, 3] },
+          stop: { type: "line", yMin: S.windStop, yMax: S.windStop, borderColor: "rgba(248,113,113,.5)", borderWidth: 1, borderDash: [3, 3] }
+        } },
+        tooltip: { backgroundColor: "#0b1220", borderColor: "#2b3b57", borderWidth: 1,
+          callbacks: { label: c => `${c.dataset.label}: ${fmt(c.parsed.y)} m/s` } }
+      }
+    },
+    plugins: [nowLinePlugin]
+  });
+}
 
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        { label: 'Våttemperatur', data: weatherData.map(d => ({x: d.x, y: d.wetBulb})), borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
-                        { label: 'Lufttemp', data: weatherData.map(d => ({x: d.x, y: d.temp})), borderColor: '#94a3b8', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, tension: 0.4, yAxisID: 'y' },
-                        // Medelvind (Dataset 2)
-                        { 
-                            label: 'Medelvind (m/s)', 
-                            data: weatherData.map(d => ({x: d.x, y: d.wind, dir: d.dir})), 
-                            borderColor: 'rgba(251, 191, 36, 0.5)', 
-                            backgroundColor: 'rgba(251, 191, 36, 0.1)', 
-                            fill: true, 
-                            borderWidth: 1, 
-                            pointRadius: 0, 
-                            yAxisID: 'y1' 
-                        },
-                        // FIX: Nytt dataset för Byvind (Gusts) (Dataset 3)
-                        { 
-                            label: 'Byvind (m/s)', 
-                            data: weatherData.map(d => ({x: d.x, y: d.gust})), 
-                            borderColor: '#fbbf24', // Samma gula färg
-                            borderDash: [5, 5], // Streckad linje
-                            backgroundColor: 'transparent',
-                            fill: false, 
-                            borderWidth: 1, 
-                            pointRadius: 0, 
-                            yAxisID: 'y1' 
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
-                    scales: {
-                        x: { type: 'time', time: { minUnit: 'hour', parser: 'yyyy-MM-dd HH:mm', tooltipFormat: 'd MMM HH:mm', displayFormats: { hour: 'HH:mm', day: 'd MMM' } }, grid: { color: '#334155' }, ticks: { color: '#cbd5e1' } },
-                        y: { display: true, position: 'left', grid: { color: '#334155' }, ticks: { color: '#cbd5e1' }, min: -30, max: 20 },
-                        y1: { display: true, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#fbbf24' }, min: 0, max: 30 }
-                    },
-                    plugins: { 
-                        legend: { display: false }, 
-                        annotation: {
-                            annotations: {
-                                box1: { type: 'box', yMin: -30, yMax: -2.5, backgroundColor: 'rgba(14, 165, 233, 0.15)', borderWidth: 0, yScaleID: 'y' },
-                                line1: { type: 'line', yMin: -2.5, yMax: -2.5, borderColor: 'rgba(14, 165, 233, 0.5)', borderWidth: 1, borderDash: [2, 2], label: { display: true, content: '-2.5°C', position: 'start', backgroundColor: 'transparent', color: '#38bdf8', font: {size:10} } }
-                            }
-                        },
-                        zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: updateDetailLevel } },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) label += ': ';
-                                    
-                                    if (context.parsed.y !== null) {
-                                        label += context.parsed.y.toFixed(1).replace('.', ',');
-                                    }
+/* --- kompassen: spår, vind och var snön faktiskt landar --- */
 
-                                    // Visa vindriktning endast på medelvind-raden
-                                    if (context.dataset.label === 'Medelvind (m/s)') {
-                                        label += ` m/s (${getWindDir(context.raw.dir)})`;
-                                    } 
-                                    // För byvind och temp, bara enhet
-                                    else if (context.dataset.label.includes('Byvind')) {
-                                        label += ' m/s';
-                                    }
-                                    else if(context.dataset.label.includes('temp')) {
-                                        label += '°C';
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    }
-                },
-                plugins: [windArrowPlugin, verticalHoverLine]
-            });
-            setRange(240, document.querySelector('.time-btn.active'));
-        }
+function renderCompass() {
+  const svg = $("compass");
+  const pt = currentPoint();
+  const cx = 170, cy = 150, R = 108;
 
-        function drawArrow(ctx, x, y, deg) {
-            ctx.save(); ctx.translate(x, y); ctx.rotate(((deg + 180) * Math.PI) / 180);
-            ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(-4, 4); ctx.lineTo(0, 2); ctx.lineTo(4, 4); ctx.closePath();
-            ctx.fillStyle = '#cbd5e1'; ctx.fill(); ctx.restore();
-        }
+  if (!pt) { svg.innerHTML = `<text x="170" y="150" fill="#68789a" font-size="13" text-anchor="middle">Ingen aktuell data</text>`; return; }
 
-        function updateDetailLevel({chart}) {
-            const min = chart.scales.x.min;
-            const max = chart.scales.x.max;
-            const diffHours = (max - min) / (1000 * 60 * 60);
-            let source = weatherData; 
-            if (diffHours < 36 && weatherDataDetailed.length > 0) {
-                 const detailStart = weatherDataDetailed[0].x;
-                 const detailEnd = weatherDataDetailed[weatherDataDetailed.length-1].x;
-                 if(min >= detailStart && max <= detailEnd) source = weatherDataDetailed;
-            }
-            chart.data.datasets[0].data = source.map(d => ({x: d.x, y: d.wetBulb}));
-            chart.data.datasets[1].data = source.map(d => ({x: d.x, y: d.temp}));
-            chart.data.datasets[2].data = source.map(d => ({x: d.x, y: d.wind, dir: d.dir}));
-            // FIX: Uppdatera även Byvind-datasetet (index 3)
-            chart.data.datasets[3].data = source.map(d => ({x: d.x, y: d.gust}));
-            chart.update(); 
-        }
+  const a = assess(pt);
+  const bearing = S.trailBearing;
+  const blowsTo = a.geo.blowsTo;
+  // Skärmkoordinater: 0° = uppåt (norr), medurs.
+  const P = (deg, r) => [cx + r * Math.sin(toRad(deg)), cy - r * Math.cos(toRad(deg))];
 
-        function setRange(hours, btn) {
-            if(!chartInstance) return;
-            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-            if(btn) btn.classList.add('active');
-            const now = Date.now();
-            const future = now + (hours * 60 * 60 * 1000);
-            chartInstance.zoomScale('x', {min: now, max: future}, 'default');
-            updateDetailLevel({chart: chartInstance});
-        }
+  const [tx1, ty1] = P(bearing, R), [tx2, ty2] = P(bearing + 180, R);
+  const [wx1, wy1] = P(blowsTo + 180, R - 12), [wx2, wy2] = P(blowsTo, R - 12);
 
-        function resetZoom() { setRange(240, document.querySelector('.time-btn:nth-last-child(2)')); }
-        function getWindDir(d) { const dirs = ['N','NÖ','Ö','SÖ','S','SV','V','NV']; return dirs[Math.round(d/45)%8]; }
-        function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
-        function updateLocationText() { document.getElementById('locationDisplay').innerText = `${currentName} (${currentLat.toFixed(3)}, ${currentLon.toFixed(3)})`; }
+  // Sidoförskjutningen ritas vinkelrätt mot spåret, skalad mot spårbredden.
+  const side = a.geo.across >= 0 ? bearing + 90 : bearing - 90;
+  const driftPx = Math.min(R - 20, (a.drift.centre / Math.max(2, S.trailWidth)) * 26);
+  const [dx, dy] = P(side, driftPx);
+  const stateCol = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[a.state];
 
-        // --- CALC LOGIC & PREDICTION ---
-        function openCalc() {
-            document.getElementById('calcModal').style.display = 'flex';
-            updateCalc();
-        }
-        function closeCalc() { document.getElementById('calcModal').style.display = 'none'; }
+  const ticks = [0, 90, 180, 270].map(d => {
+    const [x, y] = P(d, R + 14);
+    return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" fill="#68789a" font-size="11" text-anchor="middle">${["N","O","S","V"][d / 90]}</text>`;
+  }).join("");
 
-        function updateCalc() {
-            const waterTemp = parseFloat(document.getElementById('waterTempInput').value) || 0;
-            const quality = parseInt(document.getElementById('qualityInput').value);
-            document.getElementById('qualityValue').innerText = quality;
+  svg.innerHTML = `
+    <defs>
+      <marker id="wtip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" fill="#f0b429"/>
+      </marker>
+    </defs>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#2b3b57" stroke-width="1"/>
+    <circle cx="${cx}" cy="${cy}" r="${R * 0.55}" fill="none" stroke="#2b3b57" stroke-width="1" stroke-dasharray="2 5"/>
+    ${ticks}
+    <line x1="${tx1.toFixed(1)}" y1="${ty1.toFixed(1)}" x2="${tx2.toFixed(1)}" y2="${ty2.toFixed(1)}"
+          stroke="#e8eef7" stroke-width="11" stroke-linecap="round" opacity=".22"/>
+    <line x1="${tx1.toFixed(1)}" y1="${ty1.toFixed(1)}" x2="${tx2.toFixed(1)}" y2="${ty2.toFixed(1)}"
+          stroke="#e8eef7" stroke-width="2" stroke-dasharray="9 7" opacity=".8"/>
+    <line x1="${wx1.toFixed(1)}" y1="${wy1.toFixed(1)}" x2="${wx2.toFixed(1)}" y2="${wy2.toFixed(1)}"
+          stroke="#f0b429" stroke-width="2.5" marker-end="url(#wtip)"/>
+    <line x1="${cx}" y1="${cy}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${stateCol}" stroke-width="2"/>
+    <circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="7" fill="${stateCol}" opacity=".85"/>
+    <circle cx="${cx}" cy="${cy}" r="4" fill="#e8eef7"/>
+    <text x="${cx}" y="278" fill="#93a4bd" font-size="11" text-anchor="middle">
+      spår ${Math.round(bearing)}° · vind från ${dirName(pt.dir)} ${fmt(pt.wind)} m/s · fläck ${Math.round(a.drift.centre)} m ur led
+    </text>`;
 
-            const waterPenalty = Math.max(0, waterTemp * 0.5); 
-            const qualityPenalty = (10 - quality) * 0.4;
-            
-            const fanThreshold = -2.0 - qualityPenalty;
-            const lanceThreshold = -4.0 - qualityPenalty;
+  renderAimAdvice(pt, a);
+}
 
-            const now = Date.now();
-            let ds = (weatherDataDetailed.length > 0) ? weatherDataDetailed : weatherData;
-            const futureData = ds.filter(d => d.x >= now && d.x <= now + (48 * 3600 * 1000));
+function renderAimAdvice(pt, a) {
+  const el = $("aimAdvice");
+  const corr = aimCorrection(a.drift.centre, S.throwDist);
+  const sideWord = a.geo.across >= 0 ? "höger" : "vänster";
+  const upwind = a.geo.across >= 0 ? "vänster" : "höger";
+  const q = achievableQuality(pt.wb, S.waterTemp);
 
-            const fanData = [];
-            const lanceData = [];
-            let nextFanStart = null;
-            let nextLanceStart = null;
+  const parts = [];
+  parts.push(`<p style="margin:0 0 8px"><span class="pill ${a.state}">${STATE_WORD[a.state]}</span></p>`);
 
-            futureData.forEach(pt => {
-                const effectiveWB = pt.wetBulb + waterPenalty;
-                
-                let fanCap = 0;
-                if(effectiveWB <= fanThreshold) {
-                    const diff = fanThreshold - effectiveWB;
-                    fanCap = Math.min(100, 20 + (diff * 16)); 
-                    if(!nextFanStart) nextFanStart = pt.x;
-                }
-                fanData.push({x: pt.x, y: fanCap});
+  if (a.geo.crossAbs < 0.4) {
+    parts.push(`<p style="margin:0 0 8px">Vinden ligger i stort sett längs spåret. Kanonen kan riktas rakt på spåret utan sidokompensation — men håll koll, ett litet vindkast räcker för att det ska ändras.</p>`);
+  } else {
+    parts.push(`<p style="margin:0 0 8px">Vinden trycker <b>${fmt(a.geo.crossAbs)} m/s tvärs spåret</b> och för snön mot <b>${sideWord}</b> sett i spårets riktning (${Math.round(S.trailBearing)}°). Fanans tyngdpunkt hamnar ungefär <b>${Math.round(a.drift.centre)} m</b> ur led, svansen upp till ${Math.round(a.drift.tail)} m.</p>`);
+    parts.push(`<p style="margin:0 0 8px">Vrid kanonen ungefär <b>${Math.round(corr)}°</b> åt <b>${upwind}</b>, alltså mot vinden, så landar fläcken på spåret igen. Vid ${S.throwDist} m kastlängd motsvarar det att sikta ca ${Math.round(a.drift.centre)} m vid sidan av där snön ska ligga.</p>`);
+  }
 
-                let lanceCap = 0;
-                if(effectiveWB <= lanceThreshold) {
-                    const diff = lanceThreshold - effectiveWB;
-                    lanceCap = Math.min(100, 20 + (diff * 16));
-                    if(!nextLanceStart) nextLanceStart = pt.x;
-                }
-                lanceData.push({x: pt.x, y: lanceCap});
-            });
+  const gust = Number.isFinite(pt.gust) ? pt.gust : pt.wind;
+  if (gust > pt.wind * 1.7 && gust > 6) {
+    parts.push(`<p style="margin:0 0 8px">Byarna går upp i ${fmt(gust)} m/s mot ${fmt(pt.wind)} m/s i medel. Så byig vind går inte att kompensera bort — snön kommer att lägga sig ojämnt. Sänk kastbanan eller vänta.</p>`);
+  }
+  if (pt.wind < 0.8) {
+    parts.push(`<p style="margin:0 0 8px">Nästan vindstilla. Fanan sprids dåligt och snön bygger en hög rakt under kanonen. Flytta kanonen oftare än vanligt.</p>`);
+  }
+  if (a.state !== "stop" && q) {
+    parts.push(`<p style="margin:0">Våttemperaturen ${fmt(pt.wb)} °C räcker till kvalitet ${q} på skalan. Vill ni ha torrare snö behöver ni ${fmt(Math.abs(pt.wb - (S.fanBase - qualityOffset(Math.max(1, q - 2)) - waterOffset(S.waterTemp))))} grader till.</p>`);
+  }
+  if (a.state === "stop") {
+    parts.push(`<p style="margin:0">${a.reasons.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(". ")}.</p>`);
+  }
+  el.innerHTML = parts.join("");
+}
 
-            updatePredictionText('predFanTime', nextFanStart);
-            updatePredictionText('predLanceTime', nextLanceStart);
-            drawCalcChart(fanData, lanceData);
-        }
+function renderModelDelta() {
+  const pt = currentPoint();
+  const el = $("modelDelta");
+  if (!pt) { el.textContent = ""; return; }
+  const psy = wetBulbPsychrometric(pt.temp, pt.rh, pt.pressure);
+  const stu = wetBulbStull(pt.temp, pt.rh);
+  el.innerHTML = `Vid dagens förhållanden ger den psykrometriska ${fmt(psy)} °C och Stull ${fmt(stu)} °C — en skillnad på ${fmt(Math.abs(psy - stu))} grader. Stull räknar oftast för kallt vid hög luftfuktighet, vilket gör att appen tidigare visade start något för tidigt.`;
+}
 
-        function updatePredictionText(elId, time) {
-            const el = document.getElementById(elId);
-            if(!time) {
-                el.innerText = "Ingen start (48h)";
-                el.className = "pred-val text-red";
-            } else {
-                const d = new Date(time);
-                if (time - Date.now() < 30 * 60000) {
-                     el.innerText = "KÖR NU!";
-                     el.className = "pred-val text-green";
-                } else {
-                    const today = new Date().getDate();
-                    const targetDay = d.getDate();
-                    const prefix = (today === targetDay) ? "Idag" : "Imorgon";
-                    const timeStr = d.toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'});
-                    el.innerText = `${prefix} ${timeStr}`;
-                    el.className = "pred-val text-green";
-                }
-            }
-        }
+/* ==========================================================================
+   9. INFORMATIONSDELEN
+   ========================================================================== */
 
-        function drawCalcChart(fanData, lanceData) {
-            const ctx = document.getElementById('calcChart').getContext('2d');
-            
-            if (calcChartInstance) calcChartInstance.destroy();
+const SVG_DROPLET = `
+<svg viewBox="0 0 560 190" role="img" aria-label="Vattendroppens väg från munstycke till snökristall">
+  <rect x="8" y="70" width="46" height="26" rx="5" fill="#2b3b57"/>
+  <rect x="54" y="79" width="16" height="8" fill="#3fb9f0"/>
+  <text x="31" y="115" fill="#93a4bd" font-size="10" text-anchor="middle">munstycke</text>
+  <text x="31" y="128" fill="#68789a" font-size="9" text-anchor="middle">+1 till +6 °C</text>
 
-            calcChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        {
-                            label: 'Fläkt Kapacitet',
-                            data: fanData,
-                            borderColor: '#86efac', 
-                            backgroundColor: 'rgba(134, 239, 172, 0.1)',
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Lans Kapacitet',
-                            data: lanceData,
-                            borderColor: '#60a5fa', 
-                            backgroundColor: 'rgba(96, 165, 250, 0.1)',
-                            fill: true,
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            tension: 0.4
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { display: true, labels: { color: '#94a3b8', font: {size: 10}, boxWidth: 10 } },
-                        tooltip: {
-                            callbacks: {
-                                label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.y.toFixed(0)}%`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: { 
-                                unit: 'hour', 
-                                displayFormats: { hour: 'HH:mm' },
-                                tooltipFormat: 'd MMM HH:mm'
-                            },
-                            grid: { display: false },
-                            ticks: { color: '#64748b', maxTicksLimit: 6 }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            grid: { color: '#334155' },
-                            ticks: { color: '#64748b', callback: (v) => v + '%' }
-                        }
-                    }
-                }
-            });
-        }
+  <circle cx="130" cy="83" r="15" fill="#3fb9f0"/>
+  <path d="M118 70 l-9 -9 M142 70 l9 -9 M118 96 l-9 9 M142 96 l9 9" stroke="#7fd4f7" stroke-width="1.6" stroke-linecap="round"/>
+  <text x="130" y="130" fill="#93a4bd" font-size="10" text-anchor="middle">avdunstning</text>
+  <text x="130" y="143" fill="#68789a" font-size="9" text-anchor="middle">kyler droppen</text>
 
-        // --- MAP & FAVORITES ---
-        function openMap() {
-            document.getElementById('mapModal').style.display = 'flex';
-            if(!mapInstance) {
-                mapInstance = L.map('map').setView([currentLat, currentLon], 10);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
-                markerInstance = L.marker([currentLat, currentLon], {draggable: true}).addTo(mapInstance);
-                mapInstance.on('click', e => markerInstance.setLatLng(e.latlng));
-            } else {
-                setTimeout(() => { mapInstance.invalidateSize(); }, 100);
-                mapInstance.setView([currentLat, currentLon], 10);
-                markerInstance.setLatLng([currentLat, currentLon]);
-            }
-        }
-        function closeMap() { document.getElementById('mapModal').style.display = 'none'; }
-        
-        function saveLocation() {
-            const pos = markerInstance.getLatLng();
-            currentLat = pos.lat;
-            currentLon = pos.lng;
-            if(confirm("Vill du spara som ny favorit?")) {
-                const name = prompt("Namn på plats:", currentName) || "Okänd plats";
-                saveFavoriteItem(name, currentLat, currentLon);
-                currentName = name;
-            } else { currentName = "Vald plats"; }
-            localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
-            updateLocationText(); closeMap(); fetchData();
-        }
+  <path d="M175 83 h30" stroke="#68789a" stroke-width="1.4" marker-end="url(#ar)"/>
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 0 L10 5 L0 10 z" fill="#68789a"/></marker></defs>
 
-        function ensureDefaultFavorite() {
-            if(!favorites.some(f => f.name === 'Sparbanksspåret')) {
-                favorites.unshift({name: 'Sparbanksspåret', lat: 58.503, lon: 13.088});
-                localStorage.setItem('snowFavorites', JSON.stringify(favorites));
-            }
-        }
-        function populateFavorites() {
-            const sel = document.getElementById('favoritesSelect');
-            sel.innerHTML = '<option value="">-- Favoriter --</option>';
-            favorites.forEach((f, i) => {
-                const opt = document.createElement('option');
-                opt.value = i; opt.text = f.name;
-                if(f.name === currentName) opt.selected = true;
-                sel.appendChild(opt);
-            });
-        }
-        function saveFavoriteItem(name, lat, lon) {
-            const existing = favorites.findIndex(f => f.name === name);
-            if(existing >= 0) favorites[existing] = {name, lat, lon};
-            else favorites.push({name, lat, lon});
-            localStorage.setItem('snowFavorites', JSON.stringify(favorites));
-            populateFavorites();
-        }
+  <circle cx="255" cy="83" r="13" fill="#3fb9f0" opacity=".75"/>
+  <circle cx="255" cy="83" r="4" fill="#e8eef7"/>
+  <text x="255" y="130" fill="#93a4bd" font-size="10" text-anchor="middle">iskärna träffar</text>
+  <text x="255" y="143" fill="#68789a" font-size="9" text-anchor="middle">frysningen startar</text>
 
-        document.getElementById('favoritesSelect').onchange = (e) => {
-            const idx = e.target.value; if(idx === "") return;
-            const fav = favorites[idx];
-            currentLat = fav.lat; currentLon = fav.lon; currentName = fav.name;
-            localStorage.setItem('snowLat', currentLat); localStorage.setItem('snowLon', currentLon); localStorage.setItem('snowName', currentName);
-            updateLocationText(); fetchData();
-        };
+  <path d="M300 83 h30" stroke="#68789a" stroke-width="1.4" marker-end="url(#ar)"/>
 
-        document.getElementById('delFavBtn').onclick = () => {
-            const idx = document.getElementById('favoritesSelect').value;
-            if(idx === "") return alert("Välj en favorit att ta bort");
-            if(confirm("Är du säker?")) {
-                favorites.splice(idx, 1);
-                localStorage.setItem('snowFavorites', JSON.stringify(favorites));
-                if(favorites[idx]?.name === currentName) currentName = "Vald plats"; 
-                populateFavorites();
-            }
-        };
+  <g transform="translate(380,83)" stroke="#bfe9fb" stroke-width="2" stroke-linecap="round">
+    <path d="M0 -16 V16 M-14 -8 L14 8 M-14 8 L14 -8"/>
+    <path d="M0 -16 l-4 5 M0 -16 l4 5 M0 16 l-4 -5 M0 16 l4 -5"/>
+  </g>
+  <text x="380" y="130" fill="#93a4bd" font-size="10" text-anchor="middle">iskorn</text>
+  <text x="380" y="143" fill="#68789a" font-size="9" text-anchor="middle">landar som snö</text>
 
-        document.getElementById('editFavBtn').onclick = () => {
-             const idx = document.getElementById('favoritesSelect').value;
-             if(idx === "") return alert("Välj en favorit");
-             const newName = prompt("Nytt namn:", favorites[idx].name);
-             if(newName) {
-                 favorites[idx].name = newName; localStorage.setItem('snowFavorites', JSON.stringify(favorites));
-                 currentName = newName; populateFavorites(); updateLocationText();
-             }
-        };
+  <path d="M425 83 h30" stroke="#68789a" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M470 100 q40 -22 78 0 v18 h-78 z" fill="#e8eef7" opacity=".85"/>
+  <text x="509" y="140" fill="#93a4bd" font-size="10" text-anchor="middle">i spåret</text>
 
-        document.getElementById('mapSearchBtn').onclick = async () => {
-            const q = document.getElementById('mapSearch').value;
-            const resDiv = document.getElementById('searchResults');
-            if(!q) return;
-            resDiv.style.display = 'block'; resDiv.innerHTML = '<div style="padding:10px; color:#94a3b8;">Söker...</div>';
-            try {
-                const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
-                const data = await r.json();
-                resDiv.innerHTML = '';
-                if(data.length === 0) resDiv.innerHTML = '<div style="padding:10px;">Inga träffar</div>';
-                data.forEach(place => {
-                    const d = document.createElement('div'); d.className = 'search-result';
-                    d.innerText = place.display_name.split(',')[0];
-                    d.onclick = () => {
-                        const lat = parseFloat(place.lat); const lon = parseFloat(place.lon);
-                        markerInstance.setLatLng([lat, lon]); mapInstance.setView([lat, lon], 12);
-                        resDiv.style.display = 'none';
-                    };
-                    resDiv.appendChild(d);
-                });
-            } catch(e) { resDiv.innerHTML = 'Fel vid sökning'; }
-        };
+  <line x1="8" y1="160" x2="552" y2="160" stroke="#2b3b57"/>
+  <text x="8" y="178" fill="#68789a" font-size="10">Hela resan tar 3–15 sekunder. Hinner droppen inte bli av med sin värme landar den som vatten.</text>
+</svg>`;
 
-        function openInfo() { document.getElementById('infoModal').style.display = 'flex'; }
-        function closeInfo() { document.getElementById('infoModal').style.display = 'none'; }
-    </script>
+const SVG_GUNS = `
+<svg viewBox="0 0 560 200" role="img" aria-label="Jämförelse mellan fläktkanon och lans">
+  <g transform="translate(20,20)">
+    <rect x="0" y="0" width="250" height="160" rx="10" fill="#141f33" stroke="#2b3b57"/>
+    <circle cx="52" cy="80" r="26" fill="none" stroke="#3fb9f0" stroke-width="3"/>
+    <path d="M52 54 v52 M26 80 h52" stroke="#3fb9f0" stroke-width="2"/>
+    <path d="M82 62 q52 -14 96 22 q-46 -6 -96 10" fill="#3fb9f0" opacity=".18"/>
+    <text x="52" y="128" fill="#e8eef7" font-size="12" text-anchor="middle" font-weight="600">Fläktkanon</text>
+    <text x="150" y="42" fill="#93a4bd" font-size="10">kort hangtid, egen luftström</text>
+    <text x="150" y="58" fill="#93a4bd" font-size="10">startar närmast gränsen</text>
+    <text x="150" y="112" fill="#93a4bd" font-size="10">känsligare för sidvind</text>
+    <text x="150" y="128" fill="#93a4bd" font-size="10">kan riktas och vridas</text>
+  </g>
+  <g transform="translate(290,20)">
+    <rect x="0" y="0" width="250" height="160" rx="10" fill="#141f33" stroke="#2b3b57"/>
+    <rect x="46" y="18" width="7" height="92" fill="#60a5fa"/>
+    <circle cx="49" cy="16" r="6" fill="#60a5fa"/>
+    <path d="M49 16 q46 34 66 92 q-56 -46 -66 -92" fill="#60a5fa" opacity=".16"/>
+    <text x="49" y="128" fill="#e8eef7" font-size="12" text-anchor="middle" font-weight="600">Lans</text>
+    <text x="140" y="42" fill="#93a4bd" font-size="10">lång fallhöjd, lång hangtid</text>
+    <text x="140" y="58" fill="#93a4bd" font-size="10">behöver ett par grader mer</text>
+    <text x="140" y="112" fill="#93a4bd" font-size="10">mycket lägre elförbrukning</text>
+    <text x="140" y="128" fill="#93a4bd" font-size="10">står still, svår att rikta om</text>
+  </g>
+</svg>`;
+
+const SVG_DRIFT = `
+<svg viewBox="0 0 560 230" role="img" aria-label="Hur sidvind för snöfanan bort från spåret">
+  <line x1="20" y1="196" x2="540" y2="196" stroke="#2b3b57" stroke-width="1"/>
+  <rect x="150" y="188" width="150" height="16" rx="3" fill="#e8eef7" opacity=".18"/>
+  <text x="225" y="220" fill="#93a4bd" font-size="10" text-anchor="middle">spåret, 6 m brett</text>
+
+  <rect x="34" y="150" width="30" height="46" rx="4" fill="#2b3b57"/>
+  <circle cx="49" cy="146" r="11" fill="none" stroke="#3fb9f0" stroke-width="2.5"/>
+  <text x="49" y="220" fill="#93a4bd" font-size="10" text-anchor="middle">kanon</text>
+
+  <path d="M62 140 q86 -104 172 22" fill="none" stroke="#3fb9f0" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="150" y="58" fill="#3fb9f0" font-size="10" text-anchor="middle">utan vind: landar mitt i spåret</text>
+
+  <path d="M62 140 q120 -100 300 54" fill="none" stroke="#f0b429" stroke-width="2"/>
+  <text x="392" y="180" fill="#f0b429" font-size="10">med sidvind</text>
+
+  <g stroke="#f0b429" stroke-width="1.6" opacity=".65">
+    <path d="M110 96 h34" marker-end="url(#a2)"/>
+    <path d="M170 76 h34" marker-end="url(#a2)"/>
+    <path d="M240 96 h34" marker-end="url(#a2)"/>
+  </g>
+  <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+    <path d="M0 0 L10 5 L0 10 z" fill="#f0b429"/></marker></defs>
+
+  <line x1="300" y1="196" x2="362" y2="196" stroke="#f87171" stroke-width="3"/>
+  <text x="331" y="186" fill="#f87171" font-size="10" text-anchor="middle">bortkastad snö</text>
+  <text x="20" y="24" fill="#68789a" font-size="10">Driften växer med kastbanans höjd: snön hänger i luften ungefär höjden delat med 1,2 m/s.</text>
+</svg>`;
+
+const INFO = {
+  c1: `
+    <h3>Vad som egentligen händer</h3>
+    <p>Snötillverkning är värmeväxling. En vattendroppe som lämnar munstycket måste bli av med all sin värme innan den landar, annars blir det regn på spåret. Värmen försvinner två vägar: droppen avdunstar en liten del av sig själv, och den kyls av luften som passerar.</p>
+    <div class="figure">${SVG_DROPLET}<p class="figcap">Vattnet lämnar kanonen någonstans mellan +1 och +6 °C. Nukleatorerna sprutar en fin dimma som fryser direkt och blir iskärnor — utan dem skulle dropparna underkylas utan att frysa. Iskärnorna träffar de större dropparna och startar frysningen.</p></div>
+    <p>Två saker avgör om det lyckas: hur kall den omgivande luften upplevs för en våt yta, och hur lång tid droppen har på sig. Därför går det att göra snö vid ett par plusgrader om luften är torr, och därför fungerar en lans med lång fallhöjd i lägen där en fläktkanon inte hinner med.</p>
+    <div class="note">Nästan all snöproduktion sker på natten. Det är inte bara för att det är kallare — luftfuktigheten är också stabilare, och solen bidrar inte med strålningsvärme till fanan.</div>
+
+    <h3>Varför det aldrig räcker med att titta på termometern</h3>
+    <p>Lufttemperaturen säger bara halva sanningen. Vid noll grader och 30 % luftfuktighet går det utmärkt att köra. Vid noll grader och 90 % går det inte alls. Skillnaden fångas av våttemperaturen, som är nästa kapitel.</p>`,
+
+  c2: `
+    <h3>Våttemperatur</h3>
+    <p>Våttemperaturen är den lägsta temperatur en våt yta kan nå genom att avdunsta i den luft som finns. Den är alltid lägre än lufttemperaturen, och skillnaden växer ju torrare luften är. Det är exakt den temperatur en vattendroppe i fanan strävar mot, vilket är därför den och inte termometern styr snöproduktionen.</p>
+    <table class="tbl">
+      <thead><tr><th>Luft</th><th>Luftfuktighet</th><th>Våttemperatur</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>0 °C</td><td>90 %</td><td>−0,6 °C</td><td style="color:var(--stop)">för varmt</td></tr>
+        <tr><td>0 °C</td><td>30 %</td><td>−4,3 °C</td><td style="color:var(--go)">bra läge</td></tr>
+        <tr><td>+2 °C</td><td>90 %</td><td>+1,5 °C</td><td style="color:var(--stop)">omöjligt</td></tr>
+        <tr><td>+2 °C</td><td>30 %</td><td>−2,8 °C</td><td style="color:var(--go)">går att köra</td></tr>
+      </tbody>
+    </table>
+    <p>Samma lufttemperatur, helt olika verklighet. Två plusgrader i torr luft är alltså ett bättre snöläge än noll grader i dimma.</p>
+    <div class="figure">
+      <canvas id="wbMap" width="520" height="300"></canvas>
+      <p class="figcap">Varje ruta är en kombination av lufttemperatur och luftfuktighet. Blått fält = under startgränsen, mörkblått = så kallt att torr snö går att göra. Den vita ringen visar var er plats ligger just nu.</p>
+    </div>
+    <h3>Startgränsen</h3>
+    <p>Branschens tumregel, och den gräns tillverkarna själva anger för sina aggregat, är en våttemperatur på −2,5 °C. Där börjar en fläktkanon producera något som är värt att lägga ut. Under −5 °C blir det enkelt, och under −8 °C handlar det mer om hur mycket vatten och luft anläggningen orkar leverera än om vädret.</p>
+    <div class="note">Gränsen −2,5 °C är en startpunkt, inte en naturlag. Er anläggning, era munstycken och era erfarenheter väger tyngre. Gränserna går att ändra under ⚙️, och då följer både graf, tabell och körfönster med.</div>`,
+
+  c3: `
+    <h3>Vattnets temperatur</h3>
+    <p>Varmt vatten bär med sig värme som måste bort innan frysningen ens kan börja. Att kyla ett kilo vatten från +6 till 0 °C kräver ungefär sju procent av den energi som sedan går åt till att frysa det — inte förkrossande mycket, men det stjäl tid, och tid är precis det droppen inte har vid marginella förhållanden.</p>
+    <p>Praktiskt märks det främst nära gränsen. Vid −8 °C våttemperatur spelar det nästan ingen roll om vattnet håller 1 eller 5 grader. Vid −3 °C är det skillnaden mellan snö och blöta fläckar. Runt +1 °C vattentemperatur brukar räknas som idealet.</p>
+    <ul>
+      <li>Kör pumparna en stund innan ni startar kanonerna så att stillastående, uppvärmt vatten i ledningarna spolas ut.</li>
+      <li>Vatten från ytan i en damm är kallare än vatten från botten sent på hösten — men tvärtom mitt i vintern.</li>
+      <li>Lång ledning ovan mark kyler vattnet gratis. Lång ledning i solen gör tvärtom.</li>
+    </ul>
+
+    <h3>Snökvalitet</h3>
+    <p>Kvaliteten är en avvägning mot mängd. Ju torrare snö ni vill ha, desto mindre vatten kan varje kanon släppa igenom, och desto kallare måste det vara.</p>
+    <table class="tbl">
+      <thead><tr><th>Skala</th><th>Snötyp</th><th>Behöver</th><th>Passar till</th></tr></thead>
+      <tbody>
+        <tr><td>1–3</td><td>Torr, pudrig</td><td>ca 4–6 °C under gränsen</td><td>toppdress, tävlingsspår</td></tr>
+        <tr><td>4–6</td><td>Allroundsnö</td><td>ca 2–4 °C under gränsen</td><td>vanlig spårläggning</td></tr>
+        <tr><td>7–10</td><td>Blöt bassnö</td><td>vid eller strax under gränsen</td><td>grundlager, depåhögar</td></tr>
+      </tbody>
+    </table>
+    <p>Bassnö är inte sämre snö — den är tätare, tål töväder bättre och är precis vad man vill ha i botten. Men lägger man ett spår direkt på blöt snö blir det ett isband som inte går att preparera.</p>
+
+    <h3>Fläktkanon eller lans</h3>
+    <div class="figure">${SVG_GUNS}<p class="figcap">Fläktkanonen skapar sin egen luftström och kan därför kyla dropparna snabbare — den kommer igång närmare gränsen. Lansen förlitar sig på fallhöjden och behöver ett par grader till, men drar en bråkdel av elen.</p></div>
+    <p>För längdspår är fläktkanonen oftast det praktiska valet, eftersom den går att flytta och vrida efter vinden. Lansen lönar sig när det är stabilt kallt och man kan låta den stå på samma ställe i många timmar.</p>`,
+
+  c4: `
+    <h3>Vinden är inte bara en siffra</h3>
+    <p>Vind gör tre saker samtidigt, och bara en av dem är bra. Den hjälper till att kyla och sprida fanan. Den flyttar snön i sidled. Och när den är byig gör den läggningen ojämn på ett sätt som inte går att kompensera.</p>
+    <div class="figure">${SVG_DRIFT}<p class="figcap">Snön hänger i luften ungefär kastbanans höjd delat med fallhastigheten, cirka 1,2 m/s för konstsnö. Från åtta meters höjd blir det nästan sju sekunder — och sju sekunder i tre meter per sekund sidvind är över tio meter sidled på ett spår som är sex meter brett. Kastar ni lägre minskar driften proportionellt, och det är det billigaste sättet att rädda en blåsig natt.</p></div>
+    <p>Det är därför ett längdspår är svårare att snöa än en slalombacke. Ni ska träffa ett band som är några meter brett, inte en femtio meter bred pist. Redan två meter per sekund tvärs spåret flyttar tyngdpunkten i fanan utanför.</p>
+
+    <h3>Bara komposanten tvärs spåret spelar roll</h3>
+    <p>Vind rakt längs spåret är i praktiken harmlös — snön hamnar bara längre fram eller bakom längs samma band. Det är komposanten vinkelrätt mot spåret som kostar. Fliken <b>Vind &amp; sikte</b> räknar ut den åt er, timme för timme, och visar hur många grader kanonen behöver vridas mot vinden.</p>
+    <table class="tbl">
+      <thead><tr><th>Tvärvind</th><th>Vad som händer</th></tr></thead>
+      <tbody>
+        <tr><td>under 1 m/s</td><td>fanan står still, snön bygger hög under kanonen — flytta oftare</td></tr>
+        <tr><td>1–3 m/s</td><td>bästa läget, jämn spridning och förutsägbar landning</td></tr>
+        <tr><td>3–5 m/s</td><td>fungerar med omriktning, räkna med en del spill</td></tr>
+        <tr><td>5–9 m/s</td><td>sänk kastbanan, rikta om ofta, betydande förluster</td></tr>
+        <tr><td>över 9 m/s</td><td>stoppa — snön hamnar där ni inte vill ha den</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Lägg in spåret från en GPX-fil</h3>
+    <p>En enda spårriktning stämmer sällan. Sparbanksspåret svänger genom alla väderstreck: drygt hälften av rundan går ungefär i nord–sydlig led, resten korsar. Samma vind är därför ofarlig på en sträcka och omöjlig på nästa.</p>
+    <p>Åk en runda med klockan eller telefonen, exportera GPX och läs in filen under <b>Vind &amp; sikte</b>. Appen klipper ut ett varv, förenklar loggen till ett femtiotal punkter och räknar sedan tvärvinden för varje sträcka för sig. Kartan färgar spåret grönt där snön landar innanför spårbredden och rött där den blåser förbi.</p>
+    <p>Placera sedan ut fläktar och lansar på kartan. Varje aggregat får sitt eget råd utifrån hur spåret ligger just där. Reglaget under kartan spolar fram i prognosen, så ni ser i förväg vilka sträckor som blir omöjliga när vinden vrider vid tvåtiden.</p>
+
+    <h3>Byvind</h3>
+    <p>Är byarna mer än ungefär dubbla medelvinden går det inte att rikta bort problemet. Kanonen står still men vinden gör det inte, och resultatet blir ränder av snö bredvid spåret. Sänk kastbanan om det går, annars vänta ut byigheten.</p>
+    <div class="note">Vindpilarna i grafen pekar dit vinden blåser, alltså dit snön driver. Väderprognoser anger normalt vindriktningen som varifrån vinden kommer — de två är alltid 180 grader isär, och det är lätt att blanda ihop dem mitt i natten.</div>`,
+
+  c5: `
+    <h3>Innan ni startar</h3>
+    <ul>
+      <li>Läs av körfönstret högst upp. Det säger hur länge förhållandena håller, inte bara om de håller just nu.</li>
+      <li>Kolla vindriktningen för hela passet i fliken Vind &amp; sikte. Vrider vinden mitt i natten behöver kanonerna ställas om, och det är bättre att veta det i förväg.</li>
+      <li>Spola ledningarna så att uppvärmt stillastående vatten kommer ut innan kanonerna går igång.</li>
+      <li>Starta med lite blötare inställning än ni vill ha och torka upp när ni ser hur fanan beter sig.</li>
+    </ul>
+
+    <h3>Under natten</h3>
+    <ul>
+      <li>Titta på högen, inte på appen. Ser snön ut som våt sand är den för blöt, ryker den bort är den för torr.</li>
+      <li>Våttemperaturen stiger normalt strax före gryningen när luftfuktigheten går upp. Det är då de flesta stoppen kommer, och tabellen visar när.</li>
+      <li>Vrider vinden några tiotal grader räcker det ofta att vrida kanonen lika mycket åt motsatt håll. Vind &amp; sikte räknar ut hur mycket.</li>
+    </ul>
+
+    <h3>När det är dags att stoppa</h3>
+    <ul>
+      <li>Våttemperaturen har gått över gränsen — snön blir blöt och förstör det ni redan lagt.</li>
+      <li>Vinden har ökat så att fanan inte längre hamnar på spåret. Bättre att stoppa än att gödsla granskogen.</li>
+      <li>Töm alltid ledningarna vid stopp om det finns risk att det blir kallare innan ni startar igen.</li>
+    </ul>
+    <div class="note">Appen är ett beslutsstöd, inte ett facit. Prognosen kan slå fel med en grad, och en grad är hela skillnaden vid marginella lägen. Har ni en egen mätare vid spåret så vinner den alltid.</div>`,
+
+  c6: `
+    <h3>Var siffrorna kommer ifrån</h3>
+    <p>Väderdata hämtas från Open-Meteo, som väljer den bäst lämpade modellen för platsen. För Skandinavien betyder det normalt MET Nordic på kort sikt och en europeisk modell längre fram. Appen hämtar två serier: kvartsvis upplösning för de närmaste dygnen och timvis i tio dygn, och slår ihop dem så att kalkylen har finupplösning så långt den räcker.</p>
+    <p>Våttemperaturen räknas ut ur lufttemperatur, relativ luftfuktighet och lufttryck genom att lösa den psykrometriska jämvikten numeriskt. Det ger under ett par tiondels grads fel mot tabellvärden. Den tidigare versionen använde Stulls approximation från 2011, som är snabb men räknar upp till en halv grad för kallt när luften är fuktig. Båda finns kvar under ⚙️ om ni vill jämföra mot hur appen betedde sig förut.</p>
+
+    <h3>Vad modellen inte vet</h3>
+    <ul>
+      <li>Prognosen gäller tio meter över öppen mark. Ligger spåret i en svacka eller i skogen kan både temperatur och vind avvika rejält — kalluft samlas i sänkor, och skog dämpar vinden.</li>
+      <li>Kapacitetssiffran är en uppskattning utifrån hur långt under gränsen ni ligger, inte en mätning av vad just era kanoner levererar.</li>
+      <li>Driftberäkningen antar en fallhastighet på 1,2 m/s och att kastbanan är den ni angett. Verkligheten varierar med munstycken och tryck.</li>
+      <li>Appen vet ingenting om markens temperatur. Är marken varm smälter de första timmarnas snö oavsett vad luften säger.</li>
+    </ul>
+
+    <h3>Justera mot er erfarenhet</h3>
+    <p>Alla gränser går att ändra under ⚙️ och sparas i telefonen. Märker ni att ni i praktiken kan köra vid −2,0 i stället för −2,5, ändra siffran. Modellen är byggd för att kalibreras, inte för att ha rätt från början.</p>`
+};
+
+function renderInfo(chapter) {
+  $("infoBody").innerHTML = `<div class="chapter">${INFO[chapter]}</div>`;
+  if (chapter === "c2") drawWetBulbMap();
+  $("infoBody").scrollTop = 0;
+}
+
+// Rutnät över lufttemperatur och luftfuktighet, färgat efter våttemperatur.
+function drawWetBulbMap() {
+  const cv = $("wbMap");
+  if (!cv) return;
+  const ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  const padL = 42, padB = 34, padT = 10, padR = 10;
+  const tMin = -8, tMax = 4, rhMin = 20, rhMax = 100;
+  const th = thresholds();
+
+  ctx.clearRect(0, 0, W, H);
+  const cols = 48, rows = 32;
+  const cw = (W - padL - padR) / cols, chh = (H - padT - padB) / rows;
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const T = tMin + (i + .5) / cols * (tMax - tMin);
+      const rh = rhMax - (j + .5) / rows * (rhMax - rhMin);
+      const wb = wetBulbPsychrometric(T, rh, 1013);
+      let col;
+      if (wb > th.base) col = `rgba(248,113,113,${Math.min(.5, (wb - th.base) / 8 + .12)})`;
+      else if (wb > th.base - 2.5) col = "rgba(63,185,240,.30)";
+      else if (wb > th.base - 5) col = "rgba(63,185,240,.55)";
+      else col = "rgba(37,120,190,.85)";
+      ctx.fillStyle = col;
+      ctx.fillRect(padL + i * cw, padT + j * chh, cw + 1, chh + 1);
+    }
+  }
+  ctx.strokeStyle = "#2b3b57"; ctx.lineWidth = 1;
+  ctx.strokeRect(padL, padT, W - padL - padR, H - padT - padB);
+  ctx.fillStyle = "#93a4bd"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+  for (let T = tMin; T <= tMax; T += 2) {
+    const x = padL + (T - tMin) / (tMax - tMin) * (W - padL - padR);
+    ctx.fillText(T + "°", x, H - padB + 16);
+  }
+  ctx.fillText("lufttemperatur", (W + padL) / 2, H - 6);
+  ctx.textAlign = "right";
+  for (let rh = rhMin; rh <= rhMax; rh += 20) {
+    const y = padT + (rhMax - rh) / (rhMax - rhMin) * (H - padT - padB);
+    ctx.fillText(rh + "%", padL - 6, y + 4);
+  }
+  ctx.save();
+  ctx.translate(12, (H - padB + padT) / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center"; ctx.fillText("luftfuktighet", 0, 0);
+  ctx.restore();
+
+  const pt = currentPoint();
+  if (pt && pt.temp >= tMin && pt.temp <= tMax && pt.rh >= rhMin) {
+    const x = padL + (pt.temp - tMin) / (tMax - tMin) * (W - padL - padR);
+    const y = padT + (rhMax - pt.rh) / (rhMax - rhMin) * (H - padT - padB);
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
+  }
+}
+
+/* ==========================================================================
+   10. INSTÄLLNINGAR, KARTA OCH FAVORITER
+   ========================================================================== */
+
+const QUALITY_WORDS = ["", "torr puder", "torr snö", "torr snö", "lätt allround",
+  "allroundsnö", "allroundsnö", "fuktig snö", "blöt snö", "bassnö", "blöt bassnö"];
+
+const SETTING_FIELDS = [
+  ["trailBearing", "trailBearing", true], ["throwHeight", "throwHeight", true],
+  ["throwDist", "throwDist", true], ["trailWidth", "trailWidth", true],
+  ["waterTemp", "waterTemp", true], ["quality", "quality", true],
+  ["fanBase", "fanBase", true], ["lanceBase", "lanceBase", true],
+  ["windWarn", "windWarn", true], ["windStop", "windStop", true],
+  ["fanCount", "fanCount", true], ["lanceCount", "lanceCount", true],
+  ["wbModel", "wbModel", false]
+];
+
+function fillSettingsForm() {
+  SETTING_FIELDS.forEach(([id, key]) => { $(id).value = S[key]; });
+  $("qualityLabel").textContent = `${S.quality} — ${QUALITY_WORDS[S.quality]}`;
+  updateHangHint();
+}
+
+// Kastbanans höjd är den knopp ni kalibrerar driften med. Visa vad den ger
+// så att siffran går att jämföra med vad ni faktiskt ser i spåret.
+function updateHangHint() {
+  const d = driftDistance(1, S.throwHeight);
+  $("hangHint").innerHTML =
+    `Snön hänger då ca <b>${d.hangTime.toFixed(1)} sekunder</b> i luften, vilket ger ` +
+    `<b>${d.centre.toFixed(1)} m</b> sidodrift per meter per sekund tvärvind. ` +
+    `Stämmer det inte med vad ni ser i spåret: justera höjden tills det gör det — det är den siffran hela driftberäkningen hänger på.`;
+}
+
+function readSettingsForm() {
+  SETTING_FIELDS.forEach(([id, key, numeric]) => {
+    const raw = $(id).value;
+    S[key] = numeric ? num(raw, DEFAULTS[key]) : raw;
+  });
+  S.trailBearing = normDeg(S.trailBearing);
+  S.quality = Math.max(1, Math.min(10, Math.round(S.quality)));
+  $("qualityLabel").textContent = `${S.quality} — ${QUALITY_WORDS[S.quality]}`;
+  updateHangHint();
+  saveSettings();
+  recomputeSeries();
+  renderAll();
+}
+
+function openModal(id) { $(id).classList.add("open"); }
+function closeModal(id) { $(id).classList.remove("open"); }
+
+function openMap() {
+  openModal("mapModal");
+  setTimeout(() => {
+    if (!mapInstance) {
+      mapInstance = L.map("map").setView([place.lat, place.lon], 12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        { attribution: "© OpenStreetMap", maxZoom: 18 }).addTo(mapInstance);
+      marker = L.marker([place.lat, place.lon], { draggable: true }).addTo(mapInstance);
+      mapInstance.on("click", e => marker.setLatLng(e.latlng));
+    } else {
+      mapInstance.invalidateSize();
+      mapInstance.setView([place.lat, place.lon], 12);
+      marker.setLatLng([place.lat, place.lon]);
+    }
+  }, 60);
+}
+
+function persistPlace() {
+  localStorage.setItem("snowLat", String(place.lat));
+  localStorage.setItem("snowLon", String(place.lon));
+  localStorage.setItem("snowName", place.name);
+}
+
+function saveFavorite(name, lat, lon) {
+  const i = favorites.findIndex(f => f.name === name);
+  const item = { id: (i >= 0 ? favorites[i].id : null) || crypto.randomUUID?.() || String(Date.now()), name, lat, lon };
+  if (i >= 0) favorites[i] = item; else favorites.push(item);
+  localStorage.setItem("snowFavorites", JSON.stringify(favorites));
+  populateFavorites();
+  return item.id;
+}
+
+function ensureDefaultFavorite() {
+  favorites = favorites.filter(f => f && f.name).map(f => ({ ...f, id: f.id || crypto.randomUUID?.() || (f.name + f.lat) }));
+  if (!favorites.length) favorites.push({ id: "default", name: "Sparbanksspåret", lat: 58.503, lon: 13.088 });
+  localStorage.setItem("snowFavorites", JSON.stringify(favorites));
+}
+
+// Värdet är favoritens id, inte dess plats i listan. Med index blev fel plats
+// vald så fort någon tog bort en favorit ovanför.
+function populateFavorites() {
+  const sel = $("favSelect");
+  sel.innerHTML = "";
+  const match = favorites.find(f => Math.abs(f.lat - place.lat) < 1e-4 && Math.abs(f.lon - place.lon) < 1e-4);
+  if (!match) {
+    const o = document.createElement("option");
+    o.value = "__current__"; o.textContent = place.name + " (ej sparad)"; o.selected = true;
+    sel.appendChild(o);
+  }
+  favorites.forEach(f => {
+    const o = document.createElement("option");
+    o.value = f.id; o.textContent = f.name;
+    if (match && match.id === f.id) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function selectedFavorite() {
+  return favorites.find(f => f.id === $("favSelect").value) || null;
+}
+
+/* ==========================================================================
+   11. HÄNDELSER
+   ========================================================================== */
+
+$("btnRefresh").onclick = fetchData;
+$("btnSettings").onclick = () => { fillSettingsForm(); renderModelDelta(); openModal("settingsModal"); };
+$("btnCloseSettings").onclick = () => closeModal("settingsModal");
+$("btnResetSettings").onclick = () => {
+  S = { ...DEFAULTS }; saveSettings(); fillSettingsForm(); recomputeSeries(); renderAll();
+};
+SETTING_FIELDS.forEach(([id]) => { $(id).oninput = readSettingsForm; $(id).onchange = readSettingsForm; });
+
+$("btnInfo").onclick = () => { renderInfo("c1"); openModal("infoModal"); };
+$("btnCloseInfo").onclick = () => closeModal("infoModal");
+$("infoNav").onclick = e => {
+  const b = e.target.closest("button[data-ch]");
+  if (!b) return;
+  [...$("infoNav").children].forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  renderInfo(b.dataset.ch);
+};
+
+$("btnMap").onclick = openMap;
+$("btnCancelMap").onclick = () => closeModal("mapModal");
+$("btnSaveMap").onclick = () => {
+  const p = marker.getLatLng();
+  place.lat = +p.lat.toFixed(4); place.lon = +p.lng.toFixed(4);
+  const name = prompt("Vad heter platsen?", place.name);
+  if (name) { place.name = name; saveFavorite(name, place.lat, place.lon); }
+  else place.name = "Vald plats";
+  persistPlace(); populateFavorites(); closeModal("mapModal"); fetchData();
+};
+
+$("btnSearch").onclick = async () => {
+  const q = $("mapSearch").value.trim();
+  const box = $("hits");
+  if (!q) return;
+  box.style.display = "block";
+  box.innerHTML = `<div class="hit">Söker…</div>`;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=sv&q=${encodeURIComponent(q)}`);
+    const data = await r.json();
+    box.innerHTML = "";
+    if (!data.length) { box.innerHTML = `<div class="hit">Inga träffar på "${q}"</div>`; return; }
+    data.forEach(p => {
+      const d = document.createElement("div");
+      d.className = "hit";
+      d.textContent = p.display_name;
+      d.onclick = () => {
+        marker.setLatLng([+p.lat, +p.lon]);
+        mapInstance.setView([+p.lat, +p.lon], 13);
+        box.style.display = "none";
+        $("mapSearch").value = p.display_name.split(",")[0];
+      };
+      box.appendChild(d);
+    });
+  } catch { box.innerHTML = `<div class="hit">Sökningen gick inte igenom. Prova igen.</div>`; }
+};
+$("mapSearch").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("btnSearch").click(); } };
+
+$("favSelect").onchange = () => {
+  const f = selectedFavorite();
+  if (!f) return;
+  place = { lat: f.lat, lon: f.lon, name: f.name };
+  persistPlace(); populateFavorites(); fetchData();
+};
+
+// Bugg i gamla versionen: kontrollen gjordes efter splice och läste därför av
+// den favorit som råkat glida in på samma plats i listan.
+$("btnDelFav").onclick = () => {
+  const f = selectedFavorite();
+  if (!f) return alert("Välj först en sparad plats i listan.");
+  if (favorites.length === 1) return alert("Det går inte att ta bort den sista platsen.");
+  if (!confirm(`Ta bort "${f.name}"?`)) return;
+  const wasCurrent = Math.abs(f.lat - place.lat) < 1e-4 && Math.abs(f.lon - place.lon) < 1e-4;
+  favorites = favorites.filter(x => x.id !== f.id);
+  localStorage.setItem("snowFavorites", JSON.stringify(favorites));
+  if (wasCurrent) {
+    place = { lat: favorites[0].lat, lon: favorites[0].lon, name: favorites[0].name };
+    persistPlace(); populateFavorites(); fetchData();
+  } else populateFavorites();
+};
+
+$("btnRenameFav").onclick = () => {
+  const f = selectedFavorite();
+  if (!f) return alert("Välj först en sparad plats i listan.");
+  const name = prompt("Nytt namn:", f.name);
+  if (!name) return;
+  f.name = name;
+  localStorage.setItem("snowFavorites", JSON.stringify(favorites));
+  if (Math.abs(f.lat - place.lat) < 1e-4) { place.name = name; persistPlace(); }
+  populateFavorites(); renderStamp();
+};
+
+document.querySelectorAll(".rangebar button[data-h]").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".rangebar button[data-h]").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    setRange(+b.dataset.h);
+  };
+});
+document.querySelectorAll(".rangebar button[data-hours-span]").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll(".rangebar button[data-hours-span]").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    hoursSpan = +b.dataset.hoursSpan;
+    renderHours();
+  };
+});
+
+const TABS = [["tabGraph", "panelGraph"], ["tabHours", "panelHours"], ["tabWind", "panelWind"]];
+TABS.forEach(([t, p]) => {
+  $(t).onclick = () => {
+    TABS.forEach(([t2, p2]) => {
+      $(t2).setAttribute("aria-selected", String(t2 === t));
+      $(p2).hidden = p2 !== p;
+    });
+    if (p === "panelGraph" && mainChart) mainChart.resize();
+    if (p === "panelWind") {
+      renderWindChart(); renderCompass(); renderPlan();
+      if (planMap) setTimeout(() => planMap.invalidateSize(), 80);
+    }
+  };
+});
+
+document.querySelectorAll(".overlay").forEach(o => {
+  o.addEventListener("click", e => { if (e.target === o) o.classList.remove("open"); });
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") document.querySelectorAll(".overlay.open").forEach(o => o.classList.remove("open"));
+});
+
+// Under ett nattpass står telefonen och skärmsläcker. Uppdatera när den väcks.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && fetchedAt && Date.now() - fetchedAt > 20 * 60000) fetchData();
+});
+
+/* --- planeringskartan --- */
+
+$("gpxInput").onchange = e => handleGpxFile(e.target.files[0]);
+$("gpxInput2").onchange = e => handleGpxFile(e.target.files[0]);
+
+$("timeSlider").oninput = e => { sliderOffsetH = +e.target.value; renderPlan(); };
+
+function armAdd(type) {
+  addMode = addMode === type ? null : type;
+  $("addFan").classList.toggle("armed", addMode === "fan");
+  $("addLance").classList.toggle("armed", addMode === "lance");
+  setPlanNote(addMode
+    ? `Tryck på kartan där ${addMode === "fan" ? "fläktkanonen" : "lansen"} står. Tryck på knappen igen för att sluta placera.`
+    : "");
+}
+$("addFan").onclick = () => armAdd("fan");
+$("addLance").onclick = () => armAdd("lance");
+$("clearGuns").onclick = () => {
+  if (!guns.length) return;
+  if (!confirm(`Ta bort alla ${guns.length} utplacerade aggregat?`)) return;
+  guns = []; persistGuns(); renderPlan(); renderHero(); renderHours();
+};
+
+/* ==========================================================================
+   12. START
+   ========================================================================== */
+
+function init() {
+  buildSegments();
+  ensureDefaultFavorite();
+  populateFavorites();
+  fillSettingsForm();
+  restoreSnapshot();
+  renderPlan();
+  fetchData();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    if (!document.hidden) fetchData(); else renderStamp();
+  }, 15 * 60000);
+  setInterval(renderStamp, 60000);
+}
+
+init();
+</script>
 </body>
 </html>
