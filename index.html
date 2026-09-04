@@ -304,6 +304,7 @@ button{font-family:inherit}
       <p>Läs in en GPX-fil från en runda i spåret, så räknar appen tvärvinden för varje sträcka i stället för en enda riktning.</p>
       <label class="filebtn">Välj GPX-fil<input type="file" id="gpxInput" accept=".gpx,application/gpx+xml,text/xml"></label>
       <p style="margin-top:14px; font-size:.8rem; color:var(--ink-faint)">Samsung Health, Strava, Garmin och Polar exporterar alla GPX. Flera varv går bra — appen behåller ett.</p>
+      <button class="btn ghost" id="btnDemo" style="margin-top:6px; font-size:.82rem; padding:8px 14px">Visa Sparbanksspåret som exempel</button>
     </div>
 
     <p class="plannote" id="tempBanner" hidden style="background:rgba(248,113,113,.1); border-left:3px solid var(--stop); padding:9px 11px; border-radius:0 8px 8px 0; color:var(--ink); margin-bottom:10px"></p>
@@ -324,8 +325,10 @@ button{font-family:inherit}
         <button id="clearGuns">Rensa kanoner</button>
         <label class="filebtn" style="padding:8px 12px; font-size:.82rem; background:var(--surface-2); color:var(--ink); border:1px solid var(--line)">
           Byt spår<input type="file" id="gpxInput2" accept=".gpx,application/gpx+xml,text/xml"></label>
+        <button id="btnBuiltin" hidden>Tillbaka till Sparbanksspåret</button>
         <span class="count" id="gunCount"></span>
       </div>
+      <p class="plannote" id="trackOrigin"></p>
       <p class="caption" id="planSummary" style="text-align:left; margin-top:10px"></p>
       <button class="btn ghost" id="useWhole" hidden style="margin-top:8px; font-size:.8rem; padding:7px 12px">Använd hela loggen i stället</button>
       <p class="plannote" id="planNote"></p>
@@ -498,8 +501,8 @@ const DEFAULTS = {
 
 let S = loadSettings();
 let place = {
-  lat: num(localStorage.getItem("snowLat"), 58.503),
-  lon: num(localStorage.getItem("snowLon"), 13.088),
+  lat: num(localStorage.getItem("snowLat"), 58.50415),
+  lon: num(localStorage.getItem("snowLon"), 13.0882),
   name: localStorage.getItem("snowName") || "Sparbanksspåret"
 };
 let favorites = safeParse(localStorage.getItem("snowFavorites"), []);
@@ -896,8 +899,40 @@ function clock(ts) {
    och omöjlig på nästa. Därför räknas tvärvinden per segment.
    ========================================================================== */
 
-let track = safeParse(localStorage.getItem("snowTrack"), null);
-let guns = safeParse(localStorage.getItem("snowGuns"), []);
+/* Sparbanksspåret följer med appen. Koordinaterna är ett varv ur en GPX-logg,
+   förenklat till 3 meters tolerans. Bara geometrin är med — inga tidsstämplar.
+   Vem som helst kan läsa in sin egen anläggning i stället, och för alla andra
+   fungerar det inbyggda spåret som ett exempel att prova funktionerna på. */
+const BUILTIN_TRACK = {
+  key: "sparbanksparet",
+  name: "Sparbanksspåret",
+  length: 2308,
+  centre: [58.50415, 13.0882],
+  pts: [
+  [58.50032,13.08868],[58.50015,13.0888],[58.49984,13.08882],[58.49978,13.08892],
+  [58.49979,13.08908],[58.49987,13.08925],[58.5,13.08924],[58.50045,13.08866],
+  [58.50108,13.0882],[58.50133,13.08819],[58.50175,13.08833],[58.5019,13.0883],
+  [58.50234,13.08764],[58.50259,13.08746],[58.50276,13.08751],[58.50331,13.08809],
+  [58.50372,13.08814],[58.50435,13.08767],[58.50525,13.08714],[58.50598,13.08625],
+  [58.50645,13.08612],[58.50669,13.08632],[58.5068,13.08658],[58.5068,13.08752],
+  [58.50694,13.08843],[58.50689,13.08899],[58.5066,13.08981],[58.5066,13.09009],
+  [58.50667,13.0904],[58.50683,13.0907],[58.50703,13.09071],[58.50745,13.09025],
+  [58.50756,13.08989],[58.50756,13.08961],[58.50751,13.08948],[58.50716,13.08934],
+  [58.50708,13.08923],[58.50697,13.08813],[58.50684,13.08737],[58.50685,13.08677],
+  [58.50679,13.0864],[58.50659,13.08607],[58.50624,13.08594],[58.50588,13.08615],
+  [58.50529,13.08711],[58.50453,13.08747],[58.50374,13.088],[58.50346,13.08806],
+  [58.5028,13.08748],[58.50261,13.0874],[58.5023,13.08758],[58.50194,13.08812],
+  [58.50178,13.08826],[58.50112,13.08808],[58.50083,13.08823],[58.50047,13.08857]
+  ]
+};
+
+const BUILTIN_RANGE = 15000; // m — så nära platsen måste vara för att spåret ska gälla
+
+let userTrack = safeParse(localStorage.getItem("snowTrack"), null);
+let showBuiltinAnyway = localStorage.getItem("snowShowBuiltin") === "1";
+let track = null;
+let guns = [];
+let gunStore = safeParse(localStorage.getItem("snowGunsByTrack"), null);
 let segments = [];
 let planMap = null, planLayers = null, gunLayers = null;
 let addMode = null;
@@ -984,14 +1019,58 @@ function buildTrack(raw, { singleLap = true, tolerance = 3 } = {}) {
   pts = simplify(pts, tolerance).map(p => [+p[0].toFixed(6), +p[1].toFixed(6)]);
   let len = 0;
   for (let i = 1; i < pts.length; i++) len += haversine(pts[i - 1], pts[i]);
-  return { pts, length: Math.round(len), name: raw.name, importedAt: Date.now() };
+  const centre = [pts.reduce((s, p) => s + p[0], 0) / pts.length,
+                  pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  return { pts, length: Math.round(len), centre, name: raw.name, source: "import", importedAt: Date.now() };
+}
+
+/* Vilket spår som gäller: ett eget inläst går alltid först. Annars det
+   inbyggda, men bara om platsen faktiskt ligger vid det — annars skulle någon
+   i Arvika få Lidköpings spår ritat över sin egen väderprognos. */
+function resolveTrack() {
+  if (userTrack) {
+    track = userTrack;
+  } else {
+    const near = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
+    track = (near || showBuiltinAnyway) ? { ...BUILTIN_TRACK, source: "builtin" } : null;
+  }
+  buildSegments();
+  loadGunsForTrack();
+}
+
+function trackKey() {
+  if (!track) return null;
+  if (track.source === "builtin") return BUILTIN_TRACK.key;
+  const c = track.centre || trackCentre();
+  return `imp_${c[0].toFixed(3)}_${c[1].toFixed(3)}_${track.length}`;
+}
+
+// Varje anläggning har sin egen uppställning. Byter man spår ska inte
+// kanonerna från förra stället följa med.
+function loadGunsForTrack() {
+  if (!gunStore) {
+    gunStore = {};
+    const legacy = safeParse(localStorage.getItem("snowGuns"), null);
+    if (Array.isArray(legacy) && legacy.length && trackKey()) gunStore[trackKey()] = legacy;
+    localStorage.setItem("snowGunsByTrack", JSON.stringify(gunStore));
+  }
+  const k = trackKey();
+  guns = k && Array.isArray(gunStore[k]) ? gunStore[k] : [];
 }
 
 function saveTrack(t) {
-  track = t;
+  userTrack = t;
   if (t) localStorage.setItem("snowTrack", JSON.stringify(t));
   else localStorage.removeItem("snowTrack");
-  buildSegments();
+  resolveTrack();
+}
+
+function useBuiltinTrack() {
+  userTrack = null;
+  localStorage.removeItem("snowTrack");
+  showBuiltinAnyway = true;
+  localStorage.setItem("snowShowBuiltin", "1");
+  resolveTrack();
 }
 
 function buildSegments() {
@@ -1114,13 +1193,20 @@ function addGun(type, lat, lon) {
   renderHours();
 }
 
-function persistGuns() { localStorage.setItem("snowGuns", JSON.stringify(guns)); }
+function persistGuns() {
+  const k = trackKey();
+  if (!k) return;
+  gunStore = gunStore || {};
+  gunStore[k] = guns;
+  localStorage.setItem("snowGunsByTrack", JSON.stringify(gunStore));
+}
 
 function setPlanNote(txt) { $("planNote").textContent = txt || ""; }
 
 function renderPlan() {
   const hasTrack = !!(track && segments.length);
   $("emptyTrack").hidden = hasTrack;
+  $("btnDemo").hidden = hasTrack;
   $("planWrap").hidden = !hasTrack;
   $("planControls").hidden = !hasTrack;
   $("compassCard").hidden = hasTrack;
@@ -1217,6 +1303,14 @@ function renderPlan() {
     `Fläkt ${guns.filter(g => g.type === "fan").length}/${S.fanCount} · Lans ${guns.filter(g => g.type === "lance").length}/${S.lanceCount}`;
   $("timeLabel").textContent = sliderOffsetH === 0
     ? "nu" : `${dayPrefix(pt.x)} ${clock(pt.x)} · ${fmt(pt.wb)} °C våttemp`;
+
+  const builtin = track.source === "builtin";
+  $("trackOrigin").innerHTML = builtin
+    ? `Inbyggt spår: <b>${BUILTIN_TRACK.name}</b>, ${(BUILTIN_TRACK.length / 1000).toFixed(1)} km. Kör ni på en annan anläggning — läs in er egen GPX-fil.`
+    : `Eget spår: <b>${track.name || "inläst GPX"}</b>, ${(track.length / 1000).toFixed(1)} km, ${track.pts.length} punkter.`;
+  const nearBuiltin = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
+  $("btnBuiltin").hidden = builtin;
+  $("btnBuiltin").textContent = nearBuiltin ? "Tillbaka till Sparbanksspåret" : "Ta bort inläst spår";
 }
 
 /* --- inläsning av GPX-fil --- */
@@ -1230,6 +1324,8 @@ async function handleGpxFile(file) {
     const single = buildTrack(raw, { singleLap: true, tolerance: 3 });
     const whole = buildTrack(raw, { singleLap: false, tolerance: 3 });
     const looped = whole.length > single.length * 1.6;
+    showBuiltinAnyway = false;
+    localStorage.removeItem("snowShowBuiltin");
     saveTrack(single);
     if (planMap) { planMap._fitted = false; }
     renderPlan();
@@ -1878,7 +1974,8 @@ const INFO = {
 
     <h3>Lägg in spåret från en GPX-fil</h3>
     <p>En enda spårriktning stämmer sällan. Sparbanksspåret svänger genom alla väderstreck: drygt hälften av rundan går ungefär i nord–sydlig led, resten korsar. Samma vind är därför ofarlig på en sträcka och omöjlig på nästa.</p>
-    <p>Åk en runda med klockan eller telefonen, exportera GPX och läs in filen under <b>Vind &amp; sikte</b>. Appen klipper ut ett varv, förenklar loggen till ett femtiotal punkter och räknar sedan tvärvinden för varje sträcka för sig. Kartan färgar spåret grönt där snön landar innanför spårbredden och rött där den blåser förbi.</p>
+    <p>Sparbanksspåret följer med appen färdigt inlagt, så där behöver ni inte göra något. Kör ni på en annan anläggning: åk en runda med klockan eller telefonen, exportera GPX och läs in filen under <b>Vind &amp; sikte</b>. Appen klipper ut ett varv, förenklar loggen till ett femtiotal punkter och räknar sedan tvärvinden för varje sträcka för sig. Kartan färgar spåret grönt där snön landar innanför spårbredden och rött där den blåser förbi.</p>
+    <p>Ligger platsen ni valt längre än en och en halv mil från Sparbanksspåret döljs det inbyggda spåret, eftersom en karta över Lidköping ovanpå Arvikas väderprognos bara vore vilseledande. Vill ni ändå se hur funktionen fungerar finns knappen att visa det som exempel. Varje spår har sin egen kanonuppställning sparad, så det går att växla mellan anläggningar utan att bygga om.</p>
     <p>Placera sedan ut fläktar och lansar på kartan. Varje aggregat får sitt eget råd utifrån hur spåret ligger just där. Reglaget under kartan spolar fram i prognosen, så ni ser i förväg vilka sträckor som blir omöjliga när vinden vrider vid tvåtiden.</p>
 
     <h3>Byvind</h3>
@@ -2079,7 +2176,8 @@ function saveFavorite(name, lat, lon) {
 
 function ensureDefaultFavorite() {
   favorites = favorites.filter(f => f && f.name).map(f => ({ ...f, id: f.id || crypto.randomUUID?.() || (f.name + f.lat) }));
-  if (!favorites.length) favorites.push({ id: "default", name: "Sparbanksspåret", lat: 58.503, lon: 13.088 });
+  if (!favorites.length) favorites.push({ id: "default", name: BUILTIN_TRACK.name,
+    lat: BUILTIN_TRACK.centre[0], lon: BUILTIN_TRACK.centre[1] });
   localStorage.setItem("snowFavorites", JSON.stringify(favorites));
 }
 
@@ -2135,7 +2233,9 @@ $("btnSaveMap").onclick = () => {
   const name = prompt("Vad heter platsen?", place.name);
   if (name) { place.name = name; saveFavorite(name, place.lat, place.lon); }
   else place.name = "Vald plats";
-  persistPlace(); populateFavorites(); closeModal("mapModal"); fetchData();
+  persistPlace(); populateFavorites(); resolveTrack();
+  if (planMap) planMap._fitted = false;
+  closeModal("mapModal"); fetchData();
 };
 
 $("btnSearch").onclick = async () => {
@@ -2169,7 +2269,9 @@ $("favSelect").onchange = () => {
   const f = selectedFavorite();
   if (!f) return;
   place = { lat: f.lat, lon: f.lon, name: f.name };
-  persistPlace(); populateFavorites(); fetchData();
+  persistPlace(); populateFavorites(); resolveTrack();
+  if (planMap) planMap._fitted = false;
+  fetchData();
 };
 
 // Bugg i gamla versionen: kontrollen gjordes efter splice och läste därför av
@@ -2259,6 +2361,18 @@ function armAdd(type) {
 }
 $("addFan").onclick = () => armAdd("fan");
 $("addLance").onclick = () => armAdd("lance");
+$("btnDemo").onclick = () => { useBuiltinTrack(); if (planMap) planMap._fitted = false; renderAll(); };
+$("btnBuiltin").onclick = () => {
+  const near = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
+  if (!confirm(near
+    ? "Byt tillbaka till det inbyggda Sparbanksspåret? Ditt inlästa spår tas bort, men kanonuppställningen finns kvar om du läser in samma fil igen."
+    : "Ta bort det inlästa spåret? Kanonuppställningen finns kvar om du läser in samma fil igen.")) return;
+  useBuiltinTrack();
+  if (planMap) planMap._fitted = false;
+  setPlanNote("");
+  renderAll();
+};
+
 $("clearGuns").onclick = () => {
   if (!guns.length) return;
   if (!confirm(`Ta bort alla ${guns.length} utplacerade aggregat?`)) return;
@@ -2306,8 +2420,8 @@ function isStandalone() {
 
 function init() {
   registerServiceWorker();
-  buildSegments();
   ensureDefaultFavorite();
+  resolveTrack();
   populateFavorites();
   fillSettingsForm();
   restoreSnapshot();

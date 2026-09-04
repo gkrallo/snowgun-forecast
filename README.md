@@ -48,7 +48,22 @@ Under ⚙️ ställs anläggningens egna värden in. De sparas i webbläsaren.
 | Start- och vindgränser | Justera fritt mot er egen erfarenhet. |
 | Formel för våttemperatur | Psykrometrisk (rekommenderad) eller Stull 2011. |
 
-## Spårfil
+## Inbyggt spår
+
+Sparbanksspåret i Lidköping följer med appen: ett varv ur en GPX-logg,
+förenklat till 56 punkter och drygt en kilobyte. Bara geometrin är inbakad,
+inga tidsstämplar.
+
+Spåret laddas automatiskt när den valda platsen ligger inom 15 km från det.
+Längre bort döljs det — en karta över Lidköping ovanpå Arvikas väderprognos
+vore bara vilseledande — men det går att visa som exempel med en knapp. Läser
+man in en egen GPX-fil tar den över.
+
+Varje spår har sin egen kanonuppställning i webbläsarens lagring, nycklad på
+spårets mittpunkt och längd. Man kan alltså växla mellan anläggningar utan att
+placera om aggregaten.
+
+## Egen spårfil
 
 GPX från Samsung Health, Strava, Garmin, Polar och de flesta andra klockor och
 appar fungerar direkt. Flera varv är inget problem: appen letar upp den punkt
@@ -59,7 +74,8 @@ Loggen förenklas med Douglas–Peucker vid tre meters tolerans. En runda på
 att geometrin ändras mer än ett par meter, och tar då drygt en kilobyte i
 webbläsarens lagring.
 
-Spår och utplacerade aggregat sparas lokalt i webbläsaren, inte i repot.
+Inlästa spår och utplacerade aggregat sparas lokalt i webbläsaren, inte i repot.
+Det inbyggda spåret ligger däremot i `index.html` och följer med alla besökare.
 
 ## Beräkningar
 
