@@ -12,6 +12,14 @@
 <meta property="og:url" content="https://gkrallo.github.io/snowgun-forecast/">
 <meta property="og:type" content="website">
 
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Snöprognos">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
@@ -32,7 +40,7 @@ body{
   background:var(--bg); color:var(--ink);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   font-size:15px; line-height:1.45;
-  padding:10px 10px calc(14px + env(safe-area-inset-bottom));
+  padding:calc(10px + env(safe-area-inset-top)) 10px calc(14px + env(safe-area-inset-bottom));
   max-width:820px; margin:0 auto;
   -webkit-text-size-adjust:100%;
 }
@@ -45,7 +53,7 @@ button{font-family:inherit}
 .topbar{display:flex; align-items:center; gap:8px; margin-bottom:10px}
 .topbar h1{font-size:1.05rem; margin:0; font-weight:650; letter-spacing:-.01em; flex:1;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.iconbtn{background:var(--surface); border:1px solid var(--line); color:var(--ink);
+.iconbtn{flex:0 0 auto; background:var(--surface); border:1px solid var(--line); color:var(--ink);
   min-width:40px; height:40px; border-radius:11px; font-size:1.05rem; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center; padding:0 9px; gap:5px}
 .iconbtn:hover{border-color:var(--ink-faint)}
@@ -85,17 +93,18 @@ button{font-family:inherit}
 /* tabs */
 .tabs{display:flex; gap:4px; background:var(--surface); border:1px solid var(--line);
   padding:4px; border-radius:12px; margin-bottom:10px}
-.tabs button{flex:1; background:transparent; border:none; color:var(--ink-dim);
-  padding:9px 6px; border-radius:9px; font-size:.85rem; font-weight:600; cursor:pointer}
+.tabs button{flex:1 1 0; min-width:0; background:transparent; border:none; color:var(--ink-dim);
+  padding:9px 4px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .tabs button[aria-selected="true"]{background:var(--surface-2); color:var(--ink)}
 .panel[hidden]{display:none}
 
 .rangebar{display:flex; gap:5px; margin-bottom:8px; flex-wrap:wrap}
-.rangebar button{background:var(--surface); border:1px solid var(--line); color:var(--ink-dim);
-  padding:6px 11px; border-radius:9px; font-size:.8rem; font-weight:600; cursor:pointer}
+.rangebar button{flex:0 0 auto; background:var(--surface); border:1px solid var(--line); color:var(--ink-dim);
+  padding:7px 11px; border-radius:9px; font-size:.8rem; font-weight:600; cursor:pointer; white-space:nowrap}
 .rangebar button.active{background:#0d5f86; border-color:#1281b3; color:#fff}
 
-.chartbox{position:relative; height:44vh; min-height:250px; max-height:400px;
+.chartbox{position:relative; height:44vh; height:44dvh; min-height:250px; max-height:400px;
   background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:10px 8px 4px}
 .caption{font-size:.72rem; color:var(--ink-faint); text-align:center; margin:6px 0 0}
 .err{color:var(--stop); font-size:.85rem; text-align:center; min-height:18px; margin-top:6px}
@@ -117,7 +126,7 @@ button{font-family:inherit}
 .htable tbody tr.newday td{border-top:2px solid var(--line)}
 .dot{display:inline-block; width:9px; height:9px; border-radius:50%; vertical-align:middle}
 .dot.go{background:var(--go)} .dot.marginal{background:var(--warn)} .dot.stop{background:var(--stop)}
-.scroller{max-height:56vh; overflow:auto; background:var(--surface); border:1px solid var(--line);
+.scroller{max-height:56vh; max-height:56dvh; overflow:auto; background:var(--surface); border:1px solid var(--line);
   border-radius:var(--radius); padding:0 10px}
 
 /* wind panel */
@@ -141,9 +150,10 @@ button{font-family:inherit}
 
 /* modal */
 .overlay{display:none; position:fixed; inset:0; background:rgba(3,7,15,.86); z-index:1000;
-  align-items:center; justify-content:center; padding:14px}
+  align-items:center; justify-content:center;
+  padding:calc(14px + env(safe-area-inset-top)) 14px calc(14px + env(safe-area-inset-bottom))}
 .overlay.open{display:flex}
-.sheet{background:var(--surface); width:100%; max-width:620px; max-height:92vh; border-radius:16px;
+.sheet{background:var(--surface); width:100%; max-width:620px; max-height:92vh; max-height:92dvh; border-radius:16px;
   display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line)}
 .sheet header{padding:14px 16px; background:var(--bg); border-bottom:1px solid var(--line);
   display:flex; align-items:center; gap:10px}
@@ -158,7 +168,7 @@ button{font-family:inherit}
 
 /* planeringskarta */
 #planWrap{position:relative; border-radius:12px; overflow:hidden; border:1px solid var(--line)}
-#planMap{height:min(52vh,420px); background:var(--surface-2)}
+#planMap{height:min(52vh,420px); height:min(52dvh,420px); background:var(--surface-2)}
 #windRose{position:absolute; right:10px; top:10px; width:74px; height:74px; z-index:500; pointer-events:none}
 #windRose svg{width:100%; height:100%}
 .leaflet-container{background:#0e1a2c; font-family:inherit}
@@ -169,8 +179,8 @@ button{font-family:inherit}
 .timerow input[type=range]{flex:1; accent-color:var(--wind)}
 .timerow .tl{font-size:.78rem; color:var(--ink-dim); min-width:132px; text-align:right}
 .gunbar{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:10px}
-.gunbar button{background:var(--surface-2); border:1px solid var(--line); color:var(--ink);
-  padding:8px 12px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer}
+.gunbar button{flex:0 0 auto; background:var(--surface-2); border:1px solid var(--line); color:var(--ink);
+  padding:8px 12px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer; white-space:nowrap}
 .gunbar button.armed{background:var(--ice); border-color:var(--ice); color:#03121c}
 .gunbar .count{margin-left:auto; font-size:.78rem; color:var(--ink-faint)}
 .empty{text-align:center; padding:26px 16px; color:var(--ink-dim)}
@@ -181,10 +191,13 @@ button{font-family:inherit}
 .plannote{font-size:.8rem; color:var(--ink-dim); margin-top:9px; min-height:18px}
 
 /* info modal */
-.infonav{display:flex; gap:5px; overflow-x:auto; padding:10px 16px; background:var(--bg);
+/* Flex-barn krymper under sitt innehåll om man inte säger ifrån. Utan
+   flex:0 0 auto pressades knapparna ihop och texten rann utanför pillret. */
+.infonav{display:flex; flex-wrap:wrap; gap:6px; padding:10px 14px; background:var(--bg);
   border-bottom:1px solid var(--line)}
-.infonav button{background:var(--surface-2); border:1px solid var(--line); color:var(--ink-dim);
-  padding:6px 12px; border-radius:999px; font-size:.78rem; white-space:nowrap; cursor:pointer; font-weight:600}
+.infonav button{flex:0 0 auto; max-width:100%; background:var(--surface-2); border:1px solid var(--line);
+  color:var(--ink-dim); padding:7px 13px; border-radius:999px; font-size:.78rem; line-height:1.2;
+  white-space:nowrap; cursor:pointer; font-weight:600}
 .infonav button[aria-selected="true"]{background:var(--ice); border-color:var(--ice); color:#03121c}
 .chapter[hidden]{display:none}
 .chapter h3{color:var(--ice); font-size:1.02rem; margin:22px 0 8px; font-weight:650}
@@ -201,6 +214,8 @@ button{font-family:inherit}
 .tbl th{text-align:left; color:var(--ink-faint); font-weight:600; font-size:.74rem;
   padding:6px 8px; border-bottom:1px solid var(--line)}
 .tbl td{padding:6px 8px; border-bottom:1px solid rgba(43,59,87,.5)}
+#btnInstall{display:none; background:#0d5f86; border-color:#1281b3}
+.installtip{font-size:.85rem; background:var(--surface-2); border-radius:10px; padding:11px 13px; margin:12px 0}
 .searchrow{display:flex; gap:8px; margin-top:10px}
 .searchrow input{flex:1; background:var(--surface); color:var(--ink); border:1px solid var(--line);
   padding:9px; border-radius:9px}
@@ -212,6 +227,7 @@ button{font-family:inherit}
 
 <div class="topbar">
   <h1>❄️ Snöprognos</h1>
+  <button class="iconbtn" id="btnInstall" title="Installera som app">⤓</button>
   <button class="iconbtn" id="btnRefresh" title="Hämta ny prognos">↻</button>
   <button class="iconbtn" id="btnInfo" title="Så fungerar snötillverkning">ℹ️</button>
   <button class="iconbtn" id="btnMap" title="Byt plats">📍</button>
@@ -245,7 +261,7 @@ button{font-family:inherit}
 
 <div class="tabs" role="tablist">
   <button role="tab" id="tabGraph" aria-selected="true" aria-controls="panelGraph">Graf</button>
-  <button role="tab" id="tabHours" aria-selected="false" aria-controls="panelHours">Timme för timme</button>
+  <button role="tab" id="tabHours" aria-selected="false" aria-controls="panelHours">Timmar</button>
   <button role="tab" id="tabWind" aria-selected="false" aria-controls="panelWind">Vind &amp; sikte</button>
 </div>
 
@@ -1906,6 +1922,15 @@ const INFO = {
       <li>Appen vet ingenting om markens temperatur. Är marken varm smälter de första timmarnas snö oavsett vad luften säger.</li>
     </ul>
 
+    <h3>Lägg appen på hemskärmen</h3>
+    <p>Appen går att installera, och då startar den utan adressfält, i eget fönster och med egen ikon. Den fungerar också utan täckning: senaste hämtade prognosen finns kvar, så ni ser körfönstren även där mobilnätet tar slut. Kartrutor och ny väderdata kräver förstås nät.</p>
+    <ul>
+      <li><b>Android och Chrome:</b> tryck på nedladdningspilen uppe till höger i appen, eller välj <em>Installera app</em> i webbläsarens meny.</li>
+      <li><b>iPhone och Safari:</b> tryck på dela-ikonen och välj <em>Lägg till på hemskärmen</em>. iOS har ingen installationsknapp inne i sidan.</li>
+      <li><b>Dator:</b> Chrome och Edge visar en installationsikon längst till höger i adressfältet.</li>
+    </ul>
+    <div class="note">Öppnar ni länken inifrån Messenger eller Facebook hamnar ni i deras inbyggda webbläsare, som varken kan installera appen eller spara inställningar särskilt länge. Tryck på de tre prickarna och välj att öppna i Chrome eller Safari först.</div>
+
     <h3>Justera mot er erfarenhet</h3>
     <p>Alla gränser går att ändra under ⚙️ och sparas i telefonen. Märker ni att ni i praktiken kan köra vid −2,0 i stället för −2,5, ändra siffran. Modellen är byggd för att kalibreras, inte för att ha rätt från början.</p>`
 };
@@ -2241,10 +2266,46 @@ $("clearGuns").onclick = () => {
 };
 
 /* ==========================================================================
+   15. INSTALLATION SOM APP
+   ========================================================================== */
+
+let installPrompt = null;
+
+function registerServiceWorker() {
+  // Kräver https. Öppnar man filen lokalt från disk hoppas det bara över.
+  if (!("serviceWorker" in navigator) || location.protocol !== "https:") return;
+  navigator.serviceWorker.register("./sw.js").catch(err => console.warn("SW:", err));
+}
+
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  installPrompt = e;
+  $("btnInstall").style.display = "inline-flex";
+});
+
+$("btnInstall").onclick = async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  const { outcome } = await installPrompt.userChoice;
+  installPrompt = null;
+  if (outcome === "accepted") $("btnInstall").style.display = "none";
+};
+
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  $("btnInstall").style.display = "none";
+});
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+}
+
+/* ==========================================================================
    12. START
    ========================================================================== */
 
 function init() {
+  registerServiceWorker();
   buildSegments();
   ensureDefaultFavorite();
   populateFavorites();

@@ -105,9 +105,44 @@ Tidsstämplar hämtas som `timeformat=unixtime`. Standardformatet ISO 8601 utan
 tidszonsangivelse tolkas av webbläsaren som lokal tid trots att Open-Meteo
 menar UTC, vilket förskjuter hela prognosen en till två timmar.
 
+## Installera som app
+
+Appen har ett webbmanifest och en service worker, så den går att lägga på
+hemskärmen och startar då utan adressfält, i eget fönster och med egen ikon.
+Senast hämtade prognosen finns kvar utan täckning, vilket är poängen ute vid
+spåret. Kartrutor och färsk väderdata kräver nät.
+
+Service workern sparar appens egna filer och biblioteken från CDN. Väderdata,
+platssökning och kartrutor går alltid mot nätet — det första för att färsk data
+är hela poängen, det sista för att OpenStreetMaps villkor inte tillåter att
+kartrutor cachas i bulk.
+
+Manifestet heter `manifest.json` och inte `manifest.webmanifest`. Spec:en
+rekommenderar det senare, men filändelsen kräver att servern känner till
+MIME-typen `application/manifest+json`, och det gör inte alla statiska
+webbhotell. `.json` serveras rätt överallt och accepteras av alla webbläsare.
+
+**Vid uppdatering:** höj `VERSION` i `sw.js`. Annars kan besökare som redan
+installerat appen ligga kvar på gammal kod tills cachen töms.
+
+## Filer
+
+| Fil | Roll |
+| --- | --- |
+| `index.html` | Hela appen. Ingen bygg, inga lokala beroenden. |
+| `manifest.json` | Namn, ikoner och fristående läge. |
+| `sw.js` | Offline-cache. |
+| `icon-192.png`, `icon-512.png` | Appikoner. |
+| `icon-maskable-512.png` | Ikon med marginal för Androids runda masker. |
+| `apple-touch-icon.png` | Ikon för iOS hemskärm. |
+
+Sökvägarna är relativa, så det fungerar både i repotets underkatalog på GitHub
+Pages och på en egen domän.
+
 ## Kör lokalt
 
-Ladda ner `index.html` och öppna den i valfri webbläsare. Inget mer behövs.
+Ladda ner `index.html` och öppna den i valfri webbläsare. Inget mer behövs —
+service workern hoppas över när sidan inte serveras över https.
 
 ## Licens
 
