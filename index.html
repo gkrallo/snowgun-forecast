@@ -361,12 +361,22 @@ button{font-family:inherit}
       </div>
       <div class="row2">
         <div class="field">
-          <label for="throwHeight">Kastbanans höjd (m)</label>
-          <input type="number" id="throwHeight" min="2" max="40" step="1" value="8">
+          <label for="fanHeight">Fläkt: fallhöjd (m)</label>
+          <input type="number" id="fanHeight" min="1" max="40" step="0.5" value="5">
         </div>
         <div class="field">
-          <label for="throwDist">Kastlängd (m)</label>
-          <input type="number" id="throwDist" min="5" max="80" step="1" value="30">
+          <label for="fanDist">Fläkt: kastlängd (m)</label>
+          <input type="number" id="fanDist" min="3" max="80" step="1" value="30">
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="lanceHeight">Lans: huvudets höjd (m)</label>
+          <input type="number" id="lanceHeight" min="1" max="15" step="0.1" value="6">
+        </div>
+        <div class="field">
+          <label for="lanceDist">Lans: räckvidd (m)</label>
+          <input type="number" id="lanceDist" min="2" max="25" step="0.5" value="8">
         </div>
       </div>
       <p class="hint" style="margin-top:-4px" id="hangHint"></p>
@@ -485,8 +495,10 @@ button{font-family:inherit}
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
-  throwHeight: 8,     // m, hur högt kanonen kastar
-  throwDist: 30,      // m, hur långt kanonen kastar
+  fanHeight: 5,       // m, fallhöjd för fläktfanan
+  fanDist: 30,        // m, fläktkanonens kastlängd
+  lanceHeight: 6,     // m, lanshuvudets höjd över mark
+  lanceDist: 8,       // m, lansens horisontella räckvidd
   trailWidth: 6,      // m, ytan vi vill träffa
   waterTemp: 1.5,     // °C
   quality: 5,         // 1 = torr puder, 10 = blöt bassnö
@@ -495,7 +507,7 @@ const DEFAULTS = {
   windWarn: 5,        // m/s
   windStop: 9,        // m/s
   fanCount: 6,        // antal fläktkanoner
-  lanceCount: 33,     // antal lansar
+  lanceCount: 3,      // antal lansar
   wbModel: "psychro"
 };
 
@@ -644,16 +656,30 @@ function windGeometry(speed, fromDir, bearing) {
 // Hur långt driver snön i sidled innan den landar?
 // Fallhastigheten för konstsnö ligger runt 1,2 m/s. Tyngdpunkten i fanan
 // landar tidigare än svansen, därför faktorn 0,6 på hela hangtiden.
+// Fläkt och lans beter sig olika. Fläktkanonen skjuter iväg fanan med egen
+// luftström: snön har fart framåt och tyngdpunkten landar långt före svansen,
+// därav faktorn 0,6. Lansen har ingen fläkt utan släpper snön från huvudets
+// höjd och låter gravitationen sköta resten, så där faller nästan allt hela
+// vägen och faktorn ligger nära ett.
 const SETTLE_SPEED = 1.2;
-function driftDistance(crossSpeed, height) {
-  const hangTime = Math.max(1, height) / SETTLE_SPEED;
-  return { hangTime, centre: crossSpeed * hangTime * 0.6, tail: crossSpeed * hangTime };
+const SPREAD_FACTOR = { fan: 0.6, lance: 0.9 };
+
+function gunGeometry(type) {
+  return type === "lance"
+    ? { height: S.lanceHeight, dist: S.lanceDist, spread: SPREAD_FACTOR.lance }
+    : { height: S.fanHeight, dist: S.fanDist, spread: SPREAD_FACTOR.fan };
+}
+
+function driftDistance(crossSpeed, type) {
+  const g = gunGeometry(type);
+  const hangTime = Math.max(1, g.height) / SETTLE_SPEED;
+  return { hangTime, centre: crossSpeed * hangTime * g.spread,
+           tail: crossSpeed * hangTime, dist: g.dist, type: type === "lance" ? "lance" : "fan" };
 }
 
 // Hur många grader ska kanonen vridas mot vinden för att fanan ska landa rätt?
 function aimCorrection(centreDrift, throwDist) {
-  const deg = Math.atan2(centreDrift, Math.max(5, throwDist)) * 180 / Math.PI;
-  return deg;
+  return Math.atan2(centreDrift, Math.max(3, throwDist)) * 180 / Math.PI;
 }
 
 const DIRS16 = ["N","NNO","NO","ONO","O","OSO","SO","SSO","S","SSV","SV","VSV","V","VNV","NV","NNV"];
@@ -671,7 +697,7 @@ function assess(pt) {
   const geo = windGeometry(pt.wind, pt.dir, S.trailBearing);
   geo.crossAbs = wc.median;
   geo.spread = wc;
-  const drift = driftDistance(geo.crossAbs, S.throwHeight);
+  const drift = driftDistance(geo.crossAbs, "fan");
   const fanCap = capacity(pt.wb, th.base, S.waterTemp);
   const lanceCap = capacity(pt.wb, th.lance, S.waterTemp);
 
@@ -1091,21 +1117,93 @@ function trackCentre() {
   return [lat, lon];
 }
 
+// Vinkelrätt avstånd från en punkt till en spårsträcka, inte till dess mittpunkt.
+function distToSegment(p, a, b) {
+  const k = Math.cos(toRad(p[0]));
+  const px = p[1] * k, py = p[0], ax = a[1] * k, ay = a[0], bx = b[1] * k, by = b[0];
+  const dx = bx - ax, dy = by - ay;
+  const t = (dx || dy) ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) * 111320;
+}
+
 function nearestSegment(lat, lon) {
   let best = null, bd = Infinity;
   for (const s of segments) {
-    const d = haversine([lat, lon], s.mid);
+    const d = distToSegment([lat, lon], s.a, s.b);
     if (d < bd) { bd = d; best = s; }
   }
   return best ? { seg: best, dist: bd } : null;
 }
 
+/* Lansarna ställs i svängar eller bredvid spåret så att plymen faller i
+   spårets längdriktning. Då är det inte en sträcka som ska träffas utan en
+   hel bit av spåret, och i en sväng pekar den biten åt flera håll samtidigt.
+   Därför bedöms varje aggregat mot alla sträckor det faktiskt når. */
+function gunCoverage(g) {
+  const geo = gunGeometry(g.type);
+  // En lans sprider plymen längs spåret, en fläkt täcker sin kastlängd.
+  const radius = g.type === "lance" ? geo.dist + 12 : geo.dist;
+  const p = [g.lat, g.lon];
+
+  // Närmaste sträcka, och därifrån utåt åt båda håll så länge spåret håller
+  // sig inom räckhåll. Att bara plocka allt inom radien går inte: en
+  // tvåkilometersslinga viker tillbaka på sig själv, och då räknas
+  // returbenet tjugo meter bort in som om kanonen siktade på det också.
+  let idx = -1, bd = Infinity;
+  segments.forEach((s, i) => {
+    const d = distToSegment(p, s.a, s.b);
+    if (d < bd) { bd = d; idx = i; }
+  });
+  if (idx < 0) return { offset: Infinity, bearing: S.trailBearing, reach: geo.dist, segs: [], covered: 0 };
+
+  const candidates = [segments[idx]];
+  for (let i = idx - 1; i >= 0 && distToSegment(p, segments[i].a, segments[i].b) <= radius; i--) candidates.push(segments[i]);
+  for (let i = idx + 1; i < segments.length && distToSegment(p, segments[i].a, segments[i].b) <= radius; i++) candidates.push(segments[i]);
+
+  // En sträcka räknas inte i sin helhet bara för att dess ena ände ligger
+  // nära. Spåret punktas av var fjärde meter och bara de punkter som
+  // verkligen ligger inom räckhåll räknas som täckta.
+  const STEP = 4;
+  const segs = [];
+  let covered = 0;
+  for (const seg of candidates) {
+    const n = Math.max(1, Math.round(seg.len / STEP));
+    let hit = 0;
+    for (let j = 0; j < n; j++) {
+      const f = (j + 0.5) / n;
+      const q = [seg.a[0] + (seg.b[0] - seg.a[0]) * f, seg.a[1] + (seg.b[1] - seg.a[1]) * f];
+      if (haversine(p, q) <= radius) hit++;
+    }
+    if (hit) { segs.push(seg); covered += seg.len * hit / n; }
+  }
+
+  return {
+    offset: bd,
+    bearing: segments[idx].bearing,
+    reach: geo.dist,
+    segs: segs.length ? segs : [segments[idx]],
+    covered
+  };
+}
+
+// Värsta tvärvinden inom det aggregatet täcker. I en sväng är det den som
+// avgör, inte riktningen rakt framför kanonen.
+function worstCross(cov, pt) {
+  const blowsTo = normDeg(pt.dir + 180);
+  let worst = 0, bearing = cov.bearing;
+  for (const s of cov.segs) {
+    const c = Math.abs(pt.wind * Math.sin(toRad(normDeg(blowsTo - s.bearing))));
+    if (c > worst) { worst = c; bearing = s.bearing; }
+  }
+  return { cross: worst, bearing };
+}
+
 /* --- vindbilden över hela spåret --- */
 
 // Hur illa en given tvärvind är avgörs av om snön hamnar innanför spårbredden.
-function segState(cross, baseState) {
+function segState(cross, baseState, type = "fan") {
   if (baseState === "stop") return "stop";
-  const drift = driftDistance(cross, S.throwHeight).centre;
+  const drift = driftDistance(cross, type).centre;
   if (drift <= S.trailWidth / 2) return baseState === "marginal" ? "marginal" : "go";
   if (drift <= S.trailWidth) return "marginal";
   return "stop";
@@ -1118,8 +1216,9 @@ function windContext(pt) {
 
   if (guns.length && segments.length) {
     const vals = guns.map(g => {
-      const n = nearestSegment(g.lat, g.lon);
-      return { gun: g, bearing: n ? n.seg.bearing : S.trailBearing, cross: n ? geoAt(n.seg.bearing) : geoAt(S.trailBearing) };
+      const cov = gunCoverage(g);
+      const w = worstCross(cov, pt);
+      return { gun: g, bearing: w.bearing, cross: w.cross, offset: cov.offset, reach: cov.reach };
     });
     const sorted = vals.map(v => v.cross).sort((a, b) => a - b);
     return { mode: "guns", perGun: vals, median: sorted[Math.floor(sorted.length / 2)],
@@ -1227,26 +1326,30 @@ function renderPlan() {
     const st = segState(cross, "go"); // kartan visar vindbilden, temperaturen står i banderollen
     total += s.len; if (st === "go") good += s.len;
     L.polyline([s.a, s.b], { color: colors[st], weight: 7, opacity: .9, lineCap: "round" })
-      .bindTooltip(`${dirName(s.bearing)}-riktning · tvärvind ${fmt(cross)} m/s · drift ${Math.round(driftDistance(cross, S.throwHeight).centre)} m`,
+      .bindTooltip(`${dirName(s.bearing)}-riktning · tvärvind ${fmt(cross)} m/s · drift ${Math.round(driftDistance(cross, "fan").centre)} m`,
         { sticky: true })
       .addTo(planLayers);
   }
 
   gunLayers.clearLayers();
   guns.forEach(g => {
-    const n = nearestSegment(g.lat, g.lon);
-    const bearing = n ? n.seg.bearing : S.trailBearing;
-    const cross = Math.abs(pt.wind * Math.sin(toRad(normDeg(blowsTo - bearing))));
-    const drift = driftDistance(cross, S.throwHeight);
-    const st = segState(cross, "go");
+    const cov = gunCoverage(g);
+    const w = worstCross(cov, pt);
+    const bearing = w.bearing;
+    const cross = w.cross;
+    const drift = driftDistance(cross, g.type);
+    const st = segState(cross, "go", g.type);
     const across = pt.wind * Math.sin(toRad(normDeg(blowsTo - bearing)));
     const upwind = across >= 0 ? "vänster" : "höger";
-    const corr = Math.round(aimCorrection(drift.centre, S.throwDist));
+    const corr = Math.round(aimCorrection(drift.centre, drift.dist));
     const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st), draggable: true }).addTo(gunLayers);
+    const outOfReach = cov.offset > cov.reach;
     m.bindPopup(
-      `<div style="font:13px/1.5 sans-serif; min-width:180px">
+      `<div style="font:13px/1.5 sans-serif; min-width:200px">
         <b>${g.type === "fan" ? "Fläktkanon" : "Lans"}</b><br>
-        Spåret löper ${dirName(bearing)} här.<br>
+        ${Math.round(cov.offset)} m från spåret, räckvidd ${cov.reach} m.<br>
+        ${outOfReach ? `<span style="color:#dc2626">Når inte spåret härifrån — flytta ${Math.round(cov.offset - cov.reach)} m närmare.</span><br>` : ""}
+        Täcker ${Math.round(cov.covered)} m spår, värst i ${dirName(bearing)}-riktningen.<br>
         Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
         ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}<br>
         <a href="#" data-del="${g.id}" style="color:#dc2626">Ta bort</a>
@@ -1758,7 +1861,7 @@ function renderCompass() {
 
 function renderAimAdvice(pt, a) {
   const el = $("aimAdvice");
-  const corr = aimCorrection(a.drift.centre, S.throwDist);
+  const corr = aimCorrection(a.drift.centre, S.fanDist);
   const sideWord = a.geo.across >= 0 ? "höger" : "vänster";
   const upwind = a.geo.across >= 0 ? "vänster" : "höger";
   const q = achievableQuality(pt.wb, S.waterTemp);
@@ -1770,7 +1873,7 @@ function renderAimAdvice(pt, a) {
     parts.push(`<p style="margin:0 0 8px">Vinden ligger i stort sett längs spåret. Kanonen kan riktas rakt på spåret utan sidokompensation — men håll koll, ett litet vindkast räcker för att det ska ändras.</p>`);
   } else {
     parts.push(`<p style="margin:0 0 8px">Vinden trycker <b>${fmt(a.geo.crossAbs)} m/s tvärs spåret</b> och för snön mot <b>${sideWord}</b> sett i spårets riktning (${Math.round(S.trailBearing)}°). Fanans tyngdpunkt hamnar ungefär <b>${Math.round(a.drift.centre)} m</b> ur led, svansen upp till ${Math.round(a.drift.tail)} m.</p>`);
-    parts.push(`<p style="margin:0 0 8px">Vrid kanonen ungefär <b>${Math.round(corr)}°</b> åt <b>${upwind}</b>, alltså mot vinden, så landar fläcken på spåret igen. Vid ${S.throwDist} m kastlängd motsvarar det att sikta ca ${Math.round(a.drift.centre)} m vid sidan av där snön ska ligga.</p>`);
+    parts.push(`<p style="margin:0 0 8px">Vrid kanonen ungefär <b>${Math.round(corr)}°</b> åt <b>${upwind}</b>, alltså mot vinden, så landar fläcken på spåret igen. Vid ${S.fanDist} m kastlängd motsvarar det att sikta ca ${Math.round(a.drift.centre)} m vid sidan av där snön ska ligga.</p>`);
   }
 
   const gust = Number.isFinite(pt.gust) ? pt.gust : pt.wind;
@@ -1956,8 +2059,14 @@ const INFO = {
   c4: `
     <h3>Vinden är inte bara en siffra</h3>
     <p>Vind gör tre saker samtidigt, och bara en av dem är bra. Den hjälper till att kyla och sprida fanan. Den flyttar snön i sidled. Och när den är byig gör den läggningen ojämn på ett sätt som inte går att kompensera.</p>
-    <div class="figure">${SVG_DRIFT}<p class="figcap">Snön hänger i luften ungefär kastbanans höjd delat med fallhastigheten, cirka 1,2 m/s för konstsnö. Från åtta meters höjd blir det nästan sju sekunder — och sju sekunder i tre meter per sekund sidvind är över tio meter sidled på ett spår som är sex meter brett. Kastar ni lägre minskar driften proportionellt, och det är det billigaste sättet att rädda en blåsig natt.</p></div>
+    <div class="figure">${SVG_DRIFT}<p class="figcap">Snön hänger i luften ungefär fallhöjden delat med fallhastigheten, cirka 1,2 m/s för konstsnö. Från åtta meters höjd blir det nästan sju sekunder — och sju sekunder i tre meter per sekund sidvind är över tio meter sidled på ett spår som är sex meter brett. Kastar ni lägre minskar driften proportionellt, och det är det billigaste sättet att rädda en blåsig natt.</p></div>
     <p>Det är därför ett längdspår är svårare att snöa än en slalombacke. Ni ska träffa ett band som är några meter brett, inte en femtio meter bred pist. Redan två meter per sekund tvärs spåret flyttar tyngdpunkten i fanan utanför.</p>
+
+    <h3>Fallhöjd är inte samma sak som molnet ni ser</h3>
+    <p>Det vita som står högt över kanonen på natten är till största delen isdimma och vattenånga, inte snö. Den delen stiger av egen kraft och lägger sig aldrig i spåret. Snön som faktiskt bygger vallen kommer ur fanans nedre, tätare del. Mät alltså inte fallhöjden på molnet — den är betydligt lägre än den ser ut.</p>
+    <p>En annan sak som förvånar: snön landar inte där fanan lämnar röret. Ingenjörerna bakom Areco-kanonerna i Östersund skrev att färdig snö från en fläktkanon bildas någonstans tio till tjugo meter ut från munstycket. Det är därför det är svårt att lägga snö exakt i ett längdspår med fläkt — den närmaste zonen får fuktig snö och den färdiga hamnar en bit bort.</p>
+    <p>För en lans är fallhöjden däremot entydig: snön lämnar huvudet och faller rakt ned under sin egen vikt, så fallhöjden <em>är</em> huvudets höjd över marken. Lanshuvuden sitter normalt mellan tre och tio meter upp, beroende på profilens längd och hur mycket den är lutad. Reser man lansen får man längre hangtid men också dubbelt så mycket sidodrift; lägger man ner den tappar man hangtid men vinner precision i blåst. Det är avvägningen när vinden tar i.</p>
+    <div class="note">Mät er egen höjd en gång, så slipper ni gissa. Lägg ner lansprofilen, mät från leden till munstyckshuvudet, och räkna om för den lutning ni faktiskt kör med: höjden över mark är profilens längd gånger cosinus för lutningen från lodrätt. En åtta meters profil som lutar 45° ger 5,7 meter.</div>
 
     <h3>Bara komposanten tvärs spåret spelar roll</h3>
     <p>Vind rakt längs spåret är i praktiken harmlös — snön hamnar bara längre fram eller bakom längs samma band. Det är komposanten vinkelrätt mot spåret som kostar. Fliken <b>Vind &amp; sikte</b> räknar ut den åt er, timme för timme, och visar hur många grader kanonen behöver vridas mot vinden.</p>
@@ -1977,6 +2086,12 @@ const INFO = {
     <p>Sparbanksspåret följer med appen färdigt inlagt, så där behöver ni inte göra något. Kör ni på en annan anläggning: åk en runda med klockan eller telefonen, exportera GPX och läs in filen under <b>Vind &amp; sikte</b>. Appen klipper ut ett varv, förenklar loggen till ett femtiotal punkter och räknar sedan tvärvinden för varje sträcka för sig. Kartan färgar spåret grönt där snön landar innanför spårbredden och rött där den blåser förbi.</p>
     <p>Ligger platsen ni valt längre än en och en halv mil från Sparbanksspåret döljs det inbyggda spåret, eftersom en karta över Lidköping ovanpå Arvikas väderprognos bara vore vilseledande. Vill ni ändå se hur funktionen fungerar finns knappen att visa det som exempel. Varje spår har sin egen kanonuppställning sparad, så det går att växla mellan anläggningar utan att bygga om.</p>
     <p>Placera sedan ut fläktar och lansar på kartan. Varje aggregat får sitt eget råd utifrån hur spåret ligger just där. Reglaget under kartan spolar fram i prognosen, så ni ser i förväg vilka sträckor som blir omöjliga när vinden vrider vid tvåtiden.</p>
+
+    <h3>Var lansarna ställs</h3>
+    <p>En lans sätts sällan mitt i spåret. Den ställs i en sväng eller vid sidan av, och riktas så att plymen faller i spårets längdriktning i stället för tvärs över. Då blir den smala spårbredden inte längre begränsningen — snön lägger sig som ett band längs leden i stället för att behöva träffa en sex meter bred remsa rakt framifrån.</p>
+    <p>Det får två följder som appen numera räknar med. Dels måste lansen stå inom sin räckvidd från spåret: står den elva meter ut och når åtta, hamnar snön i skogskanten oavsett vindriktning. Tryck på aggregatet på kartan så står avstånd och räckvidd där.</p>
+    <p>Dels pekar spåret åt flera håll samtidigt i en sväng. En lans mitt i en kurva täcker kanske trettio meter spår som vrider sig fyrtio grader, och samma vind är då snäll mot ena halvan och elak mot den andra. Appen bedömer därför varje aggregat mot alla sträckor det faktiskt når och visar den värsta, inte den närmaste. Det är den som sätter gränsen för hur länge ni kan låta den stå.</p>
+    <div class="note">En sväng är samtidigt det mest förlåtande stället att stå på. Vilken vindriktning som än kommer finns det alltid någon del av bågen som ligger rätt. Det är därför det ofta lönar sig att börja natten i kurvorna och ta raksträckorna när vinden visat var den tänker lägga sig.</div>
 
     <h3>Byvind</h3>
     <p>Är byarna mer än ungefär dubbla medelvinden går det inte att rikta bort problemet. Kanonen står still men vinden gör det inte, och resultatet blir ränder av snö bredvid spåret. Sänk kastbanan om det går, annars vänta ut byigheten.</p>
@@ -2100,8 +2215,9 @@ const QUALITY_WORDS = ["", "torr puder", "torr snö", "torr snö", "lätt allrou
   "allroundsnö", "allroundsnö", "fuktig snö", "blöt snö", "bassnö", "blöt bassnö"];
 
 const SETTING_FIELDS = [
-  ["trailBearing", "trailBearing", true], ["throwHeight", "throwHeight", true],
-  ["throwDist", "throwDist", true], ["trailWidth", "trailWidth", true],
+  ["trailBearing", "trailBearing", true], ["fanHeight", "fanHeight", true],
+  ["fanDist", "fanDist", true], ["lanceHeight", "lanceHeight", true],
+  ["lanceDist", "lanceDist", true], ["trailWidth", "trailWidth", true],
   ["waterTemp", "waterTemp", true], ["quality", "quality", true],
   ["fanBase", "fanBase", true], ["lanceBase", "lanceBase", true],
   ["windWarn", "windWarn", true], ["windStop", "windStop", true],
@@ -2118,11 +2234,12 @@ function fillSettingsForm() {
 // Kastbanans höjd är den knopp ni kalibrerar driften med. Visa vad den ger
 // så att siffran går att jämföra med vad ni faktiskt ser i spåret.
 function updateHangHint() {
-  const d = driftDistance(1, S.throwHeight);
+  const f = driftDistance(1, "fan"), l = driftDistance(1, "lance");
   $("hangHint").innerHTML =
-    `Snön hänger då ca <b>${d.hangTime.toFixed(1)} sekunder</b> i luften, vilket ger ` +
-    `<b>${d.centre.toFixed(1)} m</b> sidodrift per meter per sekund tvärvind. ` +
-    `Stämmer det inte med vad ni ser i spåret: justera höjden tills det gör det — det är den siffran hela driftberäkningen hänger på.`;
+    `Fläkt: ${f.hangTime.toFixed(1)} s i luften, <b>${f.centre.toFixed(1)} m</b> sidodrift per m/s tvärvind. ` +
+    `Kastlängden är avståndet dit snön faktiskt når, inte dit fanan syns. ` +
+    `Lans: ${l.hangTime.toFixed(1)} s, <b>${l.centre.toFixed(1)} m</b> per m/s. ` +
+    `Fallhöjden är den knopp driften kalibreras med — stämmer siffrorna inte med var snön faktiskt hamnar, justera höjden tills de gör det.`;
 }
 
 function readSettingsForm() {

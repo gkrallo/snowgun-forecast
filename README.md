@@ -41,7 +41,8 @@ Under ⚙️ ställs anläggningens egna värden in. De sparas i webbläsaren.
 | --- | --- |
 | Spårets riktning | Grader, 0 = norr. Används när ingen GPX-fil är inläst. |
 | Antal fläktar och lansar | Hur många aggregat som kan placeras ut på kartan. |
-| Kastbanans höjd och längd | Styr hur långt snön hinner driva innan den landar. |
+| Fläkt: fallhöjd och kastlängd | Hur högt fanan toppar och hur långt den når. |
+| Lans: huvudets höjd och räckvidd | Lanshuvudets höjd över mark — där faller snön rakt ned. |
 | Spårets bredd | Driver snön längre än halva bredden varnar appen. |
 | Vattentemperatur | Varmare vatten ger kallare startgräns och lägre kapacitet. |
 | Snökvalitet 1–10 | 1 = torr puder, 10 = blöt bassnö. Höjer kravet på kylan. |
@@ -102,12 +103,29 @@ ytterligare 0,4 °C per steg neråt på kvalitetsskalan.
 som når ungefär 90 % vid fyra grader under gränsen.
 
 **Sidodrift** beräknas som tvärvindens hastighet gånger tiden snön hänger i
-luften, där hangtiden är kastbanans höjd delat med 1,2 m/s. Tyngdpunkten i fanan
-landar tidigare än svansen, därav faktorn 0,6. Med ett inläst spår räknas detta
-per segment; hero och tabell visar medianen över de utplacerade aggregaten.
+luften, där hangtiden är fallhöjden delat med 1,2 m/s. Fläkt och lans räknas var
+för sig: fläktkanonen skjuter iväg fanan med egen luftström så tyngdpunkten
+landar långt före svansen (faktor 0,6), medan lansen släpper snön från huvudets
+höjd och låter gravitationen sköta resten (faktor 0,9). Med ett inläst spår
+räknas detta per segment; hero och tabell visar medianen över de utplacerade
+aggregaten.
 
-Kastbanans höjd är den parameter driften ska kalibreras med. Stämmer inte den
+Lansar ställs i svängar eller vid sidan av spåret så att plymen faller i
+spårets längdriktning. Därför bedöms varje utplacerat aggregat mot hela den
+sammanhängande sträcka det faktiskt når, inte mot närmaste segment: i en sväng
+pekar den sträckan åt flera håll samtidigt och det är den värsta riktningen
+som sätter gränsen. Avståndet till spåret mäts vinkelrätt mot sträckan, och
+täckningen klipps mot räckvidden genom att punkta spåret var fjärde meter.
+Står ett aggregat längre ut än sin räckvidd säger appen till.
+
+Fallhöjden är den parameter driften ska kalibreras med. Stämmer inte den
 beräknade driften med vad ni ser i spåret, justera höjden tills den gör det.
+
+För en lans är fallhöjden exakt huvudets höjd över marken: profilens längd
+gånger cosinus för lutningen från lodrätt. Mät profilen en gång så är den
+siffran klar. För en fläktkanon finns ingen motsvarande specifikation — fanans
+topp beror på rörvinkeln, och det vita molnet ovanför är till största delen
+isdimma som aldrig landar.
 
 ## Väderdata
 
