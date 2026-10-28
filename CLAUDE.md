@@ -86,6 +86,15 @@ allt som ändrar spår, kanoner eller `S` ska anropa `invalidateWindProfile`.
   Sparbanksspåret var man än är. Den är bara till för demoknappen. För att ta
   bort ett inläst spår används `clearUserTrack`, annars följer Sparbanksspåret
   med till Arvika.
+- **Inbyggda frågerutor.** `alert`, `confirm` och `prompt` visas inte i
+  förhandsvisningen i Claude-appen, i vissa installerade appar eller i
+  Messengers webbläsare — de svarar nej eller tomt direkt och knappen ser död
+  ut. Rensa kanoner och fem andra knappar gjorde ingenting på det viset. Använd
+  `ask()`/`tell()` (appens egen ruta) eller `armConfirm()` (tryck två gånger).
+  `unit.mjs` fäller den som använder de inbyggda.
+- **En klickhanterare på en Leaflet-markör som ritar om kartan** stänger
+  markörens ruta direkt — Leaflet stänger rutan när markören tas bort. Därför
+  gick det inte att ta bort enskilda kanoner.
 - **Gamla hämtningar.** Ett långsamt svar för en plats man lämnat får inte
   skriva över den nya. `fetchData` har en bricka (`fetchToken`) och läser
   färdigt svaret innan något skrivs.

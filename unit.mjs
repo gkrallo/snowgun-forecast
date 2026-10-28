@@ -89,10 +89,27 @@ async function loadApp({ storage = {}, wx = COLD_NIGHT, fetch, url = "https://gk
         zoomScale(axis, r) { this.scales.x.min = r.min; this.scales.x.max = r.max; }
       };
       w.L = chain();
+      // Markörer och ikoner sparas, så att ett test kan läsa en kanons ikon
+      // och ruta och trycka på knapparna i den.
+      w.L.divIcon = o => ({ ...o });
+      w.L.marker = (latlng, opts = {}) => {
+        const m = {
+          latlng, opts, handlers: {}, popup: null,
+          addTo() { (w.__markers ||= []).push(m); return m; },
+          bindPopup(html) { m.popup = html; return m; },
+          bindTooltip() { return m; },
+          on(ev, h) { (m.handlers[ev] ||= []).push(h); return m; },
+          getLatLng() { return { lat: m.latlng[0], lng: m.latlng[1] }; },
+          setLatLng(p) { m.latlng = Array.isArray(p) ? p : [p.lat, p.lng]; return m; }
+        };
+        return m;
+      };
       w.fetch = fetch || (async () => okResponse(data));
       w.HTMLCanvasElement.prototype.getContext = () => chain();
       w.matchMedia = () => ({ matches: false });
-      w.confirm = () => true; w.alert = () => {}; w.prompt = () => null;
+      // Webbläsarens egna frågerutor ska inte användas. Anropas de ändå
+      // noteras det, och svaret blir det som förhandsvisningen ger: nej.
+      for (const k of ["confirm", "alert", "prompt"]) w[k] = () => { (w.__native ||= []).push(k); return k === "confirm" ? false : null; };
       for (const [k, v] of Object.entries(storage)) {
         w.localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
       }
@@ -109,6 +126,18 @@ async function loadApp({ storage = {}, wx = COLD_NIGHT, fetch, url = "https://gk
     // att arrayer från jsdom har en annan prototyp än Nodes egna.
     get: code => JSON.parse(win.eval(`JSON.stringify(${code})`)),
     settle: async (n = 40) => { for (let i = 0; i < n; i++) await new Promise(r => setTimeout(r, 2)); },
+    // Svarar i appens egen frågeruta: fyller i fältet om `value` ges, trycker
+    // sedan OK eller Avbryt. Returnerar rubriken, så att testet ser vad som frågades.
+    answer: async ({ value, ok = true } = {}) => {
+      const modal = win.document.getElementById("askModal");
+      assert.ok(modal.classList.contains("open"), "ingen fråga visas");
+      const title = win.document.getElementById("askTitle").textContent;
+      if (value !== undefined) win.document.getElementById("askInput").value = value;
+      win.document.getElementById(ok ? "askOk" : "askCancel").click();
+      await app.settle();
+      assert.ok(!modal.classList.contains("open"), "frågan stängdes inte");
+      return title;
+    },
     close: () => win.close()
   };
   for (let i = 0; i < 200; i++) {
@@ -524,6 +553,7 @@ describe("Spår, platser och aggregat", () => {
                            centre: [59.65, 12.59], source: "import", name: "Arvika" })`);
       assert.equal(app.run("track.source"), "import");
       app.$("btnBuiltin").click();
+      assert.equal(await app.answer(), "Ta bort inläst spår");
       assert.equal(app.run("track"), null);
     } finally { app.close(); }
   });
@@ -536,7 +566,7 @@ describe("Spår, platser och aggregat", () => {
       assert.equal(app.run("track"), null);
       app.$("favSelect").value = "arv";
       app.$("btnDelFav").click();
-      await app.settle();
+      assert.equal(await app.answer(), "Ta bort plats");
       assert.equal(app.run("place.name"), "Sparbanksspåret");
       assert.equal(app.run("track && track.source"), "builtin");
     } finally { app.close(); }
@@ -568,6 +598,7 @@ describe("Spår, platser och aggregat", () => {
     try {
       app.run(`saveTrack({ ...BUILTIN_TRACK, source: "import", name: "Egen runda" })`);
       app.$("btnBuiltin").click();
+      assert.equal(await app.answer(), "Tillbaka till Sparbanksspåret");
       assert.equal(app.run("track.source"), "builtin");
       app.$("favSelect").value = "arv";
       app.$("favSelect").dispatchEvent(new app.win.Event("change"));
@@ -602,6 +633,82 @@ describe("Spår, platser och aggregat", () => {
     } finally { app.close(); }
   });
 
+  // Laddar appen med några aggregat utplacerade och fliken Vind & sikte öppen.
+  async function withGuns(list) {
+    const app = await loadApp({ storage: { snowGunsByTrack: { sparbanksparet: list } } });
+    app.$("tabWind").click();
+    const gunMarkers = () => (app.win.__markers || []).filter(m => m.opts.icon?.className === "gun-icon").slice(-app.run("guns.length"));
+    return { app, gunMarkers };
+  }
+  const THREE_GUNS = [
+    { id: "f1", type: "fan", lat: 58.5040, lon: 13.0878 },
+    { id: "f2", type: "fan", lat: 58.5041, lon: 13.0877, aim: 45 },
+    { id: "l1", type: "lance", lat: 58.5039, lon: 13.0879 }];
+
+  test("ett tryck på en kanon ritar inte om kartan, så att rutan med Ta bort hinner visas", async () => {
+    // Förut slog klicket på siktet och ritade om allt. Leaflet stänger en
+    // ruta när dess markör tas bort, så rutan försvann på en gång.
+    const { app, gunMarkers } = await withGuns(THREE_GUNS);
+    try {
+      const ms = gunMarkers();
+      assert.equal(ms.length, 3);
+      for (const m of ms) assert.equal(m.handlers.click, undefined);
+      for (const m of ms) assert.match(m.popup, /data-del=/);
+    } finally { app.close(); }
+  });
+
+  test("Ta bort i rutan tar bort just den kanonen och inga andra", async () => {
+    const { app, gunMarkers } = await withGuns(THREE_GUNS);
+    try {
+      const m = gunMarkers().find(x => x.popup.includes('data-del="f2"'));
+      const el = app.win.document.createElement("div");
+      el.innerHTML = m.popup;
+      m.handlers.popupopen[0]({ popup: { getElement: () => el } });
+      el.querySelector("[data-del]").click();
+      assert.deepEqual(app.get("guns.map(g => g.id)"), ["f1", "l1"]);
+      const store = JSON.parse(app.win.localStorage.getItem("snowGunsByTrack"));
+      assert.deepEqual(store.sparbanksparet.map(g => g.id), ["f1", "l1"]);
+    } finally { app.close(); }
+  });
+
+  test("Rensa kanoner tar bort alla efter två tryck, utan inbyggd frågeruta", async () => {
+    // I förhandsvisningen och i vissa inbyggda webbläsare svarar confirm()
+    // nej utan att visas. Knappen får inte vara beroende av den.
+    const { app } = await withGuns(THREE_GUNS);
+    try {
+      let asked = 0;
+      app.win.confirm = () => { asked++; return false; };
+      const btn = app.$("clearGuns");
+      btn.click();
+      assert.equal(app.run("guns.length"), 3, "första trycket ska bara fråga");
+      assert.match(btn.textContent, /ta bort alla 3/);
+      btn.click();
+      assert.equal(app.run("guns.length"), 0);
+      assert.equal(btn.textContent, "Rensa kanoner");
+      assert.equal(JSON.parse(app.win.localStorage.getItem("snowGunsByTrack")).sparbanksparet.length, 0);
+      assert.equal(asked, 0, "confirm() ska inte användas");
+    } finally { app.close(); }
+  });
+
+  test("ikonen pekar dit aggregatet är riktat", async () => {
+    const { app, gunMarkers } = await withGuns(THREE_GUNS);
+    try {
+      const rot = id => {
+        const m = gunMarkers().find(x => x.popup.includes(`data-del="${id}"`));
+        return +m.opts.icon.html.match(/rotate\((\d+) 16 16\)/)[1];
+      };
+      // Eget sikte: precis den vinkeln.
+      assert.equal(rot("f2"), 45);
+      // Automatiskt: samma riktning som appen räknar med för plymen.
+      for (const id of ["f1", "l1"]) {
+        assert.equal(rot(id), Math.round(app.run(`normDeg(gunAim(guns.find(g => g.id === "${id}")))`)), id);
+      }
+      // Lansen följer spåret, som går ungefär nord–syd här.
+      const l = rot("l1") % 180;
+      assert.ok(l < 35 || l > 145, `lansen pekar ${rot("l1")}°`);
+    } finally { app.close(); }
+  });
+
   test("vindgrafens tvärvind följer spårets verkliga riktning", async () => {
     // Västlig vind över ett spår som mest går nord–syd: rejäl tvärvind. Mot
     // inställningens 90° blir den noll.
@@ -618,6 +725,128 @@ describe("Spår, platser och aggregat", () => {
   test("appen startar utan fel i konsolen", async () => {
     const app = await loadApp();
     try { assert.deepEqual(app.errors, []); } finally { app.close(); }
+  });
+});
+
+describe("Frågor i appen", () => {
+  // Webbläsarens alert, confirm och prompt svarar tyst nej i förhandsvisningen
+  // och i inbyggda webbläsare. Allt ska gå genom appens egen ruta.
+  const TWO_PLACES = { snowFavorites: [
+    { id: "spb", name: "Sparbanksspåret", lat: 58.50452, lon: 13.08813 },
+    { id: "arv", name: "Arvika", lat: 59.6547, lon: 12.5903 }] };
+  const noNative = app => assert.deepEqual(app.win.__native ?? [], [], "en inbyggd frågeruta användes");
+
+  test("appen anropar aldrig alert, confirm eller prompt", () => {
+    const script = HTML.split("<script>")[1];
+    assert.equal(script.match(/(^|[^.\w])(alert|confirm|prompt)\(/m), null);
+  });
+
+  test("spara plats: namnfältet börjar tomt och platsen hamnar i listan", async () => {
+    // Med förra platsens namn ifyllt flyttades Sparbanksspåret tyst om man
+    // bara tryckte Spara.
+    const app = await loadApp();
+    try {
+      app.$("btnMap").click();
+      await new Promise(r => setTimeout(r, 100));
+      app.run("marker.setLatLng([58.6, 13.2])");
+      app.$("btnSaveMap").click();
+      assert.equal(app.$("askInput").value, "");
+      assert.equal(await app.answer({ value: "Hemmaspåret" }), "Spara platsen");
+      assert.equal(app.run("place.name"), "Hemmaspåret");
+      assert.deepEqual(app.get("favorites.map(f => f.name)"), ["Sparbanksspåret", "Hemmaspåret"]);
+      assert.ok(Math.abs(app.run("favorites[0].lat") - 58.50452) < 1e-6, "Sparbanksspåret flyttades");
+      noNative(app);
+    } finally { app.close(); }
+  });
+
+  test("spara plats utan namn använder platsen men lägger den inte i listan", async () => {
+    const app = await loadApp();
+    try {
+      app.$("btnMap").click();
+      await new Promise(r => setTimeout(r, 100));
+      app.run("marker.setLatLng([58.6, 13.2])");
+      app.$("btnSaveMap").click();
+      await app.answer({ ok: false });
+      assert.equal(app.run("place.name"), "Vald plats");
+      assert.equal(app.run("place.lat"), 58.6);
+      assert.equal(app.run("favorites.length"), 1);
+    } finally { app.close(); }
+  });
+
+  test("Esc när platsen ska sparas ångrar bytet helt", async () => {
+    const app = await loadApp();
+    try {
+      app.$("btnMap").click();
+      await new Promise(r => setTimeout(r, 100));
+      app.run("marker.setLatLng([58.6, 13.2])");
+      app.$("btnSaveMap").click();
+      app.win.document.dispatchEvent(new app.win.KeyboardEvent("keydown", { key: "Escape" }));
+      await app.settle();
+      assert.equal(app.run("place.name"), "Sparbanksspåret");
+      assert.ok(Math.abs(app.run("place.lat") - 58.50452) < 1e-6);
+    } finally { app.close(); }
+  });
+
+  test("byt namn på platsen man står på", async () => {
+    const app = await loadApp();
+    try {
+      app.$("btnRenameFav").click();
+      assert.equal(app.$("askInput").value, "Sparbanksspåret");
+      assert.equal(await app.answer({ value: "Sparbanksspåret Lidköping" }), "Byt namn");
+      assert.equal(app.run("favorites[0].name"), "Sparbanksspåret Lidköping");
+      assert.equal(app.run("place.name"), "Sparbanksspåret Lidköping");
+      noNative(app);
+    } finally { app.close(); }
+  });
+
+  test("Esc stänger frågan utan att något ändras", async () => {
+    const app = await loadApp();
+    try {
+      app.$("btnRenameFav").click();
+      app.win.document.dispatchEvent(new app.win.KeyboardEvent("keydown", { key: "Escape" }));
+      await app.settle();
+      assert.ok(!app.$("askModal").classList.contains("open"));
+      assert.equal(app.run("favorites[0].name"), "Sparbanksspåret");
+    } finally { app.close(); }
+  });
+
+  test("Avbryt vid ta bort plats behåller platsen", async () => {
+    const app = await loadApp({ storage: TWO_PLACES });
+    try {
+      app.$("favSelect").value = "arv";
+      app.$("btnDelFav").click();
+      await app.answer({ ok: false });
+      assert.equal(app.run("favorites.length"), 2);
+    } finally { app.close(); }
+  });
+
+  test("den sista platsen går inte att ta bort, och appen säger varför", async () => {
+    const app = await loadApp();
+    try {
+      app.$("btnDelFav").click();
+      assert.ok(app.$("askCancel").hidden, "beskedet ska bara ha en OK-knapp");
+      assert.match(app.$("askText").textContent, /sista platsen/);
+      await app.answer();
+      assert.equal(app.run("favorites.length"), 1);
+      noNative(app);
+    } finally { app.close(); }
+  });
+
+  test("byt nummer på en brunn", async () => {
+    const app = await loadApp({ storage: { snowWellsByTrack: { sparbanksparet: [
+      { id: "w1", no: 1, lat: 58.5040, lon: 13.0878 }] } } });
+    try {
+      app.$("tabWind").click();
+      const m = app.win.__markers.filter(x => x.opts.icon?.className === "well-icon").pop();
+      const el = app.win.document.createElement("div");
+      el.innerHTML = m.popup;
+      m.handlers.popupopen[0]({ popup: { getElement: () => el } });
+      el.querySelector("[data-wno]").click();
+      assert.equal(await app.answer({ value: "7" }), "Brunn 1");
+      assert.equal(app.run("wells[0].no"), 7);
+      assert.equal(JSON.parse(app.win.localStorage.getItem("snowWellsByTrack")).sparbanksparet[0].no, 7);
+      noNative(app);
+    } finally { app.close(); }
   });
 });
 

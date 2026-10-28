@@ -167,6 +167,7 @@ button{font-family:inherit}
 .btn{border:none; padding:10px 18px; border-radius:10px; font-weight:650; cursor:pointer; font-size:.9rem}
 .btn.ghost{background:var(--surface-2); color:var(--ink)}
 .btn.go{background:#16a34a; color:#fff}
+.btn.go.danger{background:#b91c1c}
 #map{flex:1; min-height:300px}
 
 /* planeringskarta */
@@ -193,6 +194,11 @@ button{font-family:inherit}
 .gunbar button{flex:0 0 auto; background:var(--surface-2); border:1px solid var(--line); color:var(--ink);
   padding:8px 12px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer; white-space:nowrap}
 .gunbar button.armed{background:var(--ice); border-color:var(--ice); color:#03121c}
+.gunbar button.danger{background:#7f1d1d; border-color:var(--stop); color:#fff}
+.popbtns{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.popbtns a{flex:0 0 auto; padding:6px 11px; border-radius:8px; background:var(--surface-2);
+  border:1px solid var(--line); color:var(--ink); text-decoration:none; font-weight:600}
+.popbtns a.del{background:#7f1d1d; border-color:var(--stop); color:#fff}
 .gunbar .count{margin-left:auto; font-size:.78rem; color:var(--ink-faint)}
 .empty{text-align:center; padding:26px 16px; color:var(--ink-dim)}
 .empty p{margin:0 0 14px; font-size:.9rem}
@@ -350,7 +356,7 @@ button{font-family:inherit}
       <p class="caption" id="planSummary" style="text-align:left; margin-top:10px"></p>
       <button class="btn ghost" id="useWhole" hidden style="margin-top:8px; font-size:.8rem; padding:7px 12px">Använd hela loggen i stället</button>
       <p class="plannote" id="planNote"></p>
-      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Tryck på en kanon för riktningsråd.</p>
+      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Spetsen på varje aggregat visar vart det är riktat. Tryck på ett aggregat för riktningsråd, provsiktning eller för att ta bort det.</p>
     </div>
   </div>
 
@@ -568,6 +574,22 @@ button{font-family:inherit}
     </nav>
     <div class="body" id="infoBody"></div>
     <footer><button class="btn ghost" id="btnCloseInfo">Stäng</button></footer>
+  </div>
+</div>
+
+<!-- Appens egen frågeruta. Ligger sist så att den hamnar ovanpå kartrutan
+     när man sparar en plats därifrån. -->
+<div class="overlay" id="askModal">
+  <div class="sheet" style="max-width:420px">
+    <header><h2 id="askTitle"></h2></header>
+    <div class="body">
+      <p id="askText" style="margin:0 0 12px"></p>
+      <div class="field" id="askField" style="margin-bottom:0"><input type="text" id="askInput" autocomplete="off"></div>
+    </div>
+    <footer>
+      <button class="btn ghost" id="askCancel">Avbryt</button>
+      <button class="btn go" id="askOk">OK</button>
+    </footer>
   </div>
 </div>
 
@@ -1522,15 +1544,23 @@ function baseLayers() {
   return { "Flygbild": air, "Karta": map };
 }
 
-function gunIcon(type, state) {
+// Spetsen pekar dit aggregatet är riktat, så att uppställningen går att läsa
+// utan att trycka på varje kanon. Kartan är alltid norr upp, så bäringen kan
+// läggas direkt som rotation runt ikonens mitt — som också är kanonens plats.
+function gunIcon(type, state, aim = 0) {
   const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[state] || "#93a4bd";
+  const rot = `rotate(${Math.round(normDeg(aim))} 16 16)`;
+  const tip = `<path d="M16 1 L21.5 10 H10.5 Z" fill="${col}" stroke="#0b1220" stroke-width="1.6" stroke-linejoin="round"/>`;
   const body = type === "fan"
-    ? `<circle cx="13" cy="13" r="9" fill="${col}" stroke="#0b1220" stroke-width="2"/>
-       <path d="M13 6v14M6.5 9.5l13 7M19.5 9.5l-13 7" stroke="#0b1220" stroke-width="1.6" stroke-linecap="round"/>`
-    : `<rect x="9" y="3" width="8" height="20" rx="4" fill="${col}" stroke="#0b1220" stroke-width="2"/>`;
+    ? `<g transform="${rot}">${tip}</g>
+       <circle cx="16" cy="16" r="8.5" fill="${col}" stroke="#0b1220" stroke-width="2"/>
+       <path d="M16 9.5v13M10 12.5l12 7M22 12.5l-12 7" stroke="#0b1220" stroke-width="1.5" stroke-linecap="round"/>`
+    : `<g transform="${rot}">
+         <rect x="12.5" y="9" width="7" height="17" rx="3.5" fill="${col}" stroke="#0b1220" stroke-width="2"/>${tip}
+       </g>`;
   return L.divIcon({
-    className: "gun-icon", iconSize: [26, 26], iconAnchor: [13, 13],
-    html: `<svg width="26" height="26" viewBox="0 0 26 26">${body}</svg>`
+    className: "gun-icon", iconSize: [32, 32], iconAnchor: [16, 16],
+    html: `<svg width="32" height="32" viewBox="0 0 32 32">${body}</svg>`
   });
 }
 
@@ -1897,9 +1927,10 @@ function renderPlan() {
         wells = wells.filter(x => x.id !== wl.id);
         persistWells(); renderPlan();
       });
-      el.querySelector("[data-wno]")?.addEventListener("click", e => {
+      el.querySelector("[data-wno]")?.addEventListener("click", async e => {
         e.preventDefault();
-        const v = parseInt(prompt("Brunnens nummer:", wl.no), 10);
+        const v = parseInt(await ask({ title: `Brunn ${wl.no}`, text: "Nytt nummer på brunnen:",
+                                       value: String(wl.no), type: "number", ok: "Spara" }), 10);
         if (Number.isFinite(v)) { wl.no = v; persistWells(); renderPlan(); }
       });
     });
@@ -1945,7 +1976,7 @@ function renderPlan() {
       h.on("dragend", () => { persistGuns(); renderPlan(); });
     }
 
-    const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st), draggable: true }).addTo(gunLayers);
+    const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st, plume.aim), draggable: true }).addTo(gunLayers);
     const nw = nearestWell(g.lat, g.lon);
     const hoseOk = nw && nw.dist <= S.hoseLength;
     if (nw && nw.dist <= S.hoseLength * 2.5) {
@@ -1964,12 +1995,16 @@ function renderPlan() {
         ${Math.round(cov.offset)} m från spåret, täcker ${Math.round(cov.covered)} m.<br>
         ${outOfReach ? `<span style="color:#dc2626">Når inte spåret — flytta ${Math.round(cov.offset - cov.reach)} m närmare eller sikta fritt.</span><br>` : ""}
         Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
-        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}<br>
-        <a href="#" data-aim="${g.id}">${sel ? "Dölj sikte" : "Provsikta"}</a>
-        ${aimed ? `· <a href="#" data-reset="${g.id}">Släpp siktet</a>` : ""}
-        · <a href="#" data-del="${g.id}" style="color:#dc2626">Ta bort</a>
+        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}
+        <div class="popbtns">
+          <a href="#" data-aim="${g.id}">${sel ? "Dölj sikte" : "Provsikta"}</a>
+          ${aimed ? `<a href="#" data-reset="${g.id}">Släpp siktet</a>` : ""}
+          <a href="#" class="del" data-del="${g.id}">Ta bort</a>
+        </div>
        </div>`);
-    m.on("click", () => { selectedGunId = sel ? null : g.id; renderPlan(); });
+    // Ingen egen klickhanterare på kanonen. Den ritade om kartan, och då
+    // stängdes rutan med Ta bort innan den hann visas. Siktet slås på med
+    // Provsikta i rutan i stället.
     m.on("dragend", ev => {
       const p = ev.target.getLatLng();
       g.lat = +p.lat.toFixed(6); g.lon = +p.lng.toFixed(6);
@@ -2909,6 +2944,52 @@ function readSettingsForm() {
 function openModal(id) { $(id).classList.add("open"); }
 function closeModal(id) { $(id).classList.remove("open"); }
 
+/* Appens egna frågor. Webbläsarens inbyggda (alert, confirm, prompt) visas
+   inte överallt: i förhandsvisningen i Claude-appen, i vissa installerade
+   appar och i inbyggda webbläsare som Messengers svarar de nej eller tomt
+   direkt utan att något syns, och knappen ser död ut.
+   Med `value` visas ett fält och svaret är texten. Utan är det en ren
+   bekräftelse som svarar true. Klick utanför eller Esc ger alltid null;
+   Avbryt-knappen ger `cancelValue`, som också är null om inget annat sägs. */
+function ask({ title, text = "", value = null, placeholder = "", type = "text",
+               ok = "OK", cancel = "Avbryt", cancelValue = null, danger = false }) {
+  return new Promise(resolve => {
+    const modal = $("askModal"), input = $("askInput");
+    $("askTitle").textContent = title;
+    $("askText").textContent = text;
+    $("askText").hidden = !text;
+    $("askField").hidden = value === null;
+    input.type = type;
+    input.value = value ?? "";
+    input.placeholder = placeholder;
+    $("askOk").textContent = ok;
+    $("askOk").classList.toggle("danger", danger);
+    $("askCancel").hidden = !cancel;
+    $("askCancel").textContent = cancel || "";
+
+    let done = false;
+    const onKey = e => { if (e.key === "Escape") finish(null); };
+    const finish = answer => {
+      if (done) return;
+      done = true;
+      closeModal("askModal");
+      modal.onclick = input.onkeydown = $("askOk").onclick = $("askCancel").onclick = null;
+      document.removeEventListener("keydown", onKey);
+      resolve(answer);
+    };
+    $("askOk").onclick = () => finish(value === null ? true : input.value.trim());
+    $("askCancel").onclick = () => finish(cancelValue);
+    modal.onclick = e => { if (e.target === modal) finish(null); };
+    input.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("askOk").click(); } };
+    document.addEventListener("keydown", onKey);
+    openModal("askModal");
+    if (value !== null) setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+
+// Ett besked med bara en OK-knapp.
+function tell(title, text) { return ask({ title, text, cancel: false }); }
+
 function openMap() {
   openModal("mapModal");
   setTimeout(() => {
@@ -3025,10 +3106,16 @@ $("infoNav").onclick = e => {
 
 $("btnMap").onclick = openMap;
 $("btnCancelMap").onclick = () => closeModal("mapModal");
-$("btnSaveMap").onclick = () => {
+// Fältet börjar tomt. Med förra platsens namn ifyllt räckte det att trycka
+// Spara för att tyst flytta den sparade platsen med samma namn hit.
+$("btnSaveMap").onclick = async () => {
   const p = marker.getLatLng();
+  const name = await ask({ title: "Spara platsen",
+    text: "Vad heter platsen? Med ett namn hamnar den i listan, så att du kan välja den igen.",
+    value: "", placeholder: "t.ex. Hemmaspåret", ok: "Spara i listan",
+    cancel: "Använd utan namn", cancelValue: "" });
+  if (name === null) return;   // Esc eller klick utanför: ångra hela bytet
   place.lat = +p.lat.toFixed(4); place.lon = +p.lng.toFixed(4);
-  const name = prompt("Vad heter platsen?", place.name);
   if (name) { place.name = name; saveFavorite(name, place.lat, place.lon); }
   else place.name = "Vald plats";
   persistPlace(); populateFavorites(); resolveTrack();
@@ -3074,11 +3161,11 @@ $("favSelect").onchange = () => {
 
 // Bugg i gamla versionen: kontrollen gjordes efter splice och läste därför av
 // den favorit som råkat glida in på samma plats i listan.
-$("btnDelFav").onclick = () => {
+$("btnDelFav").onclick = async () => {
   const f = selectedFavorite();
-  if (!f) return alert("Välj först en sparad plats i listan.");
-  if (favorites.length === 1) return alert("Det går inte att ta bort den sista platsen.");
-  if (!confirm(`Ta bort "${f.name}"?`)) return;
+  if (!f) return tell("Ta bort plats", "Välj först en sparad plats i listan.");
+  if (favorites.length === 1) return tell("Ta bort plats", "Det går inte att ta bort den sista platsen.");
+  if (!await ask({ title: "Ta bort plats", text: `Ta bort "${f.name}" ur listan?`, ok: "Ta bort", danger: true })) return;
   const wasCurrent = Math.abs(f.lat - place.lat) < 1e-4 && Math.abs(f.lon - place.lon) < 1e-4;
   favorites = favorites.filter(x => x.id !== f.id);
   localStorage.setItem("snowFavorites", JSON.stringify(favorites));
@@ -3090,14 +3177,14 @@ $("btnDelFav").onclick = () => {
   } else populateFavorites();
 };
 
-$("btnRenameFav").onclick = () => {
+$("btnRenameFav").onclick = async () => {
   const f = selectedFavorite();
-  if (!f) return alert("Välj först en sparad plats i listan.");
-  const name = prompt("Nytt namn:", f.name);
+  if (!f) return tell("Byt namn", "Välj först en sparad plats i listan.");
+  const name = await ask({ title: "Byt namn", text: "Nytt namn på platsen:", value: f.name, ok: "Spara" });
   if (!name) return;
   f.name = name;
   localStorage.setItem("snowFavorites", JSON.stringify(favorites));
-  if (Math.abs(f.lat - place.lat) < 1e-4) { place.name = name; persistPlace(); }
+  if (Math.abs(f.lat - place.lat) < 1e-4 && Math.abs(f.lon - place.lon) < 1e-4) { place.name = name; persistPlace(); }
   populateFavorites(); renderStamp();
 };
 
@@ -3200,21 +3287,49 @@ $("btnWellApply").onclick = () => {
   setPlanNote(`Läste in ${wells.length} brunnar.`);
 };
 $("btnDemo").onclick = () => { useBuiltinTrack(); if (planMap) planMap._fitted = false; renderAll(); };
-$("btnBuiltin").onclick = () => {
+$("btnBuiltin").onclick = async () => {
   const near = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
-  if (!confirm(near
-    ? "Byt tillbaka till det inbyggda Sparbanksspåret? Ditt inlästa spår tas bort, men kanonuppställningen finns kvar om du läser in samma fil igen."
-    : "Ta bort det inlästa spåret? Kanonuppställningen finns kvar om du läser in samma fil igen.")) return;
+  const ok = await ask(near
+    ? { title: "Tillbaka till Sparbanksspåret",
+        text: "Ditt inlästa spår tas bort, men kanonuppställningen finns kvar om du läser in samma fil igen.",
+        ok: "Byt tillbaka" }
+    : { title: "Ta bort inläst spår",
+        text: "Kanonuppställningen finns kvar om du läser in samma fil igen.",
+        ok: "Ta bort", danger: true });
+  if (!ok) return;
   clearUserTrack();
   if (planMap) planMap._fitted = false;
   setPlanNote("");
   renderAll();
 };
 
+/* Inbyggda frågerutor (confirm) visas inte överallt. I förhandsvisningen i
+   Claude-appen, i vissa installerade appar och i inbyggda webbläsare som
+   Messengers svarar de nej direkt utan att något syns — och då gjorde Rensa
+   kanoner ingenting. Knappen frågar i stället själv: första trycket byter
+   texten, ett andra tryck inom fyra sekunder utför. */
+function armConfirm(btn, question, action) {
+  const reset = () => {
+    clearTimeout(btn._armTimer); btn._armTimer = null;
+    btn.textContent = btn._armLabel; btn.classList.remove("danger");
+  };
+  if (btn._armTimer) { reset(); action(); return true; }
+  btn._armLabel = btn.textContent;
+  btn.textContent = question;
+  btn.classList.add("danger");
+  btn._armTimer = setTimeout(() => { reset(); setPlanNote(""); }, 4000);
+  return false;
+}
+
 $("clearGuns").onclick = () => {
-  if (!guns.length) return;
-  if (!confirm(`Ta bort alla ${guns.length} utplacerade aggregat?`)) return;
-  guns = []; persistGuns(); renderPlan(); renderHero(); renderHours();
+  if (!guns.length) return setPlanNote("Inga aggregat är utplacerade.");
+  const n = guns.length;
+  const done = armConfirm($("clearGuns"), `Ja, ta bort alla ${n}`, () => {
+    guns = []; selectedGunId = null;
+    persistGuns(); renderPlan(); renderHero(); renderHours();
+    setPlanNote(`Tog bort ${n} aggregat.`);
+  });
+  if (!done) setPlanNote("Tryck en gång till för att ta bort alla. Ett enskilt aggregat tar du bort genom att trycka på det på kartan.");
 };
 
 /* ==========================================================================
