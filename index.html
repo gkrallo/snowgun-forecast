@@ -337,6 +337,7 @@ button{font-family:inherit}
       </div>
       <div class="gunbar second">
         <button id="addWell">Placera brunn</button>
+        <button id="btnSurvey">Mät in med GPS</button>
         <button id="btnWellPaste">Koordinater…</button>
         <button id="btnWellNumber">Numrera från söder</button>
         <button id="btnBuiltin" hidden>Tillbaka till Sparbanksspåret</button>
@@ -485,6 +486,34 @@ button{font-family:inherit}
       <button class="btn ghost" id="btnResetSettings">Återställ</button>
       <button class="btn go" id="btnCloseSettings">Klar</button>
     </footer>
+  </div>
+</div>
+
+<div class="overlay" id="surveyModal">
+  <div class="sheet" style="max-width:480px">
+    <header><h2>Mät in brunnar med GPS</h2></header>
+    <div class="body">
+      <p style="margin-top:0; font-size:.88rem">Ställ dig vid brunnen, håll telefonen stilla och tryck Mät. Appen samlar positioner under mättiden och viktar ihop dem så att de säkra fixen väger tyngst. Spara, gå till nästa — numret räknar upp av sig självt.</p>
+      <div class="row2">
+        <div class="field">
+          <label for="surveyNo">Brunnens nummer</label>
+          <input type="number" id="surveyNo" min="1" max="199" step="1" value="1">
+        </div>
+        <div class="field">
+          <label for="surveySeconds">Mättid (sekunder)</label>
+          <input type="number" id="surveySeconds" min="3" max="120" step="1" value="10">
+        </div>
+      </div>
+      <button class="btn go" id="btnSurveyStart" style="width:100%; padding:16px; font-size:1rem">Mät</button>
+      <p class="plannote" id="surveyStatus" style="text-align:center; margin-top:10px">Redo.</p>
+      <div id="surveyResult" hidden>
+        <div class="advice" id="surveyNumbers" style="margin-bottom:10px"></div>
+        <button class="btn go" id="btnSurveySave" style="width:100%">Spara</button>
+      </div>
+      <h3 style="font-size:.85rem; margin:18px 0 6px">Inmätta brunnar</h3>
+      <div id="surveyList"></div>
+    </div>
+    <footer><button class="btn ghost" id="btnSurveyClose">Stäng</button></footer>
   </div>
 </div>
 
@@ -1540,6 +1569,151 @@ function parseWellText(text) {
   return out;
 }
 
+/* ---- inmätning av brunnar med telefonens GPS ----
+
+   Ett enskilt GPS-fix i skogsmark ligger lätt tio meter fel. Står man stilla
+   och samlar fix under en stund går felet ned, men bara om man hanterar tre
+   saker: det första fixet är ofta ett gammalt cachat värde, telefonen
+   rapporterar ibland samma fix flera gånger, och ett enstaka uselt fix kan
+   dra hela snittet. Alla tre hanteras nedan. */
+
+let surveyWatch = null, surveyTimer = null, surveySamples = [], surveyResult = null, surveyLock = null;
+
+function weightedCentre(list) {
+  let sw = 0, slat = 0, slon = 0;
+  for (const s of list) {
+    // Noggrannheten anges som en radie. Vikten 1/r² gör att ett fix på
+    // fem meter väger sexton gånger tyngre än ett på tjugo.
+    const w = 1 / Math.pow(Math.max(s.acc, 1), 2);
+    slat += s.lat * w; slon += s.lon * w; sw += w;
+  }
+  return [slat / sw, slon / sw];
+}
+
+function reduceSamples(raw) {
+  // Första fixet är ofta cachat från innan man gick ut. Släng det.
+  let list = raw.length > 3 ? raw.slice(1) : raw.slice();
+  // Telefonen upprepar samma fix. Behåll ett per unik position.
+  const seen = new Set();
+  list = list.filter(s => {
+    const k = s.lat.toFixed(7) + "," + s.lon.toFixed(7);
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+  if (!list.length) return { list: raw, centre: weightedCentre(raw), dropped: 0 };
+  // Uppenbart dåliga fix bort, sedan de som ligger långt från klungan.
+  const best = Math.min(...list.map(s => s.acc));
+  let keep = list.filter(s => s.acc <= Math.max(best * 3, 15));
+  if (keep.length < 3) keep = list;
+  let centre = weightedCentre(keep);
+  const d = keep.map(s => haversine(centre, [s.lat, s.lon])).sort((a, b) => a - b);
+  const limit = Math.max(12, d[Math.floor(d.length / 2)] * 2.5);
+  const trimmed = keep.filter(s => haversine(centre, [s.lat, s.lon]) <= limit);
+  if (trimmed.length >= 3) { keep = trimmed; centre = weightedCentre(keep); }
+  return { list: keep, centre, dropped: raw.length - keep.length };
+}
+
+function surveyStatus(txt) { $("surveyStatus").textContent = txt; }
+
+function stopSurvey() {
+  if (surveyWatch !== null) { navigator.geolocation.clearWatch(surveyWatch); surveyWatch = null; }
+  if (surveyTimer) { clearInterval(surveyTimer); surveyTimer = null; }
+  if (surveyLock) { surveyLock.release().catch(() => {}); surveyLock = null; }
+  $("btnSurveyStart").disabled = false;
+}
+
+async function startSurvey() {
+  if (!navigator.geolocation) { surveyStatus("Telefonen ger ingen position till webbläsaren."); return; }
+  const seconds = Math.max(3, Math.min(120, num($("surveySeconds").value, 10)));
+  surveySamples = []; surveyResult = null;
+  $("surveyResult").hidden = true;
+  $("btnSurveyStart").disabled = true;
+  let left = seconds;
+
+  // Skärmen får inte slockna mitt i mätningen när man står still med luvan på.
+  try { surveyLock = await navigator.wakeLock?.request("screen"); } catch { surveyLock = null; }
+
+  const tick = () => {
+    const last = surveySamples[surveySamples.length - 1];
+    surveyStatus(`Står stilla… ${left} s kvar · ${surveySamples.length} fix` +
+      (last ? ` · senaste ±${Math.round(last.acc)} m` : ""));
+  };
+  tick();
+
+  surveyWatch = navigator.geolocation.watchPosition(
+    pos => {
+      surveySamples.push({ lat: pos.coords.latitude, lon: pos.coords.longitude,
+                           acc: pos.coords.accuracy || 25 });
+      tick();
+    },
+    err => {
+      stopSurvey();
+      surveyStatus(err.code === err.PERMISSION_DENIED
+        ? "Webbläsaren fick inte använda platsen. Tillåt det i inställningarna och försök igen."
+        : "GPS-fel: " + err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }
+  );
+
+  surveyTimer = setInterval(() => {
+    if (--left > 0) { tick(); return; }
+    stopSurvey();
+    finishSurvey();
+  }, 1000);
+}
+
+function finishSurvey() {
+  if (!surveySamples.length) {
+    surveyStatus("Inget fix kom in under mättiden. Gå ut ur tät skog eller mät längre.");
+    return;
+  }
+  const r = reduceSamples(surveySamples);
+  const spread = r.list.map(s => haversine(r.centre, [s.lat, s.lon])).sort((a, b) => a - b);
+  const median = spread[Math.floor(spread.length / 2)] || 0;
+  const worst = spread[spread.length - 1] || 0;
+  const meanAcc = r.list.reduce((a, s) => a + s.acc, 0) / r.list.length;
+  surveyResult = { lat: +r.centre[0].toFixed(6), lon: +r.centre[1].toFixed(6) };
+
+  surveyStatus("Klar.");
+  $("surveyResult").hidden = false;
+  // Spridningen mellan fixen säger mer om kvaliteten än telefonens egen
+  // noggrannhetssiffra, som ofta är optimistisk.
+  $("surveyNumbers").innerHTML =
+    `<b>${surveyResult.lat.toFixed(6)}, ${surveyResult.lon.toFixed(6)}</b><br>` +
+    `${r.list.length} fix använda${r.dropped ? `, ${r.dropped} bortsorterade` : ""} · ` +
+    `telefonen uppgav ±${Math.round(meanAcc)} m<br>` +
+    `Spridning mellan fixen: ${median.toFixed(1)} m typiskt, ${worst.toFixed(1)} m värst.` +
+    (median > 8 ? ` <span style="color:var(--warn)">Ostadigt — mät gärna om.</span>` : "");
+  const existing = wells.find(w => w.no === num($("surveyNo").value, -1));
+  $("btnSurveySave").textContent = existing
+    ? `Ersätt brunn ${existing.no}` : `Spara som brunn ${num($("surveyNo").value, wells.length + 1)}`;
+}
+
+function saveSurveyPoint() {
+  if (!surveyResult) return;
+  const no = num($("surveyNo").value, wells.length + 1);
+  const existing = wells.find(w => w.no === no);
+  if (existing) { existing.lat = surveyResult.lat; existing.lon = surveyResult.lon; }
+  else wells.push({ id: crypto.randomUUID?.() || String(Date.now() + Math.random()),
+                    no, lat: surveyResult.lat, lon: surveyResult.lon });
+  persistWells();
+  surveyResult = null;
+  $("surveyResult").hidden = true;
+  $("surveyNo").value = no + 1;
+  surveyStatus(`Brunn ${no} sparad. Gå till nästa och tryck Mät.`);
+  renderSurveyList();
+  renderPlan();
+}
+
+function renderSurveyList() {
+  const sorted = wells.slice().sort((a, b) => a.no - b.no);
+  $("surveyList").innerHTML = sorted.length
+    ? sorted.map(w => `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--line)">
+        <span>Brunn <b>${w.no}</b></span>
+        <span class="num" style="color:var(--ink-dim); font-size:.82rem">${w.lat.toFixed(5)}, ${w.lon.toFixed(5)}</span></div>`).join("")
+    : `<p class="hint" style="margin:0">Inga brunnar inmätta ännu.</p>`;
+}
+
 function nearestWell(lat, lon) {
   let best = null, bd = Infinity;
   for (const w of wells) {
@@ -2492,6 +2666,9 @@ const INFO = {
 
     <h3>Brunnar och provsiktning</h3>
     <p>Aggregaten står inte var som helst. De är kopplade till en brunn med vatten och el, och slangen är så lång den är. Sätt ut brunnarna på kartan en gång — tryck på <b>Placera brunn</b> och peka, eller klistra in koordinater under <b>Koordinater…</b> om ni har dem i listform. <b>Numrera från söder</b> sätter nummer ett längst söderut och räknar uppåt.</p>
+    <p>Har ni inga koordinater går det att mäta in dem på plats. Tryck <b>Mät in med GPS</b>, ställ er vid brunnen och tryck Mät. Appen samlar positioner under mättiden och viktar ihop dem efter hur säkert varje fix är — ett fix på fem meters noggrannhet väger sexton gånger tyngre än ett på tjugo. Tio sekunder räcker oftast; i tät granskog kan det vara värt tjugo.</p>
+    <p>Tre saker sorteras bort automatiskt: det första fixet, som ofta är ett gammalt cachat värde från innan ni gick ut; upprepningar av samma position; och enstaka fix som ligger långt från de andra. Appen visar hur många som användes och hur mycket de spretade. <b>Spridningen mellan fixen säger mer om kvaliteten än telefonens egen noggrannhetssiffra</b>, som brukar vara optimistisk. Ligger den över åtta meter är det värt att mäta om.</p>
+    <p>Numret räknar upp av sig självt, så ni går runt i tur och ordning. Skriver ni in ett nummer som redan finns ersätts den brunnen i stället, vilket är vägen att mäta om en punkt som hamnade snett.</p>
     <p>När ett aggregat står på kartan dras en streckad blå linje till närmaste brunn. Räcker inte slangen blir linjen röd och popupen säger hur långt bort brunnen ligger.</p>
     <p>Tryck på ett aggregat och välj <b>Provsikta</b> så ritas två plymer. Den heldragna vita är dit snön skulle gå i vindstilla. Den streckade och färgade är dit den faktiskt hamnar med vinden som råder vid den tidpunkt reglaget står på. Avståndet mellan dem är precis vad vinden gör med lasset.</p>
     <p>Dra i den lilla ringen i plymens mitt för att vrida kanonen och ändra kastlängd. Det sparas per aggregat, så ni kan ställa in en kanon som snöar på schaktytan och en annan som följer spåret. <b>Släpp siktet</b> lämnar tillbaka kanonen till automatiken, som riktar fläktar mot spåret och lansar längs det.</p>
@@ -2916,6 +3093,18 @@ $("btnWellNumber").onclick = () => {
   renumberWellsFromSouth();
   setPlanNote(`Numrerade om ${wells.length} brunnar från söder till norr.`);
 };
+$("btnSurvey").onclick = () => {
+  $("surveyNo").value = (wells.reduce((m, w) => Math.max(m, w.no), 0) || 0) + 1;
+  surveyStatus("Redo.");
+  $("surveyResult").hidden = true;
+  renderSurveyList();
+  openModal("surveyModal");
+};
+$("btnSurveyStart").onclick = startSurvey;
+$("btnSurveySave").onclick = saveSurveyPoint;
+$("btnSurveyClose").onclick = () => { stopSurvey(); closeModal("surveyModal"); };
+$("surveyNo").oninput = () => { if (surveyResult) finishSurvey(); };
+
 $("btnWellPaste").onclick = () => {
   $("wellText").value = wells.map(w => `${w.no} ${w.lat.toFixed(6)} ${w.lon.toFixed(6)}`).join("\n");
   $("wellParseNote").textContent = "";

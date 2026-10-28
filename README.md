@@ -52,8 +52,17 @@ Under ⚙️ ställs anläggningens egna värden in. De sparas i webbläsaren.
 ## Brunnar och aggregat
 
 Anläggningen har fasta brunnar med vatten och el, och aggregaten kopplas in med
-slang. Brunnarna sätts ut på kartan eller klistras in som koordinater, och kan
-numreras om automatiskt från söder till norr. Varje utplacerat aggregat får en
+slang. Brunnarna sätts ut på kartan, klistras in som koordinater eller mäts in
+på plats med telefonens GPS, och kan numreras om automatiskt från söder till
+norr.
+
+Inmätningen samlar positioner under en vald mättid och viktar dem med 1/r² på
+rapporterad noggrannhet. Första fixet slängs eftersom det ofta är cachat,
+upprepade positioner räknas en gång, och fix som avviker mer än 2,5 gånger
+medianavståndet från klungan sorteras bort. Resultatet redovisas med spridning
+mellan fixen, vilket är ett ärligare kvalitetsmått än telefonens egen
+noggrannhetssiffra. Skärmen hålls vaken under mätningen via Wake Lock där det
+stöds. Varje utplacerat aggregat får en
 streckad linje till närmaste brunn, röd när slangen inte räcker.
 
 Plymen ritas i två lager: heldragen för vindstilla och streckad för den vind som
