@@ -84,10 +84,22 @@ GPX från Samsung Health, Strava, Garmin, Polar och de flesta andra klockor och
 appar fungerar direkt. Flera varv är inget problem: appen letar upp den punkt
 längre fram på rundan som ligger tillbaka på samma ställe och klipper där.
 
-Loggen förenklas med Douglas–Peucker vid tre meters tolerans. En runda på
-2,3 km med en punkt i sekunden går från 2 449 punkter till ett femtiotal utan
-att geometrin ändras mer än ett par meter, och tar då drygt en kilobyte i
-webbläsarens lagring.
+Varvet väljs på kriteriet att det ska förklara hela loggen: kandidaterna
+prövas från kortast till längst tills en täcker 95 % av punkterna, och bland
+varv av ungefär den längden tas det med minst söm. Utan täckningstestet fastnar
+sökningen på en delslinga, eftersom en runda ofta passerar startpunkten mitt
+i varvet. Är slingan sluten fogas den ihop så att det inte blir ett hål.
+
+Loggen förenklas sedan med Douglas–Peucker vid 2,5 meters tolerans, hörnen
+rundas av med två varv Chaikin, och resultatet förenklas igen vid 0,8 m för
+att plocka bort punkter på raksträckorna. En runda på 2,3 km med en punkt i
+sekunden går från 2 449 punkter till drygt hundra, med segment på omkring
+femton meter, och tar 2,6 kB i webbläsarens lagring.
+
+Avrundningen flyttar linjen någon meter i skarpa svängar och kortar banan med
+knappt två procent. Ett riktigt spår svänger mjukt, så kurvorna blir både
+snyggare och mer representativa för vindmodellens bäringar än en polygon med
+skarpa knän.
 
 Inlästa spår och utplacerade aggregat sparas lokalt i webbläsaren, inte i repot.
 Det inbyggda spåret ligger däremot i `index.html` och följer med alla besökare.

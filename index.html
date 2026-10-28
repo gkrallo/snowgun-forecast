@@ -995,23 +995,35 @@ function clock(ts) {
 const BUILTIN_TRACK = {
   key: "sparbanksparet",
   name: "Sparbanksspåret",
-  length: 2308,
-  centre: [58.50415, 13.0882],
+  length: 2286,
+  centre: [58.50452, 13.08813],
   pts: [
-  [58.50032,13.08868],[58.50015,13.0888],[58.49984,13.08882],[58.49978,13.08892],
-  [58.49979,13.08908],[58.49987,13.08925],[58.5,13.08924],[58.50045,13.08866],
-  [58.50108,13.0882],[58.50133,13.08819],[58.50175,13.08833],[58.5019,13.0883],
-  [58.50234,13.08764],[58.50259,13.08746],[58.50276,13.08751],[58.50331,13.08809],
-  [58.50372,13.08814],[58.50435,13.08767],[58.50525,13.08714],[58.50598,13.08625],
-  [58.50645,13.08612],[58.50669,13.08632],[58.5068,13.08658],[58.5068,13.08752],
-  [58.50694,13.08843],[58.50689,13.08899],[58.5066,13.08981],[58.5066,13.09009],
-  [58.50667,13.0904],[58.50683,13.0907],[58.50703,13.09071],[58.50745,13.09025],
-  [58.50756,13.08989],[58.50756,13.08961],[58.50751,13.08948],[58.50716,13.08934],
-  [58.50708,13.08923],[58.50697,13.08813],[58.50684,13.08737],[58.50685,13.08677],
-  [58.50679,13.0864],[58.50659,13.08607],[58.50624,13.08594],[58.50588,13.08615],
-  [58.50529,13.08711],[58.50453,13.08747],[58.50374,13.088],[58.50346,13.08806],
-  [58.5028,13.08748],[58.50261,13.0874],[58.5023,13.08758],[58.50194,13.08812],
-  [58.50178,13.08826],[58.50112,13.08808],[58.50083,13.08823],[58.50047,13.08857]
+  [58.50683,13.08698],[58.50683,13.08673],[58.50681,13.08653],[58.50676,13.08639],
+  [58.50667,13.08624],[58.50655,13.08612],[58.50641,13.08604],[58.50632,13.08602],
+  [58.50615,13.08605],[58.50598,13.08615],[58.50589,13.08624],[58.50567,13.08651],
+  [58.50536,13.08696],[58.50527,13.08707],[58.50436,13.08757],[58.50365,13.08802],
+  [58.50358,13.08803],[58.50347,13.088],[58.50288,13.08762],[58.5027,13.08752],
+  [58.50255,13.08748],[58.50244,13.08749],[58.50227,13.08764],[58.50184,13.08812],
+  [58.5017,13.08824],[58.50161,13.08825],[58.50121,13.08816],[58.50104,13.08815],
+  [58.50032,13.08867],[58.50006,13.0888],[58.49997,13.08881],[58.49985,13.08885],
+  [58.49981,13.08889],[58.4998,13.08894],[58.4998,13.08904],[58.49986,13.0892],
+  [58.49988,13.08923],[58.49995,13.08924],[58.50008,13.08913],[58.5003,13.08886],
+  [58.50056,13.08859],[58.50088,13.08836],[58.50104,13.08828],[58.50122,13.08824],
+  [58.5014,13.08824],[58.50173,13.08828],[58.50193,13.08825],[58.50202,13.08815],
+  [58.50237,13.08764],[58.5025,13.08753],[58.50261,13.08748],[58.5027,13.08749],
+  [58.50276,13.08754],[58.50322,13.08798],[58.50338,13.08811],[58.50359,13.08815],
+  [58.50372,13.08811],[58.50448,13.0876],[58.50509,13.08723],[58.50534,13.08705],
+  [58.50548,13.0869],[58.5058,13.0865],[58.50604,13.08627],[58.50615,13.0862],
+  [58.50627,13.08617],[58.50646,13.08616],[58.50654,13.08619],[58.50665,13.0863],
+  [58.50676,13.08648],[58.50679,13.08674],[58.5068,13.08717],[58.50682,13.08763],
+  [58.50691,13.08829],[58.50693,13.08847],[58.50692,13.08874],[58.50689,13.08888],
+  [58.50685,13.08904],[58.50663,13.08973],[58.50661,13.08992],[58.50661,13.09008],
+  [58.50667,13.09038],[58.50677,13.09061],[58.50685,13.0907],[58.50691,13.09073],
+  [58.50697,13.09072],[58.50709,13.09066],[58.5072,13.09055],[58.50747,13.0902],
+  [58.5075,13.09013],[58.50753,13.09001],[58.50755,13.08978],[58.50754,13.08963],
+  [58.50752,13.08957],[58.50746,13.08947],[58.50735,13.0894],[58.50717,13.08933],
+  [58.50712,13.08929],[58.50704,13.08887],[58.50693,13.08796],[58.50688,13.08753],
+  [58.50683,13.08698]
   ]
 };
 
@@ -1086,22 +1098,85 @@ function parseGpx(text) {
   return { pts, name };
 }
 
-// Har man åkt flera varv räcker det med ett. Leta efter den punkt längre fram
-// på rundan som ligger tillbaka på samma ställe, och klipp där.
-function extractLap(pts) {
-  const cum = [0];
-  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1], pts[i]));
-  let best = null;
-  for (let i = 0; i < pts.length / 2; i += 5) {
-    for (let j = i + 1; j < pts.length; j++) {
-      if (cum[j] - cum[i] < 400) continue;
-      if (haversine(pts[i], pts[j]) < 20) {
-        if (!best || cum[j] - cum[i] > best.len) best = { i, j, len: cum[j] - cum[i] };
-        break;
-      }
+/* Att hitta ett varv i en logg med flera är knepigare än det låter.
+   Klipper man vid första punkt som ligger nära en tidigare får man en söm på
+   ett par tiotal meter — ett synligt hål i spåret. Och tar man kortaste
+   slutna slingan får man en delslinga, eftersom en runda ofta passerar
+   startpunkten mitt i varvet.
+
+   Kriteriet som håller: varvet ska förklara hela loggen. Kandidaterna testas
+   från kortast till längst tills en täcker nittiofem procent av punkterna,
+   och bland varv av ungefär den längden väljs det med minst söm. */
+
+function decimate(pts, minStep) {
+  const out = [pts[0]];
+  for (const p of pts) if (haversine(out[out.length - 1], p) >= minStep) out.push(p);
+  return out;
+}
+
+function coversTrack(lap, track, tol = 20, step = 8) {
+  let hits = 0, total = 0;
+  for (let i = 0; i < track.length; i += step) {
+    total++;
+    for (let k = 1; k < lap.length; k++) {
+      if (distToSegment(track[i], lap[k - 1], lap[k]) <= tol) { hits++; break; }
     }
   }
-  return best ? pts.slice(best.i, best.j + 1) : pts;
+  return total ? hits / total : 0;
+}
+
+function extractLap(raw) {
+  const pts = decimate(raw, 3);
+  if (pts.length < 40) return { pts: raw, closed: false };
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1], pts[i]));
+
+  // en kandidat per varvlängd, den med minst söm
+  const byLen = new Map();
+  for (let i = 0; i < pts.length / 2; i += 4) {
+    for (let j = i + 1; j < pts.length; j++) {
+      const len = cum[j] - cum[i];
+      if (len < 300) continue;
+      const seam = haversine(pts[i], pts[j]);
+      if (seam >= 25) continue;
+      const key = Math.round(len / 50);
+      const prev = byLen.get(key);
+      if (!prev || seam < prev.seam) byLen.set(key, { len, seam, i, j });
+    }
+  }
+  const cands = [...byLen.values()].sort((a, b) => a.len - b.len);
+  if (!cands.length) return { pts: raw, closed: false };
+
+  let first = null;
+  for (const c of cands) {
+    if (coversTrack(pts.slice(c.i, c.j + 1), pts) >= 0.95) { first = c; break; }
+  }
+  if (!first) return { pts: raw, closed: false };
+
+  const pool = cands.filter(c => c.len >= first.len * 0.97 && c.len <= first.len * 1.15);
+  const good = pool.filter(c => coversTrack(pts.slice(c.i, c.j + 1), pts) >= 0.95);
+  const best = good.reduce((a, b) => (b.seam < a.seam ? b : a), first);
+  return { pts: pts.slice(best.i, best.j + 1), closed: best.seam < 25 };
+}
+
+/* Chaikins hörnkapning. En förenklad linje är en polygon med skarpa knän;
+   ett riktigt spår svänger mjukt. Två varv ger kurvor som både ser rätt ut
+   och ger rimligare bäringar åt vindmodellen. */
+function chaikin(pts, closed, iterations = 2) {
+  let p = pts;
+  for (let n = 0; n < iterations; n++) {
+    const out = [];
+    const last = closed ? p.length : p.length - 1;
+    if (!closed) out.push(p[0]);
+    for (let i = 0; i < last; i++) {
+      const a = p[i], b = p[(i + 1) % p.length];
+      out.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]]);
+      out.push([0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]]);
+    }
+    if (!closed) out.push(p[p.length - 1]);
+    p = out;
+  }
+  return p;
 }
 
 // Douglas–Peucker: kastar punkter som ligger på linjen mellan sina grannar.
@@ -1132,10 +1207,18 @@ function simplify(pts, tolerance) {
   return pts.filter((_, i) => keep[i]);
 }
 
-function buildTrack(raw, { singleLap = true, tolerance = 3 } = {}) {
+function buildTrack(raw, { singleLap = true, tolerance = 2.5 } = {}) {
   let pts = raw.pts.filter((p, i, a) => i === 0 || haversine(a[i - 1], p) > 0.5);
-  if (singleLap) pts = extractLap(pts);
-  pts = simplify(pts, tolerance).map(p => [+p[0].toFixed(6), +p[1].toFixed(6)]);
+  let closed = false;
+  if (singleLap) { const lap = extractLap(pts); pts = lap.pts; closed = lap.closed; }
+
+  pts = simplify(pts, tolerance);
+  // Är slingan sluten ska start och slut inte ligga dubbelt när hörnen kapas.
+  if (closed && pts.length > 3 && haversine(pts[0], pts[pts.length - 1]) < 25) pts = pts.slice(0, -1);
+  pts = chaikin(pts, closed, 2);
+  pts = simplify(closed ? pts.concat([pts[0]]) : pts, 0.8);
+  if (closed && haversine(pts[0], pts[pts.length - 1]) > 0.5) pts = pts.concat([pts[0]]);
+  pts = pts.map(p => [+p[0].toFixed(6), +p[1].toFixed(6)]);
   let len = 0;
   for (let i = 1; i < pts.length; i++) len += haversine(pts[i - 1], pts[i]);
   const centre = [pts.reduce((s, p) => s + p[0], 0) / pts.length,
