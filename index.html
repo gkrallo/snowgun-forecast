@@ -21,7 +21,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<!-- Hammer.js måste ligga före zoom-pluginet. Utan den fungerar inte nyp-zoom
+     på pekskärm, vilket är det enda sättet att zooma på en telefon. -->
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -409,7 +412,7 @@ button{font-family:inherit}
         </div>
         <div class="field">
           <label for="lanceCount">Antal lansar</label>
-          <input type="number" id="lanceCount" min="0" max="199" step="1" value="33">
+          <input type="number" id="lanceCount" min="0" max="199" step="1" value="3">
         </div>
       </div>
       <p class="hint" style="margin-top:-4px">Styr hur många ni kan placera ut på kartan under Vind &amp; sikte.</p>
@@ -706,7 +709,11 @@ function waterOffset(waterTemp) { return Math.max(0, (waterTemp - 0.5)) * 0.15; 
 function thresholds() {
   const w = waterOffset(S.waterTemp);
   const q = qualityOffset(S.quality);
-  return { base: S.fanBase - w, target: S.fanBase - w - q, lance: S.lanceBase - w - q, quality: q, water: w };
+  // Lansen har samma uppdelning som fläkten: startgränsen är ren, målet
+  // bär kvalitetspåslaget. Tidigare fick lansen påslaget i startgränsen,
+  // vilket gjorde att den rapporterades som oanvändbar långt innan den var det.
+  return { base: S.fanBase - w, target: S.fanBase - w - q,
+           lance: S.lanceBase - w, lanceTarget: S.lanceBase - w - q, quality: q, water: w };
 }
 
 // Kapacitet i procent av vad kanonen klarar, som funktion av hur långt under
@@ -884,7 +891,14 @@ function mergeSeries() {
   return fine.concat(hourly.filter(d => d.x > cutoff));
 }
 
+// Byter man plats medan en hämtning pågår kan det gamla svaret komma sist
+// och skriva över det nya. Varje hämtning får en bricka; bara den senaste
+// får röra tillståndet. Svaret läses färdigt innan något skrivs, så att en
+// hämtning som hunnit bli gammal inte lämnar halva sitt svar efter sig.
+let fetchToken = 0;
+
 async function fetchData() {
+  const token = ++fetchToken;
   setLoading(true);
   setError("");
   try {
@@ -894,19 +908,23 @@ async function fetchData() {
     ]);
     if (!rH || !rH.ok) throw new Error("Vädertjänsten svarade inte");
     const jH = await rH.json();
-    hourly = mapBlock(jH.hourly);
-    if (!hourly.length) throw new Error("Prognosen kom tom");
+    const newHourly = mapBlock(jH.hourly);
+    if (!newHourly.length) throw new Error("Prognosen kom tom");
 
-    fine = [];
+    let newFine = [];
     if (rF && rF.ok) {
       const jF = await rF.json();
-      fine = mapBlock(jF.minutely_15);
+      newFine = mapBlock(jF.minutely_15);
     }
+    if (token !== fetchToken) return;
+    hourly = newHourly;
+    fine = newFine;
     series = mergeSeries();
     fetchedAt = Date.now();
     cacheSnapshot();
     renderAll();
   } catch (e) {
+    if (token !== fetchToken) return;
     console.error(e);
     if (restoreSnapshot()) {
       setError("Ingen kontakt med vädertjänsten. Visar senast hämtade prognos.");
@@ -914,7 +932,7 @@ async function fetchData() {
       setError("Ingen kontakt med vädertjänsten. Kontrollera nätet och tryck ↻.");
     }
   } finally {
-    setLoading(false);
+    if (token === fetchToken) setLoading(false);
   }
 }
 
@@ -1287,6 +1305,7 @@ function loadGunsForTrack() {
   }
   const k = trackKey();
   guns = k && Array.isArray(gunStore[k]) ? gunStore[k] : [];
+  invalidateWindProfile();
   loadWellsForTrack();
 }
 
@@ -1297,6 +1316,7 @@ function saveTrack(t) {
   resolveTrack();
 }
 
+// Demoknappen vill se det inbyggda spåret oavsett var man är.
 function useBuiltinTrack() {
   userTrack = null;
   localStorage.removeItem("snowTrack");
@@ -1305,7 +1325,20 @@ function useBuiltinTrack() {
   resolveTrack();
 }
 
+// Borttagningsknappen vill bara bli av med det inlästa spåret. Nära Lidköping
+// tar resolveTrack fram Sparbanksspåret av sig självt; långt därifrån ska det
+// inte dyka upp. Demoknappens flagga får inte sättas här, för då följer
+// Sparbanksspåret med till nästa plats man väljer.
+function clearUserTrack() {
+  userTrack = null;
+  localStorage.removeItem("snowTrack");
+  showBuiltinAnyway = false;
+  localStorage.removeItem("snowShowBuiltin");
+  resolveTrack();
+}
+
 function buildSegments() {
+  invalidateWindProfile();
   segments = [];
   if (!track || track.pts.length < 2) return;
   for (let i = 1; i < track.pts.length; i++) {
@@ -1415,30 +1448,53 @@ function segState(cross, baseState, type = "fan") {
   return "stop";
 }
 
-// Ett representativt värde för hero och tabell. Med kanoner utplacerade räknas
-// bara de lägen ni faktiskt kör på, annars hela spåret viktat efter längd.
-function windContext(pt) {
-  const geoAt = b => Math.abs(pt.wind * Math.sin(toRad(normDeg(normDeg(pt.dir + 180) - b))));
+// Ett representativt värde för hero, tabell och grafer. Med kanoner utplacerade
+// räknas bara de lägen ni faktiskt kör på, annars hela spåret viktat efter längd.
+/* Bäringsprofilen — vilka riktningar spåret löper i, eller vilka riktningar
+   aggregaten står mot. Den ändras bara när spåret, kanonerna eller
+   inställningarna gör det, så den räknas en gång och återanvänds. Graferna
+   ritar hundratals punkter och skulle annars gå igenom hela spåret per punkt.
+   Allt som ändrar spår, kanoner eller S måste anropa invalidateWindProfile. */
+let windProfile = null;
+function invalidateWindProfile() { windProfile = null; }
 
+function getWindProfile() {
+  if (windProfile) return windProfile;
   if (guns.length && segments.length) {
-    const vals = guns.map(g => {
-      const cov = gunCoverage(g);
-      const w = worstCross(cov, pt);
-      return { gun: g, bearing: w.bearing, cross: w.cross, offset: cov.offset, reach: cov.reach };
-    });
-    const sorted = vals.map(v => v.cross).sort((a, b) => a - b);
-    return { mode: "guns", perGun: vals, median: sorted[Math.floor(sorted.length / 2)],
-             min: sorted[0], max: sorted[sorted.length - 1], count: guns.length };
+    windProfile = { mode: "guns", sets: guns.map(g => gunCoverage(g).segs.map(x => x.bearing)) };
+  } else if (segments.length) {
+    windProfile = { mode: "track", rows: segments.map(x => ({ b: x.bearing, w: x.len })) };
+  } else {
+    windProfile = { mode: "manual", rows: [{ b: S.trailBearing, w: 1 }] };
   }
-  if (segments.length) {
-    const total = segments.reduce((s, x) => s + x.len, 0);
-    const rows = segments.map(s => ({ cross: geoAt(s.bearing), len: s.len })).sort((a, b) => a.cross - b.cross);
-    let acc = 0, median = rows[0].cross;
-    for (const r of rows) { acc += r.len; if (acc >= total / 2) { median = r.cross; break; } }
-    return { mode: "track", median, min: rows[0].cross, max: rows[rows.length - 1].cross, count: segments.length };
-  }
-  const c = geoAt(S.trailBearing);
-  return { mode: "manual", median: c, min: c, max: c, count: 1 };
+  return windProfile;
+}
+
+function crossOf(wind, dir, bearing) {
+  return Math.abs(wind * Math.sin(toRad(normDeg(normDeg(dir + 180) - bearing))));
+}
+
+/* Med aggregat utplacerade: värsta riktningen inom varje aggregats täckning,
+   därefter medianen över aggregaten. Annars medianen längs spåret, viktad
+   efter hur många meter varje riktning utgör. Tidigare räknade graferna mot
+   den manuella spårbäringen, som är meningslös när ett spår är inläst — och
+   gav noll tvärvind så fort den bäringen råkade ligga i vindens riktning.
+   Strikt större än halva vikten: vid jämnt antal aggregat blir det det
+   sämre av de två mittersta, som det alltid har varit. */
+function crossStats(wind, dir) {
+  const p = getWindProfile();
+  const rows = p.mode === "guns"
+    ? p.sets.map(set => ({ c: set.length ? Math.max(...set.map(b => crossOf(wind, dir, b))) : 0, w: 1 }))
+    : p.rows.map(r => ({ c: crossOf(wind, dir, r.b), w: r.w }));
+  rows.sort((a, b) => a.c - b.c);
+  const half = rows.reduce((a, r) => a + r.w, 0) / 2;
+  let acc = 0, median = rows[rows.length - 1].c;
+  for (const r of rows) { acc += r.w; if (acc > half) { median = r.c; break; } }
+  return { median, min: rows[0].c, max: rows[rows.length - 1].c, mode: p.mode, count: rows.length };
+}
+
+function windContext(pt) {
+  return crossStats(pt.wind, pt.dir);
 }
 
 /* ==========================================================================
@@ -1557,7 +1613,12 @@ function renumberWellsFromSouth() {
 function parseWellText(text) {
   const out = [];
   for (const line of text.split(/[\r\n]+/)) {
-    const nums = (line.match(/-?\d+[.,]?\d*/g) || []).map(v => parseFloat(v.replace(",", ".")));
+    // Komma kan vara både decimaltecken och fältavgränsare. Finns en punkt i
+    // raden är punkten decimaltecknet, och då är varje komma en avgränsare.
+    // Annars får kommat vara decimaltecken. Utan den skillnaden lästes
+    // "1,58.50123,13.08812" som talen 1,58 och 50123,13 och raden föll bort.
+    const norm = line.includes(".") ? line.replace(/,/g, " ") : line.replace(/;/g, " ");
+    const nums = (norm.match(/-?\d+(?:[.,]\d+)?/g) || []).map(v => parseFloat(v.replace(",", ".")));
     if (nums.length < 2) continue;
     let no = null, lat, lon;
     if (nums.length >= 3 && Math.abs(nums[0]) < 200 && Math.abs(nums[1]) > 20) { no = nums[0]; lat = nums[1]; lon = nums[2]; }
@@ -1766,6 +1827,7 @@ function ellipsePoly(centre, bearing, a, b, n = 28) {
 }
 
 function persistGuns() {
+  invalidateWindProfile();
   const k = trackKey();
   if (!k) return;
   gunStore = gunStore || {};
@@ -2225,7 +2287,7 @@ function datasetsFrom(src) {
   return [
     src.map(d => ({ x: d.x, y: d.wb })),
     src.map(d => ({ x: d.x, y: d.temp })),
-    src.map(d => ({ x: d.x, y: d.wind, dir: d.dir, rh: d.rh, cross: windGeometry(d.wind, d.dir, S.trailBearing).crossAbs })),
+    src.map(d => ({ x: d.x, y: d.wind, dir: d.dir, rh: d.rh, cross: crossStats(d.wind, d.dir).median })),
     src.map(d => ({ x: d.x, y: d.gust }))
   ];
 }
@@ -2347,7 +2409,7 @@ function renderWindChart() {
       datasets: [
         { label: "Medelvind", data: pts.map(d => ({ x: d.x, y: d.wind })), borderColor: "#f0b429", borderWidth: 2, pointRadius: 0, tension: .3 },
         { label: "Byar", data: pts.map(d => ({ x: d.x, y: d.gust })), borderColor: "rgba(240,180,41,.55)", borderDash: [4, 4], borderWidth: 1, pointRadius: 0, tension: .3 },
-        { label: "Tvärs spåret", data: pts.map(d => ({ x: d.x, y: windGeometry(d.wind, d.dir, S.trailBearing).crossAbs })), borderColor: "#3fb9f0", backgroundColor: "rgba(63,185,240,.12)", fill: true, borderWidth: 2, pointRadius: 0, tension: .3 }
+        { label: "Tvärs spåret", data: pts.map(d => ({ x: d.x, y: crossStats(d.wind, d.dir).median })), borderColor: "#3fb9f0", backgroundColor: "rgba(63,185,240,.12)", fill: true, borderWidth: 2, pointRadius: 0, tension: .3 }
       ]
     },
     options: {
@@ -2584,11 +2646,12 @@ const INFO = {
       <thead><tr><th>Luft</th><th>Luftfuktighet</th><th>Våttemperatur</th><th></th></tr></thead>
       <tbody>
         <tr><td>0 °C</td><td>90 %</td><td>−0,6 °C</td><td style="color:var(--stop)">för varmt</td></tr>
-        <tr><td>0 °C</td><td>30 %</td><td>−4,3 °C</td><td style="color:var(--go)">bra läge</td></tr>
-        <tr><td>+2 °C</td><td>90 %</td><td>+1,5 °C</td><td style="color:var(--stop)">omöjligt</td></tr>
-        <tr><td>+2 °C</td><td>30 %</td><td>−2,8 °C</td><td style="color:var(--go)">går att köra</td></tr>
+        <tr><td>0 °C</td><td>30 %</td><td>−4,1 °C</td><td style="color:var(--go)">bra läge</td></tr>
+        <tr><td>+2 °C</td><td>90 %</td><td>+1,4 °C</td><td style="color:var(--stop)">omöjligt</td></tr>
+        <tr><td>+2 °C</td><td>30 %</td><td>−2,5 °C</td><td style="color:var(--warn)">precis på gränsen</td></tr>
       </tbody>
     </table>
+    <p class="hint" style="margin-top:-6px">Värdena är räknade med appens egen modell. Under noll grader kan våttemperaturen räknas mot vatten eller mot is; appen räknar mot vatten, eftersom dropparna i fanan är flytande. Tabeller som räknar mot is visar ett par tiondelar kallare i torr luft, till exempel −4,3 och −2,8 för raderna med 30 %.</p>
     <p>Samma lufttemperatur, helt olika verklighet. Två plusgrader i torr luft är alltså ett bättre snöläge än noll grader i dimma.</p>
     <div class="figure">
       <canvas id="wbMap" width="520" height="300"></canvas>
@@ -2837,6 +2900,7 @@ function readSettingsForm() {
   S.quality = Math.max(1, Math.min(10, Math.round(S.quality)));
   $("qualityLabel").textContent = `${S.quality} — ${QUALITY_WORDS[S.quality]}`;
   updateHangHint();
+  invalidateWindProfile();
   saveSettings();
   recomputeSeries();
   renderAll();
@@ -2879,6 +2943,16 @@ function saveFavorite(name, lat, lon) {
 }
 
 function ensureDefaultFavorite() {
+  // Spårets mittpunkt flyttade sig när geometrin gjordes om, men den sparade
+  // platsen låg kvar på den gamla. Skillnaden var fyrtio meter — för liten
+  // för att märkas i prognosen, stor nog för att platsen inte matchade sin
+  // egen favorit och listades två gånger.
+  if (place.name === BUILTIN_TRACK.name &&
+      haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < 250) {
+    place.lat = BUILTIN_TRACK.centre[0];
+    place.lon = BUILTIN_TRACK.centre[1];
+    persistPlace();
+  }
   favorites = favorites.filter(f => f && f.name).map(f => ({ ...f, id: f.id || crypto.randomUUID?.() || (f.name + f.lat) }));
   if (!favorites.length) favorites.push({ id: "default", name: BUILTIN_TRACK.name,
     lat: BUILTIN_TRACK.centre[0], lon: BUILTIN_TRACK.centre[1] });
@@ -2935,7 +3009,8 @@ $("btnClearOffset").onclick = () => {
 };
 
 $("btnResetSettings").onclick = () => {
-  S = { ...DEFAULTS }; saveSettings(); fillSettingsForm(); recomputeSeries(); renderAll();
+  S = { ...DEFAULTS }; invalidateWindProfile();
+  saveSettings(); fillSettingsForm(); recomputeSeries(); renderAll();
 };
 SETTING_FIELDS.forEach(([id]) => { $(id).oninput = readSettingsForm; $(id).onchange = readSettingsForm; });
 
@@ -3009,7 +3084,9 @@ $("btnDelFav").onclick = () => {
   localStorage.setItem("snowFavorites", JSON.stringify(favorites));
   if (wasCurrent) {
     place = { lat: favorites[0].lat, lon: favorites[0].lon, name: favorites[0].name };
-    persistPlace(); populateFavorites(); fetchData();
+    persistPlace(); populateFavorites(); resolveTrack();
+    if (planMap) planMap._fitted = false;
+    fetchData();
   } else populateFavorites();
 };
 
@@ -3128,7 +3205,7 @@ $("btnBuiltin").onclick = () => {
   if (!confirm(near
     ? "Byt tillbaka till det inbyggda Sparbanksspåret? Ditt inlästa spår tas bort, men kanonuppställningen finns kvar om du läser in samma fil igen."
     : "Ta bort det inlästa spåret? Kanonuppställningen finns kvar om du läser in samma fil igen.")) return;
-  useBuiltinTrack();
+  clearUserTrack();
   if (planMap) planMap._fitted = false;
   setPlanNote("");
   renderAll();
@@ -3148,7 +3225,10 @@ let installPrompt = null;
 
 function registerServiceWorker() {
   // Kräver https. Öppnar man filen lokalt från disk hoppas det bara över.
-  if (!("serviceWorker" in navigator) || location.protocol !== "https:") return;
+  // localhost räknas som säker kontext trots http, och det är där man testar.
+  const secure = location.protocol === "https:" ||
+                 ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+  if (!("serviceWorker" in navigator) || !secure) return;
   navigator.serviceWorker.register("./sw.js").catch(err => console.warn("SW:", err));
 }
 

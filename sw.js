@@ -3,7 +3,7 @@
    finns täckning ute vid spåret. Väderdata cachas inte här — den hanteras av
    appens egen kopia i localStorage. */
 
-const VERSION = "snoprognos-v3";
+const VERSION = "snoprognos-v4";
 const SHELL = [
   "./",
   "./index.html",
@@ -50,8 +50,12 @@ self.addEventListener("fetch", e => {
     e.respondWith(
       fetch(req)
         .then(res => {
-          const copy = res.clone();
-          caches.open(VERSION).then(c => c.put("./index.html", copy));
+          // Bara ett giltigt svar får bli appens sparade startsida. Utan den
+          // kontrollen cachades en 404-sida som index.html och låg kvar.
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(VERSION).then(c => c.put("./index.html", copy));
+          }
           return res;
         })
         .catch(() => caches.match("./index.html", { ignoreSearch: true }))
