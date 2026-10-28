@@ -19,7 +19,8 @@ const CDN = ["cdn.jsdelivr.net", "unpkg.com"];
 
 // Dessa ska alltid gå mot nätet: färsk data är hela poängen, och OSM:s
 // användarvillkor tillåter inte att man cachar kartrutor i bulk.
-const ALWAYS_NETWORK = ["api.open-meteo.com", "nominatim.openstreetmap.org", "tile.openstreetmap.org"];
+const ALWAYS_NETWORK = ["api.open-meteo.com", "nominatim.openstreetmap.org",
+                        "tile.openstreetmap.org", "arcgisonline.com"];
 
 self.addEventListener("install", e => {
   e.waitUntil(

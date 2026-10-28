@@ -49,6 +49,20 @@ Under ⚙️ ställs anläggningens egna värden in. De sparas i webbläsaren.
 | Start- och vindgränser | Justera fritt mot er egen erfarenhet. |
 | Formel för våttemperatur | Psykrometrisk (rekommenderad) eller Stull 2011. |
 
+## Brunnar och aggregat
+
+Anläggningen har fasta brunnar med vatten och el, och aggregaten kopplas in med
+slang. Brunnarna sätts ut på kartan eller klistras in som koordinater, och kan
+numreras om automatiskt från söder till norr. Varje utplacerat aggregat får en
+streckad linje till närmaste brunn, röd när slangen inte räcker.
+
+Plymen ritas i två lager: heldragen för vindstilla och streckad för den vind som
+råder vid vald tidpunkt. Handtaget i plymens mitt vrider kanonen och ändrar
+kastlängden, vilket sparas per aggregat. Utan egen inställning riktas fläktar
+mot spåret och lansar längs det.
+
+Brunnar och aggregat sparas per spår i webbläsaren.
+
 ## Inbyggt spår
 
 Sparbanksspåret i Lidköping följer med appen: ett varv ur en GPX-logg,
@@ -77,6 +91,16 @@ webbläsarens lagring.
 
 Inlästa spår och utplacerade aggregat sparas lokalt i webbläsaren, inte i repot.
 Det inbyggda spåret ligger däremot i `index.html` och följer med alla besökare.
+
+## Kalibrering
+
+Har anläggningen egna våttemperaturgivare väger de tyngre än en prognospunkt
+tio meter över öppen mark. Under ⚙️ skrivs avläsningen in, appen räknar ut
+skillnaden mot modellen och lägger den som en fast korrigering på alla
+våttemperaturer. Korrigeringen visas i statusraden så att den inte blir osynlig.
+
+Använd referensgivaren, inte en kanon i drift: ett aggregat i sin egen plym
+mäter sin egen fukt och visar flera grader för varmt.
 
 ## Beräkningar
 
@@ -126,6 +150,20 @@ gånger cosinus för lutningen från lodrätt. Mät profilen en gång så är de
 siffran klar. För en fläktkanon finns ingen motsvarande specifikation — fanans
 topp beror på rörvinkeln, och det vita molnet ovanför är till största delen
 isdimma som aldrig landar.
+
+## Kartlager
+
+Flygbild från Esri som förval, vägkarta från OpenStreetMap som alternativ,
+omkopplare nere till vänster på kartan. Flygbild är bättre i skogsmark där
+vägkartan är nästan tom.
+
+OpenStreetMaps kartrutor kommer från frivilligdrivna servrar vars policy ber
+appar med tung användning att gå någon annanstans, och kontrollen har skärpts.
+Lagret finns kvar som alternativ med `referrerPolicy: "strict-origin-when-cross-origin"`
+satt, eftersom ett strippat Referer-huvud är den vanligaste orsaken till att
+OSM nekar förfrågan.
+
+Kartrutor cachas inte av service workern, varken Esris eller OSM:s.
 
 ## Väderdata
 

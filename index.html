@@ -173,8 +173,16 @@ button{font-family:inherit}
 #windRose svg{width:100%; height:100%}
 .leaflet-container{background:#0e1a2c; font-family:inherit}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface); color:var(--ink); border:1px solid var(--line)}
+.leaflet-control-layers{background:var(--surface); color:var(--ink); border:1px solid var(--line);
+  border-radius:9px; box-shadow:none; font-size:.8rem}
+.leaflet-control-layers-expanded{padding:7px 10px}
+.leaflet-control-layers label{margin:2px 0; display:flex; gap:6px; align-items:center}
+.leaflet-control-attribution{background:rgba(11,18,32,.75)!important; color:var(--ink-faint)!important; font-size:.65rem}
+.leaflet-control-attribution a{color:var(--ink-dim)!important}
+.leaflet-control-zoom a{background:var(--surface)!important; color:var(--ink)!important; border-color:var(--line)!important}
 .leaflet-popup-content{margin:11px 13px}
-.gun-icon{background:none; border:none}
+.gun-icon,.well-icon,.aim-icon{background:none; border:none}
+.gunbar.second{border-top:1px solid var(--line); padding-top:9px; margin-top:9px}
 .timerow{display:flex; align-items:center; gap:10px; margin-top:12px}
 .timerow input[type=range]{flex:1; accent-color:var(--wind)}
 .timerow .tl{font-size:.78rem; color:var(--ink-dim); min-width:132px; text-align:right}
@@ -325,8 +333,14 @@ button{font-family:inherit}
         <button id="clearGuns">Rensa kanoner</button>
         <label class="filebtn" style="padding:8px 12px; font-size:.82rem; background:var(--surface-2); color:var(--ink); border:1px solid var(--line)">
           Byt spår<input type="file" id="gpxInput2" accept=".gpx,application/gpx+xml,text/xml"></label>
-        <button id="btnBuiltin" hidden>Tillbaka till Sparbanksspåret</button>
         <span class="count" id="gunCount"></span>
+      </div>
+      <div class="gunbar second">
+        <button id="addWell">Placera brunn</button>
+        <button id="btnWellPaste">Koordinater…</button>
+        <button id="btnWellNumber">Numrera från söder</button>
+        <button id="btnBuiltin" hidden>Tillbaka till Sparbanksspåret</button>
+        <span class="count" id="wellCount"></span>
       </div>
       <p class="plannote" id="trackOrigin"></p>
       <p class="caption" id="planSummary" style="text-align:left; margin-top:10px"></p>
@@ -372,7 +386,7 @@ button{font-family:inherit}
       <div class="row2">
         <div class="field">
           <label for="lanceHeight">Lans: huvudets höjd (m)</label>
-          <input type="number" id="lanceHeight" min="1" max="15" step="0.1" value="6">
+          <input type="number" id="lanceHeight" min="1" max="15" step="0.1" value="7">
         </div>
         <div class="field">
           <label for="lanceDist">Lans: räckvidd (m)</label>
@@ -398,6 +412,12 @@ button{font-family:inherit}
         </div>
       </div>
       <p class="hint" style="margin-top:-4px">Styr hur många ni kan placera ut på kartan under Vind &amp; sikte.</p>
+
+      <div class="field">
+        <label for="hoseLength">Slanglängd från brunn (m)</label>
+        <input type="number" id="hoseLength" min="2" max="60" step="1" value="10">
+        <p class="hint">Hur långt från brunnen ett aggregat kan stå. Appen ritar en streckad linje till närmaste brunn och varnar när slangen inte räcker.</p>
+      </div>
 
       <h3>Vatten och snökvalitet</h3>
       <div class="field">
@@ -433,6 +453,24 @@ button{font-family:inherit}
       </div>
       <p class="hint" style="margin-top:-4px">Justera efter er egen erfarenhet. Gränserna styr både färgerna i tabellen och körfönstren högst upp.</p>
 
+      <h3>Kalibrering mot egen mätare</h3>
+      <div class="field">
+        <label for="wbMeasured">Uppmätt våttemperatur just nu (°C)</label>
+        <div style="display:flex; gap:8px">
+          <input type="number" id="wbMeasured" step="0.1" placeholder="t.ex. -7,2" style="flex:1">
+          <button class="btn ghost" id="btnCalibrate" style="white-space:nowrap">Kalibrera</button>
+        </div>
+        <p class="hint" id="calNote"></p>
+      </div>
+      <div class="field">
+        <label for="wbOffset">Korrigering som används (°C)</label>
+        <div style="display:flex; gap:8px">
+          <input type="number" id="wbOffset" step="0.1" value="0" style="flex:1">
+          <button class="btn ghost" id="btnClearOffset" style="white-space:nowrap">Nollställ</button>
+        </div>
+        <p class="hint">Läggs till prognosens våttemperatur överallt i appen. Läs av styrsystemets referensgivare, inte en kanon som står mitt i sin egen plym — den visar för varmt.</p>
+      </div>
+
       <h3>Beräkningsmodell</h3>
       <div class="field">
         <label for="wbModel">Formel för våttemperatur</label>
@@ -446,6 +484,21 @@ button{font-family:inherit}
     <footer>
       <button class="btn ghost" id="btnResetSettings">Återställ</button>
       <button class="btn go" id="btnCloseSettings">Klar</button>
+    </footer>
+  </div>
+</div>
+
+<div class="overlay" id="wellModal">
+  <div class="sheet" style="max-width:520px">
+    <header><h2>Brunnarnas koordinater</h2></header>
+    <div class="body">
+      <p style="margin-top:0; font-size:.88rem">Klistra in en rad per brunn. Appen plockar ut siffrorna själv, så <code>1 58.50123 13.08812</code>, <code>58.50123, 13.08812</code> och <code>7;58,50123;13,08812</code> fungerar alla. Saknas numret sätts det i inklistringsordning.</p>
+      <textarea id="wellText" rows="10" style="width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:10px; font-family:ui-monospace,monospace; font-size:.85rem" placeholder="1 58.50012 13.08871&#10;2 58.50067 13.08840"></textarea>
+      <p class="hint" id="wellParseNote"></p>
+    </div>
+    <footer>
+      <button class="btn ghost" id="btnWellCancel">Avbryt</button>
+      <button class="btn go" id="btnWellApply">Ersätt brunnarna</button>
     </footer>
   </div>
 </div>
@@ -497,7 +550,7 @@ const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
   fanHeight: 5,       // m, fallhöjd för fläktfanan
   fanDist: 30,        // m, fläktkanonens kastlängd
-  lanceHeight: 6,     // m, lanshuvudets höjd över mark
+  lanceHeight: 7,     // m, lanshuvudets höjd över mark
   lanceDist: 8,       // m, lansens horisontella räckvidd
   trailWidth: 6,      // m, ytan vi vill träffa
   waterTemp: 1.5,     // °C
@@ -506,9 +559,11 @@ const DEFAULTS = {
   lanceBase: -4.0,    // °C våttemp, startgräns lans
   windWarn: 5,        // m/s
   windStop: 9,        // m/s
+  hoseLength: 10,     // m slang och kabel från brunn till aggregat
   fanCount: 6,        // antal fläktkanoner
   lanceCount: 3,      // antal lansar
-  wbModel: "psychro"
+  wbModel: "psychro",
+  wbOffset: 0         // °C, korrigering mot anläggningens egen våtmätare
 };
 
 let S = loadSettings();
@@ -584,6 +639,14 @@ function wetBulbStull(T, rh) {
 function wetBulb(T, rh, pressure) {
   if (!Number.isFinite(T) || !Number.isFinite(rh)) return NaN;
   return S.wbModel === "stull" ? wetBulbStull(T, rh) : wetBulbPsychrometric(T, rh, pressure);
+}
+
+// Prognosen gäller tio meter över öppen mark. Anläggningens egna givare sitter
+// i spåret, mellan träden, och visar något annat. Har ni en avläsning att gå
+// efter väger den tyngre än modellen — därför en fast korrigering.
+function wetBulbAdj(T, rh, pressure) {
+  const v = wetBulb(T, rh, pressure);
+  return Number.isFinite(v) ? v + S.wbOffset : v;
 }
 
 // Daggpunkt — bra att visa, och en snabb kontroll av hur torr luften är.
@@ -778,7 +841,7 @@ function mapBlock(block) {
       wind: block.wind_speed_10m[i],
       gust: block.wind_gusts_10m ? block.wind_gusts_10m[i] : null,
       dir: block.wind_direction_10m[i],
-      wb: wetBulb(temp, rh, pres),
+      wb: wetBulbAdj(temp, rh, pres),
       dew: dewPoint(temp, rh)
     };
   }).filter(d => Number.isFinite(d.temp));
@@ -841,7 +904,7 @@ function stripped(d) {
 function restoreSnapshot() {
   const c = safeParse(localStorage.getItem("snowCache"), null);
   if (!c || Math.abs(c.lat - place.lat) > 0.01 || Math.abs(c.lon - place.lon) > 0.01) return false;
-  const rehydrate = a => (a || []).map(d => ({ ...d, wb: wetBulb(d.temp, d.rh, d.pressure), dew: dewPoint(d.temp, d.rh) }));
+  const rehydrate = a => (a || []).map(d => ({ ...d, wb: wetBulbAdj(d.temp, d.rh, d.pressure), dew: dewPoint(d.temp, d.rh) }));
   hourly = rehydrate(c.hourly);
   fine = rehydrate(c.fine);
   if (!hourly.length) return false;
@@ -853,7 +916,7 @@ function restoreSnapshot() {
 
 // Byter man formel eller vattentemperatur behöver våttemperaturen räknas om.
 function recomputeSeries() {
-  const redo = a => a.forEach(d => { d.wb = wetBulb(d.temp, d.rh, d.pressure); });
+  const redo = a => a.forEach(d => { d.wb = wetBulbAdj(d.temp, d.rh, d.pressure); });
   redo(hourly); redo(fine);
   series = mergeSeries();
 }
@@ -960,8 +1023,14 @@ let track = null;
 let guns = [];
 let gunStore = safeParse(localStorage.getItem("snowGunsByTrack"), null);
 let segments = [];
-let planMap = null, planLayers = null, gunLayers = null;
+let planMap = null, planLayers = null, gunLayers = null, aimLayers = null;
 let addMode = null;
+let selectedGunId = null;
+
+/* Anläggningen har 18 fasta brunnar med vatten och el. Aggregaten kopplas in
+   med tio, ibland tjugo meter slang, så brunnen avgör var en kanon kan stå. */
+let wells = [];
+let wellStore = safeParse(localStorage.getItem("snowWellsByTrack"), null);
 let sliderOffsetH = 0;
 
 const EARTH = 6371000;
@@ -971,6 +1040,30 @@ function haversine(a, b) {
   const h = Math.sin((lb - la) / 2) ** 2 +
             Math.cos(la) * Math.cos(lb) * Math.sin(toRad(b[1] - a[1]) / 2) ** 2;
   return 2 * EARTH * Math.asin(Math.sqrt(h));
+}
+
+// Punkten som ligger `dist` meter bort i riktning `bearing`.
+function destPoint(lat, lon, bearing, dist) {
+  const R = 6371000, d = dist / R, b = toRad(bearing), la = toRad(lat), lo = toRad(lon);
+  const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b));
+  const lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la),
+                              Math.cos(d) - Math.sin(la) * Math.sin(la2));
+  return [la2 * 180 / Math.PI, ((lo2 * 180 / Math.PI + 540) % 360) - 180];
+}
+
+// Närmaste punkt på spåret, inte närmaste segmentände.
+function nearestPointOnTrack(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const s of segments) {
+    const k = Math.cos(toRad(lat));
+    const ax = s.a[1] * k, ay = s.a[0], bx = s.b[1] * k, by = s.b[0], px = lon * k, py = lat;
+    const dx = bx - ax, dy = by - ay;
+    const t = (dx || dy) ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
+    const q = [s.a[0] + (s.b[0] - s.a[0]) * t, s.a[1] + (s.b[1] - s.a[1]) * t];
+    const d = haversine([lat, lon], q);
+    if (d < bd) { bd = d; best = { point: q, dist: d, seg: s }; }
+  }
+  return best;
 }
 
 function segBearing(a, b) {
@@ -1082,6 +1175,7 @@ function loadGunsForTrack() {
   }
   const k = trackKey();
   guns = k && Array.isArray(gunStore[k]) ? gunStore[k] : [];
+  loadWellsForTrack();
 }
 
 function saveTrack(t) {
@@ -1241,6 +1335,25 @@ function windContext(pt) {
 
 const GUN_LIMIT = () => ({ fan: S.fanCount, lance: S.lanceCount });
 
+/* OpenStreetMaps kartrutor kommer från frivilligdrivna servrar med en policy
+   som uttryckligen ber appar med tung användning att gå någon annanstans. De
+   har skärpt kontrollen, och en app som en snögrupp hamrar på nattetid är
+   precis vad policyn vill slippa.
+
+   Flygbild är dessutom bättre för det här: i skogen visar vägkartan nästan
+   ingenting, medan flygbilden visar schaktytor, gläntor och dammen. Samma val
+   som ert eget styrsystem gjort. */
+function baseLayers() {
+  const air = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19, maxNativeZoom: 19, attribution: "Flygbild © Esri" });
+  // Kvar som alternativ, nu med referrerPolicy satt. Utan den strippar vissa
+  // webbläsare Referer-huvudet, och då nekar OSM förfrågan rakt av.
+  const map = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxZoom: 19, attribution: "© OpenStreetMap", referrerPolicy: "strict-origin-when-cross-origin" });
+  return { "Flygbild": air, "Karta": map };
+}
+
 function gunIcon(type, state) {
   const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[state] || "#93a4bd";
   const body = type === "fan"
@@ -1267,15 +1380,23 @@ function ensurePlanMap() {
   if ($("panelWind").hidden) return false;
   const c = trackCentre();
   planMap = L.map("planMap", { zoomControl: true, attributionControl: true }).setView(c, 15);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { attribution: "© OpenStreetMap", maxZoom: 19 }).addTo(planMap);
+  const bases = baseLayers();
+  bases["Flygbild"].addTo(planMap);
+  L.control.layers(bases, null, { position: "bottomleft", collapsed: false }).addTo(planMap);
+  // Tystnar kartrutorna säger appen varför, i stället för att bara visa grått.
+  let tileFails = 0;
+  Object.values(bases).forEach(layer => layer.on("tileerror", () => {
+    if (++tileFails === 6) setPlanNote("Kartrutorna kommer inte fram. Prova det andra kartlagret nere till vänster, eller kontrollera nätet — spåret och aggregaten fungerar ändå.");
+  }));
   planLayers = L.layerGroup().addTo(planMap);
+  aimLayers = L.layerGroup().addTo(planMap);
   gunLayers = L.layerGroup().addTo(planMap);
-  return true;
   planMap.on("click", e => {
     if (!addMode) return;
-    addGun(addMode, e.latlng.lat, e.latlng.lng);
+    if (addMode === "well") addWell(e.latlng.lat, e.latlng.lng);
+    else addGun(addMode, e.latlng.lat, e.latlng.lng);
   });
+  return true;
 }
 
 function addGun(type, lat, lon) {
@@ -1290,6 +1411,101 @@ function addGun(type, lat, lon) {
   renderPlan();
   renderHero();
   renderHours();
+}
+
+/* ---- brunnar ---- */
+
+function loadWellsForTrack() {
+  if (!wellStore) { wellStore = {}; localStorage.setItem("snowWellsByTrack", JSON.stringify(wellStore)); }
+  const k = trackKey();
+  wells = k && Array.isArray(wellStore[k]) ? wellStore[k] : [];
+}
+
+function persistWells() {
+  const k = trackKey();
+  if (!k) return;
+  wellStore = wellStore || {};
+  wellStore[k] = wells;
+  localStorage.setItem("snowWellsByTrack", JSON.stringify(wellStore));
+}
+
+function addWell(lat, lon) {
+  wells.push({ id: crypto.randomUUID?.() || String(Date.now() + Math.random()),
+               no: wells.length + 1, lat: +lat.toFixed(6), lon: +lon.toFixed(6) });
+  persistWells(); renderPlan();
+}
+
+// Brunn 1 ligger längst i söder, så numreringen går att återställa mekaniskt.
+function renumberWellsFromSouth() {
+  wells.sort((a, b) => a.lat - b.lat).forEach((w, i) => { w.no = i + 1; });
+  persistWells(); renderPlan();
+}
+
+// Tar emot "1 58.50123 13.08812", "58.50123, 13.08812" och liknande.
+function parseWellText(text) {
+  const out = [];
+  for (const line of text.split(/[\r\n]+/)) {
+    const nums = (line.match(/-?\d+[.,]?\d*/g) || []).map(v => parseFloat(v.replace(",", ".")));
+    if (nums.length < 2) continue;
+    let no = null, lat, lon;
+    if (nums.length >= 3 && Math.abs(nums[0]) < 200 && Math.abs(nums[1]) > 20) { no = nums[0]; lat = nums[1]; lon = nums[2]; }
+    else { lat = nums[nums.length - 2]; lon = nums[nums.length - 1]; }
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    out.push({ id: crypto.randomUUID?.() || String(Math.random()), no: no ?? out.length + 1,
+               lat: +lat.toFixed(6), lon: +lon.toFixed(6) });
+  }
+  return out;
+}
+
+function nearestWell(lat, lon) {
+  let best = null, bd = Infinity;
+  for (const w of wells) {
+    const d = haversine([lat, lon], [w.lat, w.lon]);
+    if (d < bd) { bd = d; best = w; }
+  }
+  return best ? { well: best, dist: bd } : null;
+}
+
+/* ---- siktning och plym ---- */
+
+// Utan egen inställning siktar fläkten mot spåret, medan lansen riktas längs
+// spåret så att plymen lägger sig som ett band i stället för tvärs över.
+function gunAim(g) {
+  if (Number.isFinite(g.aim)) return g.aim;
+  const n = nearestPointOnTrack(g.lat, g.lon);
+  if (!n) return S.trailBearing;
+  if (g.type === "lance") return n.seg.bearing;
+  return n.dist < 2 ? normDeg(n.seg.bearing + 90) : segBearing([g.lat, g.lon], n.point);
+}
+
+function gunDist(g) {
+  return Number.isFinite(g.dist) ? g.dist : gunGeometry(g.type).dist;
+}
+
+// Var plymen landar: först utan vind, sedan förskjuten med hela vindvektorn.
+// Förskjutningen görs åt det håll vinden blåser, inte bara tvärs spåret —
+// det är den bilden man vill se när man provsiktar.
+function plumeShape(g, pt) {
+  const geo = gunGeometry(g.type);
+  const aim = gunAim(g), D = gunDist(g);
+  const centre = destPoint(g.lat, g.lon, aim, D);
+  const hang = Math.max(1, geo.height) / SETTLE_SPEED;
+  const driftLen = pt ? pt.wind * hang * geo.spread : 0;
+  const blowsTo = pt ? normDeg(pt.dir + 180) : 0;
+  const drifted = destPoint(centre[0], centre[1], blowsTo, driftLen);
+  const along = g.type === "lance" ? 7 : Math.max(6, D * 0.35);
+  const across = g.type === "lance" ? 5 : Math.max(4, D * 0.18);
+  return { aim, dist: D, centre, drifted, along, across, driftLen, blowsTo };
+}
+
+function ellipsePoly(centre, bearing, a, b, n = 28) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n * 2 * Math.PI;
+    const al = a * Math.cos(t), ac = b * Math.sin(t);
+    pts.push(destPoint(centre[0], centre[1], bearing + Math.atan2(ac, al) * 180 / Math.PI, Math.hypot(al, ac)));
+  }
+  return pts;
 }
 
 function persistGuns() {
@@ -1332,6 +1548,44 @@ function renderPlan() {
   }
 
   gunLayers.clearLayers();
+  aimLayers.clearLayers();
+
+  // brunnarna först, så att aggregaten hamnar ovanpå
+  wells.forEach(wl => {
+    const occupied = guns.some(g => haversine([g.lat, g.lon], [wl.lat, wl.lon]) <= S.hoseLength);
+    const m = L.marker([wl.lat, wl.lon], {
+      icon: L.divIcon({ className: "well-icon", iconSize: [22, 22], iconAnchor: [11, 11],
+        html: `<svg width="22" height="22" viewBox="0 0 22 22">
+          <circle cx="11" cy="11" r="8.5" fill="${occupied ? "#38bdf8" : "#0b1220"}"
+                  stroke="#38bdf8" stroke-width="2"/>
+          <text x="11" y="15" font-size="10" font-weight="700" text-anchor="middle"
+                fill="${occupied ? "#03121c" : "#38bdf8"}">${wl.no}</text></svg>` }),
+      draggable: true
+    }).addTo(gunLayers);
+    m.bindPopup(`<div style="font:13px/1.5 sans-serif">
+      <b>Brunn ${wl.no}</b><br>${wl.lat.toFixed(5)}, ${wl.lon.toFixed(5)}<br>
+      <a href="#" data-wno="${wl.id}">Byt nummer</a> ·
+      <a href="#" data-wdel="${wl.id}" style="color:#dc2626">Ta bort</a></div>`);
+    m.on("dragend", ev => {
+      const p = ev.target.getLatLng();
+      wl.lat = +p.lat.toFixed(6); wl.lon = +p.lng.toFixed(6);
+      persistWells(); renderPlan();
+    });
+    m.on("popupopen", ev => {
+      const el = ev.popup.getElement();
+      el.querySelector("[data-wdel]")?.addEventListener("click", e => {
+        e.preventDefault();
+        wells = wells.filter(x => x.id !== wl.id);
+        persistWells(); renderPlan();
+      });
+      el.querySelector("[data-wno]")?.addEventListener("click", e => {
+        e.preventDefault();
+        const v = parseInt(prompt("Brunnens nummer:", wl.no), 10);
+        if (Number.isFinite(v)) { wl.no = v; persistWells(); renderPlan(); }
+      });
+    });
+  });
+
   guns.forEach(g => {
     const cov = gunCoverage(g);
     const w = worstCross(cov, pt);
@@ -1342,27 +1596,82 @@ function renderPlan() {
     const across = pt.wind * Math.sin(toRad(normDeg(blowsTo - bearing)));
     const upwind = across >= 0 ? "vänster" : "höger";
     const corr = Math.round(aimCorrection(drift.centre, drift.dist));
+    const sel = g.id === selectedGunId;
+    const plume = plumeShape(g, pt);
+    const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[st];
+
+    // Plymen utan vind heldragen, med vind streckad. Skillnaden mellan dem
+    // är precis vad vinden gör med lasset, och det är den man siktar efter.
+    L.polygon(ellipsePoly(plume.centre, plume.aim, plume.along, plume.across),
+      { color: "#e8eef7", weight: 1.2, opacity: sel ? .85 : .35, fill: false }).addTo(aimLayers);
+    L.polyline([[g.lat, g.lon], plume.centre],
+      { color: "#e8eef7", weight: 1, opacity: sel ? .6 : .22 }).addTo(aimLayers);
+    L.polygon(ellipsePoly(plume.drifted, plume.aim, plume.along, plume.across),
+      { color: col, weight: 2, opacity: sel ? .95 : .5, dashArray: "6 5",
+        fillColor: col, fillOpacity: sel ? .18 : .08 }).addTo(aimLayers);
+
+    if (sel) {
+      // handtaget flyttar både riktning och kastlängd — provsiktning
+      const h = L.marker(plume.centre, { draggable: true, icon: L.divIcon({
+        className: "aim-icon", iconSize: [18, 18], iconAnchor: [9, 9],
+        html: `<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6"
+          fill="#0b1220" stroke="#e8eef7" stroke-width="2"/><circle cx="9" cy="9" r="2" fill="#e8eef7"/></svg>` })
+      }).addTo(aimLayers);
+      h.bindTooltip("Dra för att sikta", { direction: "top" });
+      h.on("drag", ev => {
+        const p = ev.target.getLatLng();
+        g.aim = normDeg(segBearing([g.lat, g.lon], [p.lat, p.lng]));
+        g.dist = Math.round(haversine([g.lat, g.lon], [p.lat, p.lng]));
+      });
+      h.on("dragend", () => { persistGuns(); renderPlan(); });
+    }
+
     const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st), draggable: true }).addTo(gunLayers);
-    const outOfReach = cov.offset > cov.reach;
+    const nw = nearestWell(g.lat, g.lon);
+    const hoseOk = nw && nw.dist <= S.hoseLength;
+    if (nw && nw.dist <= S.hoseLength * 2.5) {
+      L.polyline([[g.lat, g.lon], [nw.well.lat, nw.well.lon]],
+        { color: hoseOk ? "#38bdf8" : "#f87171", weight: 2, opacity: .7, dashArray: "3 4" }).addTo(aimLayers);
+    }
+    const aimed = Number.isFinite(g.aim);
+    const outOfReach = cov.offset > cov.reach && !aimed;
     m.bindPopup(
-      `<div style="font:13px/1.5 sans-serif; min-width:200px">
-        <b>${g.type === "fan" ? "Fläktkanon" : "Lans"}</b><br>
-        ${Math.round(cov.offset)} m från spåret, räckvidd ${cov.reach} m.<br>
-        ${outOfReach ? `<span style="color:#dc2626">Når inte spåret härifrån — flytta ${Math.round(cov.offset - cov.reach)} m närmare.</span><br>` : ""}
-        Täcker ${Math.round(cov.covered)} m spår, värst i ${dirName(bearing)}-riktningen.<br>
+      `<div style="font:13px/1.5 sans-serif; min-width:210px">
+        <b>${g.type === "fan" ? "Fläktkanon" : "Lans"}</b>
+        ${aimed ? `· siktad ${Math.round(g.aim)}°, ${gunDist(g)} m` : "· följer spåret"}<br>
+        ${nw ? `Brunn ${nw.well.no}, ${Math.round(nw.dist)} m${hoseOk ? "" :
+          ` <span style="color:#dc2626">— mer än ${S.hoseLength} m slang</span>`}<br>` :
+          `<span style="color:#93a4bd">Ingen brunn utsatt.</span><br>`}
+        ${Math.round(cov.offset)} m från spåret, täcker ${Math.round(cov.covered)} m.<br>
+        ${outOfReach ? `<span style="color:#dc2626">Når inte spåret — flytta ${Math.round(cov.offset - cov.reach)} m närmare eller sikta fritt.</span><br>` : ""}
         Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
         ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}<br>
-        <a href="#" data-del="${g.id}" style="color:#dc2626">Ta bort</a>
+        <a href="#" data-aim="${g.id}">${sel ? "Dölj sikte" : "Provsikta"}</a>
+        ${aimed ? `· <a href="#" data-reset="${g.id}">Släpp siktet</a>` : ""}
+        · <a href="#" data-del="${g.id}" style="color:#dc2626">Ta bort</a>
        </div>`);
+    m.on("click", () => { selectedGunId = sel ? null : g.id; renderPlan(); });
     m.on("dragend", ev => {
       const p = ev.target.getLatLng();
       g.lat = +p.lat.toFixed(6); g.lon = +p.lng.toFixed(6);
       persistGuns(); renderPlan(); renderHero(); renderHours();
     });
     m.on("popupopen", ev => {
-      ev.popup.getElement().querySelector("[data-del]")?.addEventListener("click", e => {
+      const el = ev.popup.getElement();
+      el.querySelector("[data-del]")?.addEventListener("click", e => {
         e.preventDefault();
         guns = guns.filter(x => x.id !== g.id);
+        if (selectedGunId === g.id) selectedGunId = null;
+        persistGuns(); renderPlan(); renderHero(); renderHours();
+      });
+      el.querySelector("[data-aim]")?.addEventListener("click", e => {
+        e.preventDefault();
+        selectedGunId = sel ? null : g.id;
+        renderPlan();
+      });
+      el.querySelector("[data-reset]")?.addEventListener("click", e => {
+        e.preventDefault();
+        delete g.aim; delete g.dist;
         persistGuns(); renderPlan(); renderHero(); renderHours();
       });
     });
@@ -1404,6 +1713,7 @@ function renderPlan() {
     `över startgränsen ${fmt(base.th.base)} °C. Färgerna visar bara hur vinden ligger — dra reglaget till ett körfönster för att planera på riktigt.`;
   $("gunCount").textContent =
     `Fläkt ${guns.filter(g => g.type === "fan").length}/${S.fanCount} · Lans ${guns.filter(g => g.type === "lance").length}/${S.lanceCount}`;
+  $("wellCount").textContent = wells.length ? `${wells.length} brunnar` : "inga brunnar";
   $("timeLabel").textContent = sliderOffsetH === 0
     ? "nu" : `${dayPrefix(pt.x)} ${clock(pt.x)} · ${fmt(pt.wb)} °C våttemp`;
 
@@ -1486,7 +1796,8 @@ function renderStamp() {
   if (!fetchedAt) { el.textContent = ""; return; }
   const age = Math.round((Date.now() - fetchedAt) / 60000);
   const ageTxt = age < 1 ? "nyss" : age < 60 ? `för ${age} min sedan` : `för ${Math.round(age / 60)} h sedan`;
-  el.textContent = `Prognos hämtad ${ageTxt} · ${place.lat.toFixed(3)}, ${place.lon.toFixed(3)}`;
+  const cal = S.wbOffset ? ` · våttemp justerad ${S.wbOffset > 0 ? "+" : ""}${fmt(S.wbOffset)} °C` : "";
+  el.textContent = `Prognos hämtad ${ageTxt} · ${place.lat.toFixed(3)}, ${place.lon.toFixed(3)}${cal}`;
 }
 
 const STATE_COLOR = { go: "var(--go)", marginal: "var(--warn)", stop: "var(--stop)" };
@@ -2093,6 +2404,15 @@ const INFO = {
     <p>Dels pekar spåret åt flera håll samtidigt i en sväng. En lans mitt i en kurva täcker kanske trettio meter spår som vrider sig fyrtio grader, och samma vind är då snäll mot ena halvan och elak mot den andra. Appen bedömer därför varje aggregat mot alla sträckor det faktiskt når och visar den värsta, inte den närmaste. Det är den som sätter gränsen för hur länge ni kan låta den stå.</p>
     <div class="note">En sväng är samtidigt det mest förlåtande stället att stå på. Vilken vindriktning som än kommer finns det alltid någon del av bågen som ligger rätt. Det är därför det ofta lönar sig att börja natten i kurvorna och ta raksträckorna när vinden visat var den tänker lägga sig.</div>
 
+    <h3>Flygbild eller karta</h3>
+    <p>Kartan ligger som flygbild i botten. I skogen visar en vägkarta nästan ingenting, medan flygbilden visar schaktytor, gläntor, dammen och var spåret faktiskt går — samma val som ert styrsystem gjort. Vill ni hellre ha vägkartan finns omkopplaren nere till vänster på kartan.</p>
+
+    <h3>Brunnar och provsiktning</h3>
+    <p>Aggregaten står inte var som helst. De är kopplade till en brunn med vatten och el, och slangen är så lång den är. Sätt ut brunnarna på kartan en gång — tryck på <b>Placera brunn</b> och peka, eller klistra in koordinater under <b>Koordinater…</b> om ni har dem i listform. <b>Numrera från söder</b> sätter nummer ett längst söderut och räknar uppåt.</p>
+    <p>När ett aggregat står på kartan dras en streckad blå linje till närmaste brunn. Räcker inte slangen blir linjen röd och popupen säger hur långt bort brunnen ligger.</p>
+    <p>Tryck på ett aggregat och välj <b>Provsikta</b> så ritas två plymer. Den heldragna vita är dit snön skulle gå i vindstilla. Den streckade och färgade är dit den faktiskt hamnar med vinden som råder vid den tidpunkt reglaget står på. Avståndet mellan dem är precis vad vinden gör med lasset.</p>
+    <p>Dra i den lilla ringen i plymens mitt för att vrida kanonen och ändra kastlängd. Det sparas per aggregat, så ni kan ställa in en kanon som snöar på schaktytan och en annan som följer spåret. <b>Släpp siktet</b> lämnar tillbaka kanonen till automatiken, som riktar fläktar mot spåret och lansar längs det.</p>
+
     <h3>Byvind</h3>
     <p>Är byarna mer än ungefär dubbla medelvinden går det inte att rikta bort problemet. Kanonen står still men vinden gör det inte, och resultatet blir ränder av snö bredvid spåret. Sänk kastbanan om det går, annars vänta ut byigheten.</p>
     <div class="note">Vindpilarna i grafen pekar dit vinden blåser, alltså dit snön driver. Väderprognoser anger normalt vindriktningen som varifrån vinden kommer — de två är alltid 180 grader isär, och det är lätt att blanda ihop dem mitt i natten.</div>`,
@@ -2142,6 +2462,11 @@ const INFO = {
       <li><b>Dator:</b> Chrome och Edge visar en installationsikon längst till höger i adressfältet.</li>
     </ul>
     <div class="note">Öppnar ni länken inifrån Messenger eller Facebook hamnar ni i deras inbyggda webbläsare, som varken kan installera appen eller spara inställningar särskilt länge. Tryck på de tre prickarna och välj att öppna i Chrome eller Safari först.</div>
+
+    <h3>Era egna givare slår prognosen</h3>
+    <p>Har anläggningen våttemperaturgivare i styrsystemet är de alltid närmare sanningen än en prognospunkt tio meter över öppen mark. Läs av referensgivaren, skriv in värdet under ⚙️ och tryck Kalibrera. Appen räknar ut skillnaden mot modellen och lägger den på alla våttemperaturer, också i körfönstren och tabellen.</p>
+    <p>Välj referensgivaren, inte en kanon som står och går. Ett aggregat mitt i sin egen plym mäter sin egen fukt och visar flera grader för varmt. Ett styrsystem som listar tio givare där några skiljer sig kraftigt från klungan säger inte att vädret varierar så mycket — det säger vilka givare som står i snödimma eller har isat igen. Klungan är svaret, avvikarna är brus.</p>
+    <p>Gör om kalibreringen några nätter vid olika väder innan ni litar på siffran. Är skillnaden konsekvent beror den på platsen; hoppar den omkring beror den på vädret och ska lämnas i fred.</p>
 
     <h3>Justera mot er erfarenhet</h3>
     <p>Alla gränser går att ändra under ⚙️ och sparas i telefonen. Märker ni att ni i praktiken kan köra vid −2,0 i stället för −2,5, ändra siffran. Modellen är byggd för att kalibreras, inte för att ha rätt från början.</p>`
@@ -2222,6 +2547,7 @@ const SETTING_FIELDS = [
   ["fanBase", "fanBase", true], ["lanceBase", "lanceBase", true],
   ["windWarn", "windWarn", true], ["windStop", "windStop", true],
   ["fanCount", "fanCount", true], ["lanceCount", "lanceCount", true],
+  ["hoseLength", "hoseLength", true], ["wbOffset", "wbOffset", true],
   ["wbModel", "wbModel", false]
 ];
 
@@ -2264,8 +2590,9 @@ function openMap() {
   setTimeout(() => {
     if (!mapInstance) {
       mapInstance = L.map("map").setView([place.lat, place.lon], 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        { attribution: "© OpenStreetMap", maxZoom: 18 }).addTo(mapInstance);
+      const b = baseLayers();
+      b["Flygbild"].addTo(mapInstance);
+      L.control.layers(b, null, { position: "bottomleft" }).addTo(mapInstance);
       marker = L.marker([place.lat, place.lon], { draggable: true }).addTo(mapInstance);
       mapInstance.on("click", e => marker.setLatLng(e.latlng));
     } else {
@@ -2328,6 +2655,25 @@ function selectedFavorite() {
 $("btnRefresh").onclick = fetchData;
 $("btnSettings").onclick = () => { fillSettingsForm(); renderModelDelta(); openModal("settingsModal"); };
 $("btnCloseSettings").onclick = () => closeModal("settingsModal");
+$("btnCalibrate").onclick = () => {
+  const measured = parseFloat(String($("wbMeasured").value).replace(",", "."));
+  const pt = currentPoint();
+  if (!Number.isFinite(measured)) { $("calNote").textContent = "Skriv in avläsningen först."; return; }
+  if (!pt) { $("calNote").textContent = "Ingen aktuell prognos att jämföra med."; return; }
+  const raw = wetBulb(pt.temp, pt.rh, pt.pressure);
+  S.wbOffset = +(measured - raw).toFixed(2);
+  $("wbOffset").value = S.wbOffset;
+  saveSettings(); recomputeSeries(); renderAll();
+  $("calNote").innerHTML = `Modellen gav ${fmt(raw)} °C, ni mätte ${fmt(measured)} °C. ` +
+    `Korrigeringen är satt till <b>${S.wbOffset > 0 ? "+" : ""}${fmt(S.wbOffset)} °C</b>. ` +
+    `Gör om det några nätter vid olika väder innan ni litar på den.`;
+};
+$("btnClearOffset").onclick = () => {
+  S.wbOffset = 0; $("wbOffset").value = 0; $("wbMeasured").value = "";
+  $("calNote").textContent = "";
+  saveSettings(); recomputeSeries(); renderAll();
+};
+
 $("btnResetSettings").onclick = () => {
   S = { ...DEFAULTS }; saveSettings(); fillSettingsForm(); recomputeSeries(); renderAll();
 };
@@ -2468,16 +2814,42 @@ $("gpxInput2").onchange = e => handleGpxFile(e.target.files[0]);
 
 $("timeSlider").oninput = e => { sliderOffsetH = +e.target.value; renderPlan(); };
 
+const ADD_WORDS = { fan: "fläktkanon", lance: "lans", well: "brunn" };
 function armAdd(type) {
   addMode = addMode === type ? null : type;
   $("addFan").classList.toggle("armed", addMode === "fan");
   $("addLance").classList.toggle("armed", addMode === "lance");
+  $("addWell").classList.toggle("armed", addMode === "well");
+  // Läget står kvar tills man trycker igen, så man kan sätta ut alla i rad.
   setPlanNote(addMode
-    ? `Tryck på kartan där ${addMode === "fan" ? "fläktkanonen" : "lansen"} står. Tryck på knappen igen för att sluta placera.`
+    ? `Tryck på kartan för varje ${ADD_WORDS[addMode]} du vill sätta ut. Läget står kvar tills du trycker på knappen igen.`
     : "");
 }
 $("addFan").onclick = () => armAdd("fan");
 $("addLance").onclick = () => armAdd("lance");
+$("addWell").onclick = () => armAdd("well");
+$("btnWellNumber").onclick = () => {
+  if (!wells.length) return setPlanNote("Inga brunnar utsatta ännu.");
+  renumberWellsFromSouth();
+  setPlanNote(`Numrerade om ${wells.length} brunnar från söder till norr.`);
+};
+$("btnWellPaste").onclick = () => {
+  $("wellText").value = wells.map(w => `${w.no} ${w.lat.toFixed(6)} ${w.lon.toFixed(6)}`).join("\n");
+  $("wellParseNote").textContent = "";
+  openModal("wellModal");
+};
+$("wellText").oninput = () => {
+  const n = parseWellText($("wellText").value).length;
+  $("wellParseNote").textContent = n ? `Tolkar ${n} brunnar.` : "Hittar inga koordinatpar ännu.";
+};
+$("btnWellCancel").onclick = () => closeModal("wellModal");
+$("btnWellApply").onclick = () => {
+  const parsed = parseWellText($("wellText").value);
+  if (!parsed.length) { $("wellParseNote").textContent = "Hittade inga koordinater att spara."; return; }
+  wells = parsed;
+  persistWells(); closeModal("wellModal"); renderPlan();
+  setPlanNote(`Läste in ${wells.length} brunnar.`);
+};
 $("btnDemo").onclick = () => { useBuiltinTrack(); if (planMap) planMap._fitted = false; renderAll(); };
 $("btnBuiltin").onclick = () => {
   const near = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
