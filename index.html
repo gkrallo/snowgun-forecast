@@ -167,7 +167,6 @@ button{font-family:inherit}
 .btn{border:none; padding:10px 18px; border-radius:10px; font-weight:650; cursor:pointer; font-size:.9rem}
 .btn.ghost{background:var(--surface-2); color:var(--ink)}
 .btn.go{background:#16a34a; color:#fff}
-.btn.go.danger{background:#b91c1c}
 #map{flex:1; min-height:300px}
 
 /* planeringskarta */
@@ -194,11 +193,6 @@ button{font-family:inherit}
 .gunbar button{flex:0 0 auto; background:var(--surface-2); border:1px solid var(--line); color:var(--ink);
   padding:8px 12px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer; white-space:nowrap}
 .gunbar button.armed{background:var(--ice); border-color:var(--ice); color:#03121c}
-.gunbar button.danger{background:#7f1d1d; border-color:var(--stop); color:#fff}
-.popbtns{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
-.popbtns a{flex:0 0 auto; padding:6px 11px; border-radius:8px; background:var(--surface-2);
-  border:1px solid var(--line); color:var(--ink); text-decoration:none; font-weight:600}
-.popbtns a.del{background:#7f1d1d; border-color:var(--stop); color:#fff}
 .gunbar .count{margin-left:auto; font-size:.78rem; color:var(--ink-faint)}
 .empty{text-align:center; padding:26px 16px; color:var(--ink-dim)}
 .empty p{margin:0 0 14px; font-size:.9rem}
@@ -356,7 +350,7 @@ button{font-family:inherit}
       <p class="caption" id="planSummary" style="text-align:left; margin-top:10px"></p>
       <button class="btn ghost" id="useWhole" hidden style="margin-top:8px; font-size:.8rem; padding:7px 12px">Använd hela loggen i stället</button>
       <p class="plannote" id="planNote"></p>
-      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Spetsen på varje aggregat visar vart det är riktat. Tryck på ett aggregat för riktningsråd, provsiktning eller för att ta bort det.</p>
+      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Tryck på en kanon för riktningsråd.</p>
     </div>
   </div>
 
@@ -406,8 +400,8 @@ button{font-family:inherit}
       <p class="hint" style="margin-top:-4px" id="hangHint"></p>
       <div class="field">
         <label for="trailWidth">Spårets bredd att träffa (m)</label>
-        <input type="number" id="trailWidth" min="2" max="30" step="1" value="6">
-        <p class="hint">Hur bred yta ni vill lägga snön på. Driver snön längre än halva bredden hamnar den utanför.</p>
+        <input type="number" id="trailWidth" min="2" max="30" step="1" value="8">
+        <p class="hint">Spårgatans bredd, alltså hela ytan som ska bära snö. Med full snötillgång pistas den som två spår, skejtbädd och två spår till. Driver snön längre än halva bredden hamnar den utanför gatan. Kurvor är bredare än raksträckor, så siffran är ett medelvärde.</p>
       </div>
 
       <h3>Aggregat</h3>
@@ -425,8 +419,8 @@ button{font-family:inherit}
 
       <div class="field">
         <label for="hoseLength">Slanglängd från brunn (m)</label>
-        <input type="number" id="hoseLength" min="2" max="60" step="1" value="10">
-        <p class="hint">Hur långt från brunnen ett aggregat kan stå. Appen ritar en streckad linje till närmaste brunn och varnar när slangen inte räcker.</p>
+        <input type="number" id="hoseLength" min="2" max="60" step="1" value="8">
+        <p class="hint">Hur långt från brunnen ett aggregat faktiskt kan stå. Räkna inte med hela slanglängden: brunnarna är djupa, och slangen går inte att böja tvärt där den kommer upp. Av tio meter brukar åtta till nio återstå på marken. Appen ritar en streckad linje till närmaste brunn och varnar när det inte räcker.</p>
       </div>
 
       <h3>Vatten och snökvalitet</h3>
@@ -478,7 +472,7 @@ button{font-family:inherit}
           <input type="number" id="wbOffset" step="0.1" value="0" style="flex:1">
           <button class="btn ghost" id="btnClearOffset" style="white-space:nowrap">Nollställ</button>
         </div>
-        <p class="hint">Läggs till prognosens våttemperatur överallt i appen. Läs av styrsystemets referensgivare, inte en kanon som står mitt i sin egen plym — den visar för varmt.</p>
+        <p class="hint">Läggs till prognosens våttemperatur överallt i appen. Läs av styrsystemets referensgivare — på Sparbanksspåret sitter den vid brunn 7 — och inte en kanon som står mitt i sin egen plym, för den visar för varmt.</p>
       </div>
 
       <h3>Beräkningsmodell</h3>
@@ -577,22 +571,6 @@ button{font-family:inherit}
   </div>
 </div>
 
-<!-- Appens egen frågeruta. Ligger sist så att den hamnar ovanpå kartrutan
-     när man sparar en plats därifrån. -->
-<div class="overlay" id="askModal">
-  <div class="sheet" style="max-width:420px">
-    <header><h2 id="askTitle"></h2></header>
-    <div class="body">
-      <p id="askText" style="margin:0 0 12px"></p>
-      <div class="field" id="askField" style="margin-bottom:0"><input type="text" id="askInput" autocomplete="off"></div>
-    </div>
-    <footer>
-      <button class="btn ghost" id="askCancel">Avbryt</button>
-      <button class="btn go" id="askOk">OK</button>
-    </footer>
-  </div>
-</div>
-
 <script>
 "use strict";
 
@@ -606,14 +584,15 @@ const DEFAULTS = {
   fanDist: 30,        // m, fläktkanonens kastlängd
   lanceHeight: 7,     // m, lanshuvudets höjd över mark
   lanceDist: 8,       // m, lansens horisontella räckvidd
-  trailWidth: 6,      // m, ytan vi vill träffa
+  trailWidth: 8,      // m, spårgatans bredd — 2 spår + skejtbädd + 2 spår
   waterTemp: 1.5,     // °C
   quality: 5,         // 1 = torr puder, 10 = blöt bassnö
   fanBase: -2.5,      // °C våttemp, startgräns fläktkanon
   lanceBase: -4.0,    // °C våttemp, startgräns lans
   windWarn: 5,        // m/s
   windStop: 9,        // m/s
-  hoseLength: 10,     // m slang och kabel från brunn till aggregat
+  hoseLength: 8,      // m — tio meters slang, men brunnarna är djupa och
+                      // slangen går inte att böja tvärt vid brunnskanten
   fanCount: 6,        // antal fläktkanoner
   lanceCount: 3,      // antal lansar
   wbModel: "psychro",
@@ -915,8 +894,7 @@ function mergeSeries() {
 
 // Byter man plats medan en hämtning pågår kan det gamla svaret komma sist
 // och skriva över det nya. Varje hämtning får en bricka; bara den senaste
-// får röra tillståndet. Svaret läses färdigt innan något skrivs, så att en
-// hämtning som hunnit bli gammal inte lämnar halva sitt svar efter sig.
+// får röra tillståndet.
 let fetchToken = 0;
 
 async function fetchData() {
@@ -930,17 +908,16 @@ async function fetchData() {
     ]);
     if (!rH || !rH.ok) throw new Error("Vädertjänsten svarade inte");
     const jH = await rH.json();
-    const newHourly = mapBlock(jH.hourly);
-    if (!newHourly.length) throw new Error("Prognosen kom tom");
+    if (token !== fetchToken) return;
+    hourly = mapBlock(jH.hourly);
+    if (!hourly.length) throw new Error("Prognosen kom tom");
 
-    let newFine = [];
+    fine = [];
     if (rF && rF.ok) {
       const jF = await rF.json();
-      newFine = mapBlock(jF.minutely_15);
+      if (token !== fetchToken) return;
+      fine = mapBlock(jF.minutely_15);
     }
-    if (token !== fetchToken) return;
-    hourly = newHourly;
-    fine = newFine;
     series = mergeSeries();
     fetchedAt = Date.now();
     cacheSnapshot();
@@ -1061,6 +1038,47 @@ function clock(ts) {
    förenklat till 3 meters tolerans. Bara geometrin är med — inga tidsstämplar.
    Vem som helst kan läsa in sin egen anläggning i stället, och för alla andra
    fungerar det inbyggda spåret som ett exempel att prova funktionerna på. */
+/* Anläggningens tjugo brunnar, inmätta av snögruppen. De sitter i kanten på
+   spårgatan, som är ungefär åtta meter bred och bredare i kurvorna.
+
+   Brunn 1 och 16 står där spåret delar sig. Det inspelade varvet följer bara
+   den ena grenen, så de två hamnar längre från linjen på kartan än de är från
+   spårgatan i verkligheten. Samma sak gäller 10, 13 och 17.
+
+   Brunn 20 är en reserv vid schaktytan för träning och tillgänglighetsspår.
+   Den har aldrig använts och föreslås därför inte som inkoppling.
+
+   Brunn 7 bär
+   styrsystemets väderstation — det är den givaren appen ska kalibreras
+   mot. Dess vindmätare är däremot inte tillförlitlig, så vinden ska
+   alltid tas från prognosen.
+
+   Brunn 20 ligger vid schaktytan, knappt sextio meter från spåret. De
+   övriga följer ledningen längs spåret med ungefär sextio meters
+   mellanrum. */
+const BUILTIN_WELLS = [
+  { no: 1, lat: 58.500038, lon: 13.088891 },
+  { no: 2, lat: 58.50081, lon: 13.088443 },
+  { no: 3, lat: 58.501464, lon: 13.088295 },
+  { no: 4, lat: 58.502066, lon: 13.088121 },
+  { no: 5, lat: 58.502645, lon: 13.087593 },
+  { no: 6, lat: 58.50315, lon: 13.088064 },
+  { no: 7, lat: 58.503781, lon: 13.087922, station: true },
+  { no: 8, lat: 58.504247, lon: 13.08773 },
+  { no: 9, lat: 58.504722, lon: 13.087461 },
+  { no: 10, lat: 58.505265, lon: 13.087402 },
+  { no: 11, lat: 58.505641, lon: 13.086717 },
+  { no: 12, lat: 58.506026, lon: 13.086323 },
+  { no: 13, lat: 58.506739, lon: 13.08604 },
+  { no: 14, lat: 58.506874, lon: 13.087089 },
+  { no: 15, lat: 58.507007, lon: 13.088262 },
+  { no: 16, lat: 58.506981, lon: 13.089118 },
+  { no: 17, lat: 58.506829, lon: 13.090311 },
+  { no: 18, lat: 58.507088, lon: 13.090475 },
+  { no: 19, lat: 58.507521, lon: 13.089579 },
+  { no: 20, lat: 58.50341, lon: 13.086911, spare: true },
+];
+
 const BUILTIN_TRACK = {
   key: "sparbanksparet",
   name: "Sparbanksspåret",
@@ -1347,10 +1365,8 @@ function useBuiltinTrack() {
   resolveTrack();
 }
 
-// Borttagningsknappen vill bara bli av med det inlästa spåret. Nära Lidköping
-// tar resolveTrack fram Sparbanksspåret av sig självt; långt därifrån ska det
-// inte dyka upp. Demoknappens flagga får inte sättas här, för då följer
-// Sparbanksspåret med till nästa plats man väljer.
+// Borttagningsknappen vill bara bli av med det inlästa spåret. Långt från
+// Lidköping ska det inte ersättas av Sparbanksspåret.
 function clearUserTrack() {
   userTrack = null;
   localStorage.removeItem("snowTrack");
@@ -1470,13 +1486,12 @@ function segState(cross, baseState, type = "fan") {
   return "stop";
 }
 
-// Ett representativt värde för hero, tabell och grafer. Med kanoner utplacerade
-// räknas bara de lägen ni faktiskt kör på, annars hela spåret viktat efter längd.
+// Ett representativt värde för hero och tabell. Med kanoner utplacerade räknas
+// bara de lägen ni faktiskt kör på, annars hela spåret viktat efter längd.
 /* Bäringsprofilen — vilka riktningar spåret löper i, eller vilka riktningar
    aggregaten står mot. Den ändras bara när spåret, kanonerna eller
    inställningarna gör det, så den räknas en gång och återanvänds. Graferna
-   ritar hundratals punkter och skulle annars gå igenom hela spåret per punkt.
-   Allt som ändrar spår, kanoner eller S måste anropa invalidateWindProfile. */
+   ritar tusentals punkter och skulle annars gå igenom hela spåret per punkt. */
 let windProfile = null;
 function invalidateWindProfile() { windProfile = null; }
 
@@ -1500,9 +1515,7 @@ function crossOf(wind, dir, bearing) {
    därefter medianen över aggregaten. Annars medianen längs spåret, viktad
    efter hur många meter varje riktning utgör. Tidigare räknade graferna mot
    den manuella spårbäringen, som är meningslös när ett spår är inläst — och
-   gav noll tvärvind så fort den bäringen råkade ligga i vindens riktning.
-   Strikt större än halva vikten: vid jämnt antal aggregat blir det det
-   sämre av de två mittersta, som det alltid har varit. */
+   gav noll tvärvind så fort den bäringen råkade ligga i vindens riktning. */
 function crossStats(wind, dir) {
   const p = getWindProfile();
   const rows = p.mode === "guns"
@@ -1511,7 +1524,7 @@ function crossStats(wind, dir) {
   rows.sort((a, b) => a.c - b.c);
   const half = rows.reduce((a, r) => a + r.w, 0) / 2;
   let acc = 0, median = rows[rows.length - 1].c;
-  for (const r of rows) { acc += r.w; if (acc > half) { median = r.c; break; } }
+  for (const r of rows) { acc += r.w; if (acc >= half) { median = r.c; break; } }
   return { median, min: rows[0].c, max: rows[rows.length - 1].c, mode: p.mode, count: rows.length };
 }
 
@@ -1544,23 +1557,15 @@ function baseLayers() {
   return { "Flygbild": air, "Karta": map };
 }
 
-// Spetsen pekar dit aggregatet är riktat, så att uppställningen går att läsa
-// utan att trycka på varje kanon. Kartan är alltid norr upp, så bäringen kan
-// läggas direkt som rotation runt ikonens mitt — som också är kanonens plats.
-function gunIcon(type, state, aim = 0) {
+function gunIcon(type, state) {
   const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[state] || "#93a4bd";
-  const rot = `rotate(${Math.round(normDeg(aim))} 16 16)`;
-  const tip = `<path d="M16 1 L21.5 10 H10.5 Z" fill="${col}" stroke="#0b1220" stroke-width="1.6" stroke-linejoin="round"/>`;
   const body = type === "fan"
-    ? `<g transform="${rot}">${tip}</g>
-       <circle cx="16" cy="16" r="8.5" fill="${col}" stroke="#0b1220" stroke-width="2"/>
-       <path d="M16 9.5v13M10 12.5l12 7M22 12.5l-12 7" stroke="#0b1220" stroke-width="1.5" stroke-linecap="round"/>`
-    : `<g transform="${rot}">
-         <rect x="12.5" y="9" width="7" height="17" rx="3.5" fill="${col}" stroke="#0b1220" stroke-width="2"/>${tip}
-       </g>`;
+    ? `<circle cx="13" cy="13" r="9" fill="${col}" stroke="#0b1220" stroke-width="2"/>
+       <path d="M13 6v14M6.5 9.5l13 7M19.5 9.5l-13 7" stroke="#0b1220" stroke-width="1.6" stroke-linecap="round"/>`
+    : `<rect x="9" y="3" width="8" height="20" rx="4" fill="${col}" stroke="#0b1220" stroke-width="2"/>`;
   return L.divIcon({
-    className: "gun-icon", iconSize: [32, 32], iconAnchor: [16, 16],
-    html: `<svg width="32" height="32" viewBox="0 0 32 32">${body}</svg>`
+    className: "gun-icon", iconSize: [26, 26], iconAnchor: [13, 13],
+    html: `<svg width="26" height="26" viewBox="0 0 26 26">${body}</svg>`
   });
 }
 
@@ -1616,7 +1621,12 @@ function addGun(type, lat, lon) {
 function loadWellsForTrack() {
   if (!wellStore) { wellStore = {}; localStorage.setItem("snowWellsByTrack", JSON.stringify(wellStore)); }
   const k = trackKey();
-  wells = k && Array.isArray(wellStore[k]) ? wellStore[k] : [];
+  if (k && Array.isArray(wellStore[k])) { wells = wellStore[k]; return; }
+  // Aldrig rörda brunnar på det inbyggda spåret: använd anläggningens egna.
+  // Har någon redigerat dem ligger en array i lagret, även om den är tom.
+  wells = (k === BUILTIN_TRACK.key)
+    ? BUILTIN_WELLS.map(w => ({ ...w, id: "builtin-" + w.no }))
+    : [];
 }
 
 function persistWells() {
@@ -1807,7 +1817,9 @@ function renderSurveyList() {
 
 function nearestWell(lat, lon) {
   let best = null, bd = Infinity;
+  // Reservbrunnar är inte inkopplade och ska inte föreslås som anslutning.
   for (const w of wells) {
+    if (w.spare) continue;
     const d = haversine([lat, lon], [w.lat, w.lon]);
     if (d < bd) { bd = d; best = w; }
   }
@@ -1902,17 +1914,21 @@ function renderPlan() {
   // brunnarna först, så att aggregaten hamnar ovanpå
   wells.forEach(wl => {
     const occupied = guns.some(g => haversine([g.lat, g.lon], [wl.lat, wl.lon]) <= S.hoseLength);
+    const ring = wl.station ? "#fbbf24" : wl.spare ? "#68789a" : "#38bdf8";
     const m = L.marker([wl.lat, wl.lon], {
       icon: L.divIcon({ className: "well-icon", iconSize: [22, 22], iconAnchor: [11, 11],
         html: `<svg width="22" height="22" viewBox="0 0 22 22">
-          <circle cx="11" cy="11" r="8.5" fill="${occupied ? "#38bdf8" : "#0b1220"}"
-                  stroke="#38bdf8" stroke-width="2"/>
+          <circle cx="11" cy="11" r="8.5" fill="${occupied ? ring : "#0b1220"}"
+                  stroke="${ring}" stroke-width="${wl.station ? 3 : 2}"/>
           <text x="11" y="15" font-size="10" font-weight="700" text-anchor="middle"
-                fill="${occupied ? "#03121c" : "#38bdf8"}">${wl.no}</text></svg>` }),
+                fill="${occupied ? "#03121c" : ring}">${wl.no}</text></svg>` }),
       draggable: true
     }).addTo(gunLayers);
     m.bindPopup(`<div style="font:13px/1.5 sans-serif">
-      <b>Brunn ${wl.no}</b><br>${wl.lat.toFixed(5)}, ${wl.lon.toFixed(5)}<br>
+      <b>Brunn ${wl.no}</b>${wl.station ? ' · <span style="color:#b45309">väderstation</span>' : ""}${wl.spare ? ' · <span style="color:#64748b">reserv</span>' : ""}<br>
+      ${wl.spare ? "Reserv vid schaktytan, inte inkopplad.<br>" : ""}
+      ${wl.lat.toFixed(5)}, ${wl.lon.toFixed(5)}<br>
+      ${wl.station ? "Härifrån tas våttemperaturen vid kalibrering. Vindmätaren på platsen är inte tillförlitlig — använd prognosens vind.<br>" : ""}
       <a href="#" data-wno="${wl.id}">Byt nummer</a> ·
       <a href="#" data-wdel="${wl.id}" style="color:#dc2626">Ta bort</a></div>`);
     m.on("dragend", ev => {
@@ -1927,10 +1943,9 @@ function renderPlan() {
         wells = wells.filter(x => x.id !== wl.id);
         persistWells(); renderPlan();
       });
-      el.querySelector("[data-wno]")?.addEventListener("click", async e => {
+      el.querySelector("[data-wno]")?.addEventListener("click", e => {
         e.preventDefault();
-        const v = parseInt(await ask({ title: `Brunn ${wl.no}`, text: "Nytt nummer på brunnen:",
-                                       value: String(wl.no), type: "number", ok: "Spara" }), 10);
+        const v = parseInt(prompt("Brunnens nummer:", wl.no), 10);
         if (Number.isFinite(v)) { wl.no = v; persistWells(); renderPlan(); }
       });
     });
@@ -1976,7 +1991,7 @@ function renderPlan() {
       h.on("dragend", () => { persistGuns(); renderPlan(); });
     }
 
-    const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st, plume.aim), draggable: true }).addTo(gunLayers);
+    const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st), draggable: true }).addTo(gunLayers);
     const nw = nearestWell(g.lat, g.lon);
     const hoseOk = nw && nw.dist <= S.hoseLength;
     if (nw && nw.dist <= S.hoseLength * 2.5) {
@@ -1995,16 +2010,12 @@ function renderPlan() {
         ${Math.round(cov.offset)} m från spåret, täcker ${Math.round(cov.covered)} m.<br>
         ${outOfReach ? `<span style="color:#dc2626">Når inte spåret — flytta ${Math.round(cov.offset - cov.reach)} m närmare eller sikta fritt.</span><br>` : ""}
         Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
-        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}
-        <div class="popbtns">
-          <a href="#" data-aim="${g.id}">${sel ? "Dölj sikte" : "Provsikta"}</a>
-          ${aimed ? `<a href="#" data-reset="${g.id}">Släpp siktet</a>` : ""}
-          <a href="#" class="del" data-del="${g.id}">Ta bort</a>
-        </div>
+        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}<br>
+        <a href="#" data-aim="${g.id}">${sel ? "Dölj sikte" : "Provsikta"}</a>
+        ${aimed ? `· <a href="#" data-reset="${g.id}">Släpp siktet</a>` : ""}
+        · <a href="#" data-del="${g.id}" style="color:#dc2626">Ta bort</a>
        </div>`);
-    // Ingen egen klickhanterare på kanonen. Den ritade om kartan, och då
-    // stängdes rutan med Ta bort innan den hann visas. Siktet slås på med
-    // Provsikta i rutan i stället.
+    m.on("click", () => { selectedGunId = sel ? null : g.id; renderPlan(); });
     m.on("dragend", ev => {
       const p = ev.target.getLatLng();
       g.lat = +p.lat.toFixed(6); g.lon = +p.lng.toFixed(6);
@@ -2683,10 +2694,10 @@ const INFO = {
         <tr><td>0 °C</td><td>90 %</td><td>−0,6 °C</td><td style="color:var(--stop)">för varmt</td></tr>
         <tr><td>0 °C</td><td>30 %</td><td>−4,1 °C</td><td style="color:var(--go)">bra läge</td></tr>
         <tr><td>+2 °C</td><td>90 %</td><td>+1,4 °C</td><td style="color:var(--stop)">omöjligt</td></tr>
-        <tr><td>+2 °C</td><td>30 %</td><td>−2,5 °C</td><td style="color:var(--warn)">precis på gränsen</td></tr>
+        <tr><td>+2 °C</td><td>30 %</td><td>−2,5 °C</td><td style="color:var(--go)">går att köra</td></tr>
       </tbody>
     </table>
-    <p class="hint" style="margin-top:-6px">Värdena är räknade med appens egen modell. Under noll grader kan våttemperaturen räknas mot vatten eller mot is; appen räknar mot vatten, eftersom dropparna i fanan är flytande. Tabeller som räknar mot is visar ett par tiondelar kallare i torr luft, till exempel −4,3 och −2,8 för raderna med 30 %.</p>
+    <p class="hint" style="margin-top:-6px">Värdena är räknade med appens egen modell och stämmer med den termodynamiska våttemperaturen inom några hundradels grader. Äldre tabeller anger ofta ett par tiondelar kallare vid låg luftfuktighet.</p>
     <p>Samma lufttemperatur, helt olika verklighet. Två plusgrader i torr luft är alltså ett bättre snöläge än noll grader i dimma.</p>
     <div class="figure">
       <canvas id="wbMap" width="520" height="300"></canvas>
@@ -2726,6 +2737,7 @@ const INFO = {
     <h3>Vinden är inte bara en siffra</h3>
     <p>Vind gör tre saker samtidigt, och bara en av dem är bra. Den hjälper till att kyla och sprida fanan. Den flyttar snön i sidled. Och när den är byig gör den läggningen ojämn på ett sätt som inte går att kompensera.</p>
     <div class="figure">${SVG_DRIFT}<p class="figcap">Snön hänger i luften ungefär fallhöjden delat med fallhastigheten, cirka 1,2 m/s för konstsnö. Från åtta meters höjd blir det nästan sju sekunder — och sju sekunder i tre meter per sekund sidvind är över tio meter sidled på ett spår som är sex meter brett. Kastar ni lägre minskar driften proportionellt, och det är det billigaste sättet att rädda en blåsig natt.</p></div>
+    <p>Det som ska bära snö är hela spårgatan, inte en smal remsa. Sparbanksspårets gata är ungefär åtta meter och pistas vid god snötillgång som två klassiska spår, en skejtbädd och två spår till. Hela bredden måste alltså ha jämnt djup — en gata som är full på ena sidan och tunn på den andra går inte att preparera till fem banor.</p>
     <p>Det är därför ett längdspår är svårare att snöa än en slalombacke. Ni ska träffa ett band som är några meter brett, inte en femtio meter bred pist. Redan två meter per sekund tvärs spåret flyttar tyngdpunkten i fanan utanför.</p>
 
     <h3>Fallhöjd är inte samma sak som molnet ni ser</h3>
@@ -2764,6 +2776,10 @@ const INFO = {
 
     <h3>Brunnar och provsiktning</h3>
     <p>Aggregaten står inte var som helst. De är kopplade till en brunn med vatten och el, och slangen är så lång den är. Sätt ut brunnarna på kartan en gång — tryck på <b>Placera brunn</b> och peka, eller klistra in koordinater under <b>Koordinater…</b> om ni har dem i listform. <b>Numrera från söder</b> sätter nummer ett längst söderut och räknar uppåt.</p>
+    <p>För Sparbanksspåret ligger alla tjugo brunnar redan inlagda, med nummer ett längst i söder. Brunn 7 är markerad i gult: den bär styrsystemets väderstation och är givaren att läsa av när ni kalibrerar våttemperaturen. <b>Vindmätaren på samma station är däremot inte tillförlitlig</b> — stationen står i skogen och mäter något annat än den vind som faktiskt bär snön. Använd prognosens vind, inte stationens.</p>
+    <p>Brunnarna sitter i kanten på spårgatan med ungefär sextio meters mellanrum. Brunn 20 är en reserv vid schaktytan för träning och tillgänglighetsspår; den är inte inkopplad och föreslås därför aldrig som anslutning.</p>
+    <p>Några brunnar ser ut att ligga en bit från spåret på kartan — 1, 10, 13, 16 och 17. Det beror på att det inspelade varvet bara följer den ena grenen där spåret delar sig, inte på att brunnarna står fel. Vill ni ha kartan helt rätt: åk en runda som täcker alla grenar och läs in den filen i stället.</p>
+    <p>Slanglängden är satt till åtta meter, inte tio. Brunnarna är djupa och slangen går inte att böja tvärt där den kommer upp ur brunnen, så ett par meter försvinner innan den ens ligger på marken. Mät gärna efter nästa gång ni kopplar, och justera under ⚙️ om det blir mer eller mindre.</p>
     <p>Har ni inga koordinater går det att mäta in dem på plats. Tryck <b>Mät in med GPS</b>, ställ er vid brunnen och tryck Mät. Appen samlar positioner under mättiden och viktar ihop dem efter hur säkert varje fix är — ett fix på fem meters noggrannhet väger sexton gånger tyngre än ett på tjugo. Tio sekunder räcker oftast; i tät granskog kan det vara värt tjugo.</p>
     <p>Tre saker sorteras bort automatiskt: det första fixet, som ofta är ett gammalt cachat värde från innan ni gick ut; upprepningar av samma position; och enstaka fix som ligger långt från de andra. Appen visar hur många som användes och hur mycket de spretade. <b>Spridningen mellan fixen säger mer om kvaliteten än telefonens egen noggrannhetssiffra</b>, som brukar vara optimistisk. Ligger den över åtta meter är det värt att mäta om.</p>
     <p>Numret räknar upp av sig självt, så ni går runt i tur och ordning. Skriver ni in ett nummer som redan finns ersätts den brunnen i stället, vilket är vägen att mäta om en punkt som hamnade snett.</p>
@@ -2944,52 +2960,6 @@ function readSettingsForm() {
 function openModal(id) { $(id).classList.add("open"); }
 function closeModal(id) { $(id).classList.remove("open"); }
 
-/* Appens egna frågor. Webbläsarens inbyggda (alert, confirm, prompt) visas
-   inte överallt: i förhandsvisningen i Claude-appen, i vissa installerade
-   appar och i inbyggda webbläsare som Messengers svarar de nej eller tomt
-   direkt utan att något syns, och knappen ser död ut.
-   Med `value` visas ett fält och svaret är texten. Utan är det en ren
-   bekräftelse som svarar true. Klick utanför eller Esc ger alltid null;
-   Avbryt-knappen ger `cancelValue`, som också är null om inget annat sägs. */
-function ask({ title, text = "", value = null, placeholder = "", type = "text",
-               ok = "OK", cancel = "Avbryt", cancelValue = null, danger = false }) {
-  return new Promise(resolve => {
-    const modal = $("askModal"), input = $("askInput");
-    $("askTitle").textContent = title;
-    $("askText").textContent = text;
-    $("askText").hidden = !text;
-    $("askField").hidden = value === null;
-    input.type = type;
-    input.value = value ?? "";
-    input.placeholder = placeholder;
-    $("askOk").textContent = ok;
-    $("askOk").classList.toggle("danger", danger);
-    $("askCancel").hidden = !cancel;
-    $("askCancel").textContent = cancel || "";
-
-    let done = false;
-    const onKey = e => { if (e.key === "Escape") finish(null); };
-    const finish = answer => {
-      if (done) return;
-      done = true;
-      closeModal("askModal");
-      modal.onclick = input.onkeydown = $("askOk").onclick = $("askCancel").onclick = null;
-      document.removeEventListener("keydown", onKey);
-      resolve(answer);
-    };
-    $("askOk").onclick = () => finish(value === null ? true : input.value.trim());
-    $("askCancel").onclick = () => finish(cancelValue);
-    modal.onclick = e => { if (e.target === modal) finish(null); };
-    input.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("askOk").click(); } };
-    document.addEventListener("keydown", onKey);
-    openModal("askModal");
-    if (value !== null) setTimeout(() => { input.focus(); input.select(); }, 50);
-  });
-}
-
-// Ett besked med bara en OK-knapp.
-function tell(title, text) { return ask({ title, text, cancel: false }); }
-
 function openMap() {
   openModal("mapModal");
   setTimeout(() => {
@@ -3090,8 +3060,7 @@ $("btnClearOffset").onclick = () => {
 };
 
 $("btnResetSettings").onclick = () => {
-  S = { ...DEFAULTS }; invalidateWindProfile();
-  saveSettings(); fillSettingsForm(); recomputeSeries(); renderAll();
+  S = { ...DEFAULTS }; saveSettings(); fillSettingsForm(); recomputeSeries(); renderAll();
 };
 SETTING_FIELDS.forEach(([id]) => { $(id).oninput = readSettingsForm; $(id).onchange = readSettingsForm; });
 
@@ -3106,16 +3075,10 @@ $("infoNav").onclick = e => {
 
 $("btnMap").onclick = openMap;
 $("btnCancelMap").onclick = () => closeModal("mapModal");
-// Fältet börjar tomt. Med förra platsens namn ifyllt räckte det att trycka
-// Spara för att tyst flytta den sparade platsen med samma namn hit.
-$("btnSaveMap").onclick = async () => {
+$("btnSaveMap").onclick = () => {
   const p = marker.getLatLng();
-  const name = await ask({ title: "Spara platsen",
-    text: "Vad heter platsen? Med ett namn hamnar den i listan, så att du kan välja den igen.",
-    value: "", placeholder: "t.ex. Hemmaspåret", ok: "Spara i listan",
-    cancel: "Använd utan namn", cancelValue: "" });
-  if (name === null) return;   // Esc eller klick utanför: ångra hela bytet
   place.lat = +p.lat.toFixed(4); place.lon = +p.lng.toFixed(4);
+  const name = prompt("Vad heter platsen?", place.name);
   if (name) { place.name = name; saveFavorite(name, place.lat, place.lon); }
   else place.name = "Vald plats";
   persistPlace(); populateFavorites(); resolveTrack();
@@ -3161,30 +3124,28 @@ $("favSelect").onchange = () => {
 
 // Bugg i gamla versionen: kontrollen gjordes efter splice och läste därför av
 // den favorit som råkat glida in på samma plats i listan.
-$("btnDelFav").onclick = async () => {
+$("btnDelFav").onclick = () => {
   const f = selectedFavorite();
-  if (!f) return tell("Ta bort plats", "Välj först en sparad plats i listan.");
-  if (favorites.length === 1) return tell("Ta bort plats", "Det går inte att ta bort den sista platsen.");
-  if (!await ask({ title: "Ta bort plats", text: `Ta bort "${f.name}" ur listan?`, ok: "Ta bort", danger: true })) return;
+  if (!f) return alert("Välj först en sparad plats i listan.");
+  if (favorites.length === 1) return alert("Det går inte att ta bort den sista platsen.");
+  if (!confirm(`Ta bort "${f.name}"?`)) return;
   const wasCurrent = Math.abs(f.lat - place.lat) < 1e-4 && Math.abs(f.lon - place.lon) < 1e-4;
   favorites = favorites.filter(x => x.id !== f.id);
   localStorage.setItem("snowFavorites", JSON.stringify(favorites));
   if (wasCurrent) {
     place = { lat: favorites[0].lat, lon: favorites[0].lon, name: favorites[0].name };
-    persistPlace(); populateFavorites(); resolveTrack();
-    if (planMap) planMap._fitted = false;
-    fetchData();
+    persistPlace(); populateFavorites(); resolveTrack(); fetchData();
   } else populateFavorites();
 };
 
-$("btnRenameFav").onclick = async () => {
+$("btnRenameFav").onclick = () => {
   const f = selectedFavorite();
-  if (!f) return tell("Byt namn", "Välj först en sparad plats i listan.");
-  const name = await ask({ title: "Byt namn", text: "Nytt namn på platsen:", value: f.name, ok: "Spara" });
+  if (!f) return alert("Välj först en sparad plats i listan.");
+  const name = prompt("Nytt namn:", f.name);
   if (!name) return;
   f.name = name;
   localStorage.setItem("snowFavorites", JSON.stringify(favorites));
-  if (Math.abs(f.lat - place.lat) < 1e-4 && Math.abs(f.lon - place.lon) < 1e-4) { place.name = name; persistPlace(); }
+  if (Math.abs(f.lat - place.lat) < 1e-4) { place.name = name; persistPlace(); }
   populateFavorites(); renderStamp();
 };
 
@@ -3287,49 +3248,21 @@ $("btnWellApply").onclick = () => {
   setPlanNote(`Läste in ${wells.length} brunnar.`);
 };
 $("btnDemo").onclick = () => { useBuiltinTrack(); if (planMap) planMap._fitted = false; renderAll(); };
-$("btnBuiltin").onclick = async () => {
+$("btnBuiltin").onclick = () => {
   const near = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
-  const ok = await ask(near
-    ? { title: "Tillbaka till Sparbanksspåret",
-        text: "Ditt inlästa spår tas bort, men kanonuppställningen finns kvar om du läser in samma fil igen.",
-        ok: "Byt tillbaka" }
-    : { title: "Ta bort inläst spår",
-        text: "Kanonuppställningen finns kvar om du läser in samma fil igen.",
-        ok: "Ta bort", danger: true });
-  if (!ok) return;
-  clearUserTrack();
+  if (!confirm(near
+    ? "Byt tillbaka till det inbyggda Sparbanksspåret? Ditt inlästa spår tas bort, men kanonuppställningen finns kvar om du läser in samma fil igen."
+    : "Ta bort det inlästa spåret? Kanonuppställningen finns kvar om du läser in samma fil igen.")) return;
+  if (near) useBuiltinTrack(); else clearUserTrack();
   if (planMap) planMap._fitted = false;
   setPlanNote("");
   renderAll();
 };
 
-/* Inbyggda frågerutor (confirm) visas inte överallt. I förhandsvisningen i
-   Claude-appen, i vissa installerade appar och i inbyggda webbläsare som
-   Messengers svarar de nej direkt utan att något syns — och då gjorde Rensa
-   kanoner ingenting. Knappen frågar i stället själv: första trycket byter
-   texten, ett andra tryck inom fyra sekunder utför. */
-function armConfirm(btn, question, action) {
-  const reset = () => {
-    clearTimeout(btn._armTimer); btn._armTimer = null;
-    btn.textContent = btn._armLabel; btn.classList.remove("danger");
-  };
-  if (btn._armTimer) { reset(); action(); return true; }
-  btn._armLabel = btn.textContent;
-  btn.textContent = question;
-  btn.classList.add("danger");
-  btn._armTimer = setTimeout(() => { reset(); setPlanNote(""); }, 4000);
-  return false;
-}
-
 $("clearGuns").onclick = () => {
-  if (!guns.length) return setPlanNote("Inga aggregat är utplacerade.");
-  const n = guns.length;
-  const done = armConfirm($("clearGuns"), `Ja, ta bort alla ${n}`, () => {
-    guns = []; selectedGunId = null;
-    persistGuns(); renderPlan(); renderHero(); renderHours();
-    setPlanNote(`Tog bort ${n} aggregat.`);
-  });
-  if (!done) setPlanNote("Tryck en gång till för att ta bort alla. Ett enskilt aggregat tar du bort genom att trycka på det på kartan.");
+  if (!guns.length) return;
+  if (!confirm(`Ta bort alla ${guns.length} utplacerade aggregat?`)) return;
+  guns = []; persistGuns(); renderPlan(); renderHero(); renderHours();
 };
 
 /* ==========================================================================

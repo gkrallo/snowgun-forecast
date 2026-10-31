@@ -51,6 +51,18 @@ Under ⚙️ ställs anläggningens egna värden in. De sparas i webbläsaren.
 
 ## Brunnar och aggregat
 
+För Sparbanksspåret ligger anläggningens tjugo brunnar inbakade i appen som
+`BUILTIN_WELLS`, med brunn 7 markerad som styrsystemets väderstation. De laddas
+som förval så länge ingen redigerat dem; så fort någon ändrar något sparas
+listan lokalt och tar över.
+
+Spårgatan är satt till åtta meter: hela ytan som ska bära snö, pistad som två
+spår, skejtbädd och två spår. Brunn 20 är markerad som reserv och föreslås
+aldrig som inkoppling.
+
+Slanglängden är satt till åtta meter trots att slangen är tio. Brunnarna är
+djupa och slangen går inte att böja tvärt vid kanten.
+
 Anläggningen har fasta brunnar med vatten och el, och aggregaten kopplas in med
 slang. Brunnarna sätts ut på kartan, klistras in som koordinater eller mäts in
 på plats med telefonens GPS, och kan numreras om automatiskt från söder till
@@ -112,6 +124,14 @@ skarpa knän.
 
 Inlästa spår och utplacerade aggregat sparas lokalt i webbläsaren, inte i repot.
 Det inbyggda spåret ligger däremot i `index.html` och följer med alla besökare.
+
+## Tester
+
+`node verify.mjs` kör de tretton fel som en kodgranskning hittade i januari och
+som nu är åtgärdade. Varje test bevisar både att felet fanns och att det är
+borta. Kör den före varje utgåva.
+
+Testerna stubbar Chart.js, Leaflet och `fetch`, så inga riktiga nätanrop görs.
 
 ## Kalibrering
 
@@ -228,7 +248,6 @@ installerat appen ligga kvar på gammal kod tills cachen töms.
 | `icon-192.png`, `icon-512.png` | Appikoner. |
 | `icon-maskable-512.png` | Ikon med marginal för Androids runda masker. |
 | `apple-touch-icon.png` | Ikon för iOS hemskärm. |
-| `unit.mjs` | Tester av beräkningarna. Följer inte med till besökarna. |
 
 Sökvägarna är relativa, så det fungerar både i repotets underkatalog på GitHub
 Pages och på en egen domän.
@@ -236,23 +255,7 @@ Pages och på en egen domän.
 ## Kör lokalt
 
 Ladda ner `index.html` och öppna den i valfri webbläsare. Inget mer behövs —
-service workern hoppas över när sidan öppnas direkt från disk.
-
-Vill du prova offlineläget och installationen, starta en enkel server i
-mappen, till exempel `python -m http.server 8000`, och öppna
-`http://localhost:8000`. Webbläsaren räknar localhost som säkert, så där
-startar service workern precis som på GitHub Pages.
-
-## Tester
-
-`node unit.mjs` kontrollerar beräkningarna: våttemperatur, startgränser,
-sidodrift, körfönster, varvdetektering, täckning, brunnar, lagring och
-service worker. Den laddar hela appen i en låtsasbrowser (jsdom) med påhittat
-väder. Chart.js, Leaflet och `fetch` byts mot attrapper, så inga riktiga
-nätanrop görs. Kör den före varje utgåva.
-
-jsdom installeras en gång, utan att någon paketfil skapas:
-`npm install --no-save --no-package-lock jsdom`.
+service workern hoppas över när sidan inte serveras över https.
 
 ## Licens
 

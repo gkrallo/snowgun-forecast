@@ -18,9 +18,28 @@ Vintersportklubbs snögrupp. Ligger på GitHub Pages som en PWA.
 ## Anläggningen
 
 Sex fläktkanoner (Sufag Super Access, numera MND Snow) och tre lansar
-(MND Taurus 2.0). Alla mobila. Arton fasta brunnar med vatten och el; slangen
-är tio meter, ibland tjugo. Styrsystemet är Sufags eget med
-våttemperaturgivare på kanonerna.
+(MND Taurus 2.0). Alla mobila.
+
+Tjugo fasta brunnar med vatten och el, inlagda som `BUILTIN_WELLS`. Nummer ett
+längst i söder, ungefär sextio meters mellanrum. De sitter **i kanten på
+spårgatan**, som är cirka åtta meter bred och bredare i kurvorna. Vid god
+snötillgång pistas gatan som två spår, skejtbädd och två spår; åkriktningen är
+motsols.
+
+Brunn 1 och 16 står där spåret delar sig. Det inspelade varvet följer bara ena
+grenen, så de hamnar längre från linjen på kartan än de är från spårgatan i
+verkligheten. Samma gäller 10, 13 och 17 — det är inte fel i koordinaterna.
+
+Brunn 20 är en reserv vid schaktytan, aldrig använd, markerad `spare: true` och
+utesluten ur förslag om inkoppling.
+
+**Brunn 7 bär styrsystemets väderstation.** Det är den givaren som ska läsas av
+vid kalibrering. Dess vindmätare är inte tillförlitlig — vinden ska alltid tas
+från prognosen, aldrig från stationen.
+
+Slangen är tio meter men förvalet är åtta. Brunnarna är djupa och slangen går
+inte att böja tvärt vid brunnskanten, så ett par meter försvinner innan den
+ligger på marken.
 
 Spåret är Sparbanksspåret, 2,3 km, inbakat i `index.html` som
 `BUILTIN_TRACK`. Drygt hälften går i nord–sydlig led.
@@ -30,21 +49,13 @@ Spåret är Sparbanksspåret, 2,3 km, inbakat i `index.html` som
 **Våttemperatur** löses numeriskt ur den psykrometriska jämvikten
 (`wetBulbPsychrometric`), med Buck 1996 för mättnadsångtrycket och verkligt
 lufttryck från prognosen. Stulls approximation finns kvar som alternativ men
-räknar 0,2–0,5 grader för kallt vid hög luftfuktighet. Verifierat mot
+räknar 0,3–0,7 grader för kallt vid hög luftfuktighet. Verifierat mot
 tabellvärden: 0 °C/90 % ska ge ungefär −0,6.
-
-Appen räknar mot vatten även under noll, eftersom dropparna i fanan är
-flytande. ASHRAE:s definition räknar mot is under noll och ger ett par
-tiondelar kallare i torr luft (0 °C/30 %: −4,25 mot appens −4,08; +2 °C/30 %:
-−2,76 mot −2,50). Det ligger precis vid startgränsen, så byt inte modell utan
-att jämföra mot styrsystemets givare — kalibreringen tar annars hand om det.
 
 **Startgräns** −2,5 °C våttemperatur, justerad för vattentemperatur. Håll isär
 den från målkvalitetens gräns — kör/vänta följer startgränsen, kvalitetsvalet
 säger bara om man når sin målkvalitet. De var ihopslagna en gång och gjorde
-appen onödigt pessimistisk. Samma sak gäller lansen: `thresholds().lance` är
-startgränsen, `lanceTarget` målet. Lansen bar kvalitetspåslaget i startgränsen
-långt efter att fläkten rättats.
+appen onödigt pessimistisk.
 
 **Sidodrift** = tvärvind × fallhöjd / 1,2 m/s × spridningsfaktor. Faktorn är
 0,6 för fläkt (luftströmmen kastar fanan framåt, tyngdpunkten landar före
@@ -53,14 +64,7 @@ Fallhöjden är knoppen allt kalibreras med.
 
 **Kalibrering** mot anläggningens egen våtmätare läggs på som `S.wbOffset`.
 All våttemperatur ska gå genom `wetBulbAdj`, aldrig `wetBulb` direkt — utom
-i modelljämförelsen och i våttemperaturkartan, som ska visa råa värden, och i
-Kalibrera-knappen, som måste jämföra mätningen mot det okorrigerade värdet.
-
-**Tvärvind** ska gå genom `crossStats`/`windContext`, aldrig
-`windGeometry(…, S.trailBearing)`. Inställningens bäring gäller bara när inget
-spår är inläst. Graferna räknade en gång mot den och visade noll tvärvind på
-Sparbanksspåret när verkligheten var nära tre m/s. Bäringsprofilen cachas —
-allt som ändrar spår, kanoner eller `S` ska anropa `invalidateWindProfile`.
+i modelljämförelsen och i våttemperaturkartan, som ska visa råa värden.
 
 ## Fallgropar som redan kostat tid
 
@@ -82,42 +86,18 @@ allt som ändrar spår, kanoner eller `S` ska anropa `invalidateWindProfile`.
 - **Täckning i svängar.** Ett aggregat bedöms mot hela den sammanhängande
   sträcka det når, inte mot närmaste segment, och täckningen klipps mot
   räckvidden. Annars räknas den parallella returslingan in.
-- **Demoläget är klibbigt.** `useBuiltinTrack` sätter en flagga som visar
-  Sparbanksspåret var man än är. Den är bara till för demoknappen. För att ta
-  bort ett inläst spår används `clearUserTrack`, annars följer Sparbanksspåret
-  med till Arvika.
-- **Inbyggda frågerutor.** `alert`, `confirm` och `prompt` visas inte i
-  förhandsvisningen i Claude-appen, i vissa installerade appar eller i
-  Messengers webbläsare — de svarar nej eller tomt direkt och knappen ser död
-  ut. Rensa kanoner och fem andra knappar gjorde ingenting på det viset. Använd
-  `ask()`/`tell()` (appens egen ruta) eller `armConfirm()` (tryck två gånger).
-  `unit.mjs` fäller den som använder de inbyggda.
-- **En klickhanterare på en Leaflet-markör som ritar om kartan** stänger
-  markörens ruta direkt — Leaflet stänger rutan när markören tas bort. Därför
-  gick det inte att ta bort enskilda kanoner.
-- **Gamla hämtningar.** Ett långsamt svar för en plats man lämnat får inte
-  skriva över den nya. `fetchData` har en bricka (`fetchToken`) och läser
-  färdigt svaret innan något skrivs.
 
 ## Testning
 
-(`run.mjs` och `survey.mjs` ligger inte i repot än — tills de gör det är
-`unit.mjs` det som körs.)
+`node verify.mjs` täcker de tretton fel som en kodgranskning hittade, plus
+anläggningens förval. Alla ska gå igenom före commit. `unit.mjs` testar
+enskilda funktioner. Kör båda.
 
 `node run.mjs` kör appen i jsdom med påhittad väderdata, går igenom alla
 flikar, inställningar och infokapitel, läser in en GPX och placerar aggregat.
 Den ska gå igenom utan fel före varje commit. `survey.mjs` testar GPS-
 inmätningen med simulerade fix, inklusive ett cachat startfix och ett grovt
 felaktigt.
-
-`node unit.mjs` kontrollerar siffrorna: våttemperatur, startgränser, drift,
-körfönster, varvdetektering, täckning, brunnar, lagring och service worker.
-Ska också gå igenom före varje commit. Tester märkta KÄNT FEL visas som
-"todo" och fäller inte körningen — ta bort markeringen när felet är rättat.
-
-jsdom installeras lokalt utan paketfiler:
-`npm install --no-save --no-package-lock jsdom`. Det hamnar i `node_modules/`,
-som är ignorerad.
 
 Inga riktiga nätanrop i testerna — Chart.js, Leaflet och fetch stubbas.
 
