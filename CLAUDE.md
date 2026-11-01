@@ -86,6 +86,22 @@ i modelljämförelsen och i våttemperaturkartan, som ska visa råa värden.
 - **Täckning i svängar.** Ett aggregat bedöms mot hela den sammanhängande
   sträcka det når, inte mot närmaste segment, och täckningen klipps mot
   räckvidden. Annars räknas den parallella returslingan in.
+- **Demoläget är klibbigt.** `useBuiltinTrack` sätter en flagga som visar
+  Sparbanksspåret var man än är. Den är bara till för demoknappen. För att ta
+  bort ett inläst spår används `clearUserTrack`, annars följer Sparbanksspåret
+  med till Arvika.
+- **Inbyggda frågerutor.** `alert`, `confirm` och `prompt` visas inte i
+  förhandsvisningen i Claude-appen, i vissa installerade appar eller i
+  Messengers webbläsare — de svarar nej eller tomt direkt och knappen ser död
+  ut. Rensa kanoner och fem andra knappar gjorde ingenting på det viset. Använd
+  `ask()`/`tell()` (appens egen ruta) eller `armConfirm()` (tryck två gånger).
+  `unit.mjs` fäller den som använder de inbyggda.
+- **En klickhanterare på en Leaflet-markör som ritar om kartan** stänger
+  markörens ruta direkt — Leaflet stänger rutan när markören tas bort. Därför
+  gick det inte att ta bort enskilda kanoner.
+- **Gamla hämtningar.** Ett långsamt svar för en plats man lämnat får inte
+  skriva över den nya. `fetchData` har en bricka (`fetchToken`) och läser
+  färdigt svaret innan något skrivs.
 
 ## Testning
 
@@ -121,3 +137,15 @@ Kristian i snögruppen. Inte programmerare, men tekniskt påläst och van vid
 anläggningen. Förklara vad en ändring gör och varför, inte bara att den är
 gjord. Han hittar fel som inte syns i koden — lyssna när han säger att något
 inte stämmer med verkligheten.
+
+## Två vägar in i samma fil är den farligaste buggen
+
+Den 1 november skrevs en hel commit bort — kanonernas riktningsspets, de egna
+frågerutorna och rättningen av att en kanons ruta stängdes direkt — eftersom en
+äldre `index.html` laddades upp via GitHubs webbgränssnitt ovanpå arbete som
+gjorts i Claude Code. Uppladdningen ersätter filen rakt av och varnar inte för
+att den är äldre.
+
+Projektet redigeras därför i Claude Code. Kommer en fil utifrån: `git pull`
+först, läs `git log` och jämför, lägg ändringen ovanpå. Ladda aldrig upp en
+fil som byggts på något annat än aktuell HEAD.
