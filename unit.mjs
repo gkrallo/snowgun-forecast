@@ -803,6 +803,111 @@ describe("Anläggningens förval", () => {
   });
 });
 
+describe("Brunnarna på kartan", () => {
+  // De senast ritade markörerna för brunnarna, och den för ett visst nummer.
+  const wellMarkers = app => (app.win.__markers || [])
+    .filter(m => m.opts.icon?.className === "well-icon").slice(-app.run("wells.length"));
+  const well = (app, no) => wellMarkers(app).find(m => m.popup.includes(`<b>Brunn ${no}</b>`));
+  const openPopup = (app, m) => {
+    const el = app.win.document.createElement("div");
+    el.innerHTML = m.popup;
+    m.handlers.popupopen[0]({ popup: { getElement: () => el } });
+    return el;
+  };
+  const OFFLINE = async () => { throw new Error("offline"); };
+
+  test("brunnarna går inte att dra av misstag, bara efter Flytta", async () => {
+    // Förut gick alla brunnar att dra. Panorerade man kartan med fingret på
+    // en brunn flyttades den, och det nya läget sparades utan att synas.
+    const app = await loadApp();
+    try {
+      app.$("tabWind").click();
+      assert.equal(wellMarkers(app).length, 20);
+      assert.ok(wellMarkers(app).every(m => !m.opts.draggable), "en brunn gick att dra utan Flytta");
+      openPopup(app, well(app, 1)).querySelector("[data-wmove]").click();
+      assert.deepEqual(wellMarkers(app).filter(m => m.opts.draggable).map(m => m.popup.match(/<b>Brunn (\d+)<\/b>/)[1]), ["1"]);
+      assert.match(app.$("planNote").textContent, /Dra brunn 1/);
+      const lat = 58.50010, lon = 13.08890;
+      well(app, 1).handlers.dragend[0]({ target: { getLatLng: () => ({ lat, lng: lon }) } });
+      assert.deepEqual(app.get("(w => [w.lat, w.lon])(wells.find(w => w.no === 1))"), [lat, lon]);
+      const stored = JSON.parse(app.win.localStorage.getItem("snowWellsByTrack")).sparbanksparet;
+      assert.equal(stored.find(w => w.no === 1).lat, lat);
+      assert.ok(wellMarkers(app).every(m => !m.opts.draggable), "brunnen låstes inte igen");
+      assert.match(app.$("planNote").textContent, /Brunn 1 flyttades 6,9 m och är låst igen/);
+    } finally { app.close(); }
+  });
+
+  test("Lås efter Flytta låser brunnen utan att något sparas", async () => {
+    const app = await loadApp();
+    try {
+      app.$("tabWind").click();
+      openPopup(app, well(app, 7)).querySelector("[data-wmove]").click();
+      assert.equal(well(app, 7).opts.draggable, true);
+      const el = openPopup(app, well(app, 7));
+      assert.equal(el.querySelector("[data-wmove]").textContent, "Lås");
+      el.querySelector("[data-wmove]").click();
+      assert.ok(wellMarkers(app).every(m => !m.opts.draggable));
+      assert.equal(JSON.parse(app.win.localStorage.getItem("snowWellsByTrack")).sparbanksparet, undefined);
+    } finally { app.close(); }
+  });
+
+  test("en flyttad brunn syns under kartan och kan återställas med två tryck", async () => {
+    const app = await loadApp();
+    try {
+      app.$("tabWind").click();
+      const btn = app.$("btnWellReset");
+      assert.equal(btn.hidden, true, "orörda brunnar ska inte ha någon återställning");
+      assert.doesNotMatch(app.$("trackOrigin").textContent, /skiljer/);
+
+      app.run("wells.find(w => w.no === 1).lat += 30 / 111320; persistWells(); renderPlan();");
+      assert.match(app.$("trackOrigin").textContent, /skiljer sig från anläggningens: brunn 1 flyttad 30 m\./);
+      assert.equal(btn.hidden, false);
+
+      btn.click();
+      assert.notEqual(app.run("wells.find(w => w.no === 1).lat"), 58.500038, "första trycket ska bara fråga");
+      assert.equal(btn.textContent, "Ja, återställ");
+      btn.click();
+      assert.equal(app.run("wells.find(w => w.no === 1).lat"), 58.500038);
+      assert.equal(app.run("wells.length"), 20);
+      assert.equal(JSON.parse(app.win.localStorage.getItem("snowWellsByTrack")).sparbanksparet, undefined);
+      assert.equal(btn.hidden, true);
+      assert.equal(btn.textContent, "Återställ brunnarna");
+      assert.doesNotMatch(app.$("trackOrigin").textContent, /skiljer/);
+    } finally { app.close(); }
+  });
+
+  test("borttagna och egna brunnar räknas också som ändringar, men inte på ett inläst spår", async () => {
+    const app = await loadApp();
+    try {
+      app.run(`wells = wells.filter(w => w.no !== 5); wells.push({ id: "x", no: 21, lat: 58.501, lon: 13.088 }); persistWells();`);
+      assert.deepEqual(app.get("wellChanges()"), ["brunn 5 saknas", "en brunn till"]);
+      app.run(`saveTrack({ ...BUILTIN_TRACK, source: "import", name: "Egen runda" })`);
+      assert.deepEqual(app.get("wellChanges()"), []);
+    } finally { app.close(); }
+  });
+
+  test("kartan ritar spår, brunnar och kanoner även utan prognos", async () => {
+    // Utan nät och utan sparad prognos slutade kartan innan något ritades,
+    // fast brunnarna och uppställningen låg sparade i telefonen.
+    const app = await loadApp({ fetch: OFFLINE, storage: { snowGunsByTrack: { sparbanksparet: [
+      { id: "f1", type: "fan", lat: 58.5040, lon: 13.0878 }] } } });
+    try {
+      await app.settle();
+      assert.match(app.$("err").textContent, /Ingen kontakt/);
+      assert.equal(app.run("series.length"), 0);
+      app.$("tabWind").click();
+      assert.equal(wellMarkers(app).length, 20);
+      const gun = app.win.__markers.filter(m => m.opts.icon?.className === "gun-icon").pop();
+      assert.ok(gun, "kanonen ritades inte");
+      assert.match(gun.opts.icon.html, /#93a4bd/, "utan prognos ska kanonen vara grå");
+      assert.match(gun.popup, /Ingen prognos/);
+      assert.match(app.$("planSummary").textContent, /Ingen väderprognos/);
+      assert.equal(app.$("timeLabel").textContent, "ingen prognos");
+      assert.deepEqual(app.errors.filter(e => !/offline/.test(e)), []);
+    } finally { app.close(); }
+  });
+});
+
 describe("Barmark", () => {
   // En påhittad men realistisk mätning, gjord som fältinstruktionen säger.
   // Marken är en svag lutning med vågor; locket ligger 20 cm över 100 m.

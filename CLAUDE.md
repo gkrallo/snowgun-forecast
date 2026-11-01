@@ -148,6 +148,15 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
 - **Gamla hämtningar.** Ett långsamt svar för en plats man lämnat får inte
   skriva över den nya. `fetchData` har en bricka (`fetchToken`) och läser
   färdigt svaret innan något skrivs.
+- **Dragbara brunnar.** Brunnarna gick att dra, och på en telefon räcker det
+  att panorera kartan med fingret på en brunn. Brunn 1 hamnade fel utan att
+  någon märkte det, och den sparade listan tog sedan över anläggningens.
+  Brunnarna är låsta nu (`movingWellId`, Flytta i rutan). `wellChanges` visar
+  under kartan vad som skiljer sig, och Återställ brunnarna tar bort den
+  sparade listan.
+- **Kartan utan prognos.** `renderPlan` slutade förut när det inte fanns
+  väderdata, så utan nät vid spåret blev kartan tom. Allt som behöver `pt`
+  måste klara att den är `null`.
 
 ## Testning
 

@@ -355,6 +355,7 @@ button{font-family:inherit}
         <button id="btnSurvey">Mät in med GPS</button>
         <button id="btnWellPaste">Koordinater…</button>
         <button id="btnWellNumber">Numrera från söder</button>
+        <button id="btnWellReset" hidden>Återställ brunnarna</button>
         <button id="btnBuiltin" hidden>Tillbaka till Sparbanksspåret</button>
         <span class="count" id="wellCount"></span>
       </div>
@@ -362,7 +363,7 @@ button{font-family:inherit}
       <p class="caption" id="planSummary" style="text-align:left; margin-top:10px"></p>
       <button class="btn ghost" id="useWhole" hidden style="margin-top:8px; font-size:.8rem; padding:7px 12px">Använd hela loggen i stället</button>
       <p class="plannote" id="planNote"></p>
-      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Spetsen på varje aggregat visar vart det är riktat. Tryck på ett aggregat för riktningsråd, provsiktning eller för att ta bort det.</p>
+      <p class="caption" style="text-align:left">Grön sträcka = snön landar innanför spårbredden. Gul = på kanten. Röd = utanför. Dra i reglaget för att se hur vinden vrider under natten. Spetsen på varje aggregat visar vart det är riktat. Tryck på ett aggregat för riktningsråd, provsiktning eller för att ta bort det. Brunnarna ligger låsta — tryck på en brunn och välj Flytta om den ska flyttas.</p>
     </div>
   </div>
 
@@ -1171,10 +1172,12 @@ let planMap = null, planLayers = null, gunLayers = null, aimLayers = null;
 let addMode = null;
 let selectedGunId = null;
 
-/* Anläggningen har 18 fasta brunnar med vatten och el. Aggregaten kopplas in
-   med tio, ibland tjugo meter slang, så brunnen avgör var en kanon kan stå. */
+/* Anläggningen har fasta brunnar med vatten och el. Aggregaten kopplas in
+   med en kort slang, så brunnen avgör var en kanon kan stå. */
 let wells = [];
 let wellStore = safeParse(localStorage.getItem("snowWellsByTrack"), null);
+// Brunnen som just nu får dras på kartan. Alla andra ligger still.
+let movingWellId = null;
 let sliderOffsetH = 0;
 
 const EARTH = 6371000;
@@ -1678,6 +1681,7 @@ function addGun(type, lat, lon) {
 
 function loadWellsForTrack() {
   if (!wellStore) { wellStore = {}; localStorage.setItem("snowWellsByTrack", JSON.stringify(wellStore)); }
+  movingWellId = null;
   const k = trackKey();
   if (k && Array.isArray(wellStore[k])) { wells = wellStore[k]; return; }
   // Aldrig rörda brunnar på det inbyggda spåret: använd anläggningens egna.
@@ -1699,6 +1703,30 @@ function addWell(lat, lon) {
   wells.push({ id: crypto.randomUUID?.() || String(Date.now() + Math.random()),
                no: wells.length + 1, lat: +lat.toFixed(6), lon: +lon.toFixed(6) });
   persistWells(); renderPlan();
+}
+
+// Vad som skiljer brunnarna på Sparbanksspåret från anläggningens inmätta.
+// Brunnarna paras ihop på nummer. Listan visas under kartan, så att en brunn
+// som hamnat fel syns direkt i stället för att man får gissa varför.
+function wellChanges() {
+  if (trackKey() !== BUILTIN_TRACK.key) return [];
+  const out = [], matched = new Set();
+  for (const b of BUILTIN_WELLS) {
+    const w = wells.find(x => x.no === b.no && !matched.has(x));
+    if (!w) { out.push(`brunn ${b.no} saknas`); continue; }
+    matched.add(w);
+    const d = haversine([w.lat, w.lon], [b.lat, b.lon]);
+    if (d >= 0.5) out.push(`brunn ${b.no} flyttad ${d < 20 ? fmt(d) : Math.round(d)} m`);
+  }
+  const extra = wells.filter(w => !matched.has(w)).length;
+  if (extra) out.push(extra === 1 ? "en brunn till" : `${extra} brunnar till`);
+  return out;
+}
+
+function resetBuiltinWells() {
+  if (wellStore) delete wellStore[BUILTIN_TRACK.key];
+  localStorage.setItem("snowWellsByTrack", JSON.stringify(wellStore || {}));
+  loadWellsForTrack();
 }
 
 // Brunn 1 ligger längst i söder, så numreringen går att återställa mekaniskt.
@@ -1947,16 +1975,24 @@ function renderPlan() {
   if (!hasTrack) return;
 
   const ready = ensurePlanMap();
+  // Utan prognos ritas spår, brunnar och aggregat ändå, bara utan vindbild.
+  // Förut slutade kartan här, och utan nät vid spåret blev den tom fast
+  // brunnarna och uppställningen ligger sparade i telefonen.
   const pt = sliderPoint();
-  if (!pt) return;
-  const base = assess(pt);
-  const blowsTo = normDeg(pt.dir + 180);
+  const base = pt && assess(pt);
+  const blowsTo = pt ? normDeg(pt.dir + 180) : 0;
 
   if (!ready) return;
   planLayers.clearLayers();
   const colors = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" };
   let good = 0, total = 0;
   for (const s of segments) {
+    if (!pt) {
+      L.polyline([s.a, s.b], { color: "#cbd5e1", weight: 6, opacity: .8, lineCap: "round" })
+        .bindTooltip(`${dirName(s.bearing)}-riktning`, { sticky: true })
+        .addTo(planLayers);
+      continue;
+    }
     const cross = Math.abs(pt.wind * Math.sin(toRad(normDeg(blowsTo - s.bearing))));
     const st = segState(cross, "go"); // kartan visar vindbilden, temperaturen står i banderollen
     total += s.len; if (st === "go") good += s.len;
@@ -1973,29 +2009,49 @@ function renderPlan() {
   wells.forEach(wl => {
     const occupied = guns.some(g => haversine([g.lat, g.lon], [wl.lat, wl.lon]) <= S.hoseLength);
     const ring = wl.station ? "#fbbf24" : wl.spare ? "#68789a" : "#38bdf8";
+    const moving = wl.id === movingWellId;
     const m = L.marker([wl.lat, wl.lon], {
       icon: L.divIcon({ className: "well-icon", iconSize: [22, 22], iconAnchor: [11, 11],
         html: `<svg width="22" height="22" viewBox="0 0 22 22">
+          ${moving ? `<circle cx="11" cy="11" r="10.2" fill="none" stroke="#e8eef7" stroke-width="1.5" stroke-dasharray="3 2"/>` : ""}
           <circle cx="11" cy="11" r="8.5" fill="${occupied ? ring : "#0b1220"}"
                   stroke="${ring}" stroke-width="${wl.station ? 3 : 2}"/>
           <text x="11" y="15" font-size="10" font-weight="700" text-anchor="middle"
                 fill="${occupied ? "#03121c" : ring}">${wl.no}</text></svg>` }),
-      draggable: true
+      // Brunnarna ligger still. Gick de att dra flyttades de av misstag när
+      // man panorerade kartan med fingret på en brunn, och det nya läget
+      // sparades utan att någon märkte det. Nu flyttas en brunn bara efter
+      // Flytta i dess ruta, och den låses igen när man släpper den.
+      draggable: moving
     }).addTo(gunLayers);
     m.bindPopup(`<div style="font:13px/1.5 sans-serif">
       <b>Brunn ${wl.no}</b>${wl.station ? ' · <span style="color:#b45309">väderstation</span>' : ""}${wl.spare ? ' · <span style="color:#64748b">reserv</span>' : ""}<br>
       ${wl.spare ? "Reserv vid schaktytan, inte inkopplad.<br>" : ""}
       ${wl.lat.toFixed(5)}, ${wl.lon.toFixed(5)}<br>
       ${wl.station ? "Härifrån tas våttemperaturen vid kalibrering. Vindmätaren på platsen är inte tillförlitlig — använd prognosens vind.<br>" : ""}
-      <a href="#" data-wno="${wl.id}">Byt nummer</a> ·
-      <a href="#" data-wdel="${wl.id}" style="color:#dc2626">Ta bort</a></div>`);
+      <div class="popbtns">
+        <a href="#" data-wmove="${wl.id}">${moving ? "Lås" : "Flytta"}</a>
+        <a href="#" data-wno="${wl.id}">Byt nummer</a>
+        <a href="#" class="del" data-wdel="${wl.id}">Ta bort</a>
+      </div></div>`);
     m.on("dragend", ev => {
       const p = ev.target.getLatLng();
+      const moved = haversine([wl.lat, wl.lon], [p.lat, p.lng]);
       wl.lat = +p.lat.toFixed(6); wl.lon = +p.lng.toFixed(6);
+      movingWellId = null;
       persistWells(); renderPlan();
+      setPlanNote(`Brunn ${wl.no} flyttades ${moved < 20 ? fmt(moved) : Math.round(moved)} m och är låst igen.`);
     });
     m.on("popupopen", ev => {
       const el = ev.popup.getElement();
+      // Här får kartan ritas om: rutan ska stängas så att brunnen går att ta tag i.
+      el.querySelector("[data-wmove]")?.addEventListener("click", e => {
+        e.preventDefault();
+        movingWellId = moving ? null : wl.id;
+        renderPlan();
+        setPlanNote(moving ? `Brunn ${wl.no} är låst.`
+          : `Dra brunn ${wl.no} dit den ska. Den låses igen när du släpper den.`);
+      });
       el.querySelector("[data-wdel]")?.addEventListener("click", e => {
         e.preventDefault();
         wells = wells.filter(x => x.id !== wl.id);
@@ -2012,17 +2068,17 @@ function renderPlan() {
 
   guns.forEach(g => {
     const cov = gunCoverage(g);
-    const w = worstCross(cov, pt);
-    const bearing = w.bearing;
-    const cross = w.cross;
+    // Utan prognos blir kanonen grå och plymen ritas utan drift.
+    const w = pt && worstCross(cov, pt);
+    const cross = w ? w.cross : 0;
     const drift = driftDistance(cross, g.type);
-    const st = segState(cross, "go", g.type);
-    const across = pt.wind * Math.sin(toRad(normDeg(blowsTo - bearing)));
+    const st = w ? segState(cross, "go", g.type) : null;
+    const across = w ? pt.wind * Math.sin(toRad(normDeg(blowsTo - w.bearing))) : 0;
     const upwind = across >= 0 ? "vänster" : "höger";
     const corr = Math.round(aimCorrection(drift.centre, drift.dist));
     const sel = g.id === selectedGunId;
     const plume = plumeShape(g, pt);
-    const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[st];
+    const col = { go: "#4ade80", marginal: "#fbbf24", stop: "#f87171" }[st] || "#93a4bd";
 
     // Plymen utan vind heldragen, med vind streckad. Skillnaden mellan dem
     // är precis vad vinden gör med lasset, och det är den man siktar efter.
@@ -2030,7 +2086,7 @@ function renderPlan() {
       { color: "#e8eef7", weight: 1.2, opacity: sel ? .85 : .35, fill: false }).addTo(aimLayers);
     L.polyline([[g.lat, g.lon], plume.centre],
       { color: "#e8eef7", weight: 1, opacity: sel ? .6 : .22 }).addTo(aimLayers);
-    L.polygon(ellipsePoly(plume.drifted, plume.aim, plume.along, plume.across),
+    if (pt) L.polygon(ellipsePoly(plume.drifted, plume.aim, plume.along, plume.across),
       { color: col, weight: 2, opacity: sel ? .95 : .5, dashArray: "6 5",
         fillColor: col, fillOpacity: sel ? .18 : .08 }).addTo(aimLayers);
 
@@ -2071,8 +2127,9 @@ function renderPlan() {
           `<span style="color:#93a4bd">Ingen brunn utsatt.</span><br>`}
         ${Math.round(cov.offset)} m från spåret, täcker ${Math.round(cov.covered)} m.<br>
         ${outOfReach ? `<span style="color:#dc2626">Når inte spåret — flytta ${Math.round(cov.offset - cov.reach)} m närmare eller sikta fritt.</span><br>` : ""}
-        Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
-        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}
+        ${!pt ? `<span style="color:#93a4bd">Ingen prognos — riktningsrådet kommer när vädret har hämtats.</span>`
+          : `Tvärvind ${fmt(cross)} m/s, drift ${Math.round(drift.centre)} m.<br>
+        ${cross < 0.4 ? "Ingen sidokompensation behövs." : `Vrid ${corr}° åt ${upwind}.`}`}
         <div class="popbtns">
           <a href="#" data-aim="${g.id}">${sel ? "Dölj sikte" : "Provsikta"}</a>
           ${aimed ? `<a href="#" data-reset="${g.id}">Släpp siktet</a>` : ""}
@@ -2115,7 +2172,7 @@ function renderPlan() {
 
   // vindrosen i kartans hörn
   const rose = $("windRose");
-  rose.innerHTML = `
+  rose.innerHTML = !pt ? "" : `
     <svg viewBox="0 0 74 74">
       <circle cx="37" cy="37" r="30" fill="rgba(11,18,32,.82)" stroke="#2b3b57"/>
       <text x="37" y="13" fill="#68789a" font-size="8" text-anchor="middle">N</text>
@@ -2126,18 +2183,25 @@ function renderPlan() {
       <text x="37" y="68" fill="#93a4bd" font-size="8" text-anchor="middle">från ${dirName(pt.dir)}</text>
     </svg>`;
 
-  const pct = Math.round(good / total * 100);
-  const när = sliderOffsetH === 0 ? "Med vinden just nu" : `${dayPrefix(pt.x)} ${clock(pt.x)}`;
-  $("planSummary").innerHTML =
-    `${när} landar snön innanför spårbredden på <b>${pct} %</b> av spåret ` +
-    `(${Math.round(good)} av ${Math.round(total)} m). ` +
-    (guns.length ? `${guns.filter(g => g.type === "fan").length} fläktar och ${guns.filter(g => g.type === "lance").length} lansar utplacerade.`
-                 : "Placera ut aggregaten så får varje kanon ett eget riktningsråd.");
+  const gunsTxt = guns.length
+    ? `${guns.filter(g => g.type === "fan").length} fläktar och ${guns.filter(g => g.type === "lance").length} lansar utplacerade.`
+    : "Placera ut aggregaten så får varje kanon ett eget riktningsråd.";
+  if (pt) {
+    const pct = Math.round(good / total * 100);
+    const när = sliderOffsetH === 0 ? "Med vinden just nu" : `${dayPrefix(pt.x)} ${clock(pt.x)}`;
+    $("planSummary").innerHTML =
+      `${när} landar snön innanför spårbredden på <b>${pct} %</b> av spåret ` +
+      `(${Math.round(good)} av ${Math.round(total)} m). ` + gunsTxt;
+  } else {
+    $("planSummary").innerHTML =
+      `Ingen väderprognos hämtad än, så kartan visar spåret, brunnarna och aggregaten men inte vinden. ` +
+      `Tryck ↻ när du har nät. ` + gunsTxt;
+  }
 
   // Kartan svarar på var snön hamnar. Om det inte går att göra snö alls just
   // då är det en annan fråga, och den hör hemma i en egen banderoll.
   const banner = $("tempBanner");
-  const tooWarm = base.reasons.some(r => r.includes("våttemp"));
+  const tooWarm = !!pt && base.reasons.some(r => r.includes("våttemp"));
   banner.hidden = !tooWarm;
   if (tooWarm) banner.textContent =
     `${sliderOffsetH === 0 ? "Just nu" : dayPrefix(pt.x) + " " + clock(pt.x)} är våttemperaturen ${fmt(pt.wb)} °C, ` +
@@ -2145,13 +2209,19 @@ function renderPlan() {
   $("gunCount").textContent =
     `Fläkt ${guns.filter(g => g.type === "fan").length}/${S.fanCount} · Lans ${guns.filter(g => g.type === "lance").length}/${S.lanceCount}`;
   $("wellCount").textContent = wells.length ? `${wells.length} brunnar` : "inga brunnar";
-  $("timeLabel").textContent = sliderOffsetH === 0
+  $("timeLabel").textContent = !pt ? "ingen prognos" : sliderOffsetH === 0
     ? "nu" : `${dayPrefix(pt.x)} ${clock(pt.x)} · ${fmt(pt.wb)} °C våttemp`;
 
   const builtin = track.source === "builtin";
+  const changes = wellChanges();
+  const changesTxt = changes.length > 4
+    ? `${changes.slice(0, 3).join(", ")} och ${changes.length - 3} ändringar till`
+    : changes.join(", ");
   $("trackOrigin").innerHTML = builtin
-    ? `Inbyggt spår: <b>${BUILTIN_TRACK.name}</b>, ${(BUILTIN_TRACK.length / 1000).toFixed(1)} km. Kör ni på en annan anläggning — läs in er egen GPX-fil.`
+    ? `Inbyggt spår: <b>${BUILTIN_TRACK.name}</b>, ${(BUILTIN_TRACK.length / 1000).toFixed(1)} km. Kör ni på en annan anläggning — läs in er egen GPX-fil.` +
+      (changes.length ? ` <span style="color:var(--warn)">Brunnarna skiljer sig från anläggningens: ${changesTxt}.</span>` : "")
     : `Eget spår: <b>${track.name || "inläst GPX"}</b>, ${(track.length / 1000).toFixed(1)} km, ${track.pts.length} punkter.`;
+  $("btnWellReset").hidden = !changes.length;
   const nearBuiltin = haversine([place.lat, place.lon], BUILTIN_TRACK.centre) < BUILTIN_RANGE;
   $("btnBuiltin").hidden = builtin;
   $("btnBuiltin").textContent = nearBuiltin ? "Tillbaka till Sparbanksspåret" : "Ta bort inläst spår";
@@ -3413,6 +3483,14 @@ $("clearGuns").onclick = () => {
     setPlanNote(`Tog bort ${n} aggregat.`);
   });
   if (!done) setPlanNote("Tryck en gång till för att ta bort alla. Ett enskilt aggregat tar du bort genom att trycka på det på kartan.");
+};
+
+$("btnWellReset").onclick = () => {
+  const done = armConfirm($("btnWellReset"), "Ja, återställ", () => {
+    resetBuiltinWells(); renderPlan();
+    setPlanNote(`Brunnarna ligger på anläggningens inmätta lägen igen, ${wells.length} stycken.`);
+  });
+  if (!done) setPlanNote("Tryck en gång till. Alla ändringar av brunnarna på Sparbanksspåret — flyttade, omnumrerade, borttagna och egna — ersätts med anläggningens inmätta lägen.");
 };
 
 /* ==========================================================================
