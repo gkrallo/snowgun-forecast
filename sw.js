@@ -3,7 +3,7 @@
    finns täckning ute vid spåret. Väderdata cachas inte här — den hanteras av
    appens egen kopia i localStorage. */
 
-const VERSION = "snoprognos-v10";
+const VERSION = "snoprognos-v11";
 const SHELL = [
   "./",
   "./index.html",

@@ -17,9 +17,16 @@ Vintersportklubbs snögrupp. Ligger på GitHub Pages som en PWA.
 
 ## Anläggningen
 
-Sex fläktkanoner (Sufag Super Access, numera MND Snow) och tre lansar
+Sex fläktkanoner (Sufag Super Access, numera MND Snow) och två lansar
 (MND Taurus 2.0). Alla mobila. Styrsystemet är Sufags eget med
 våttemperaturgivare på kanonerna.
+
+Lansen står på en vagn med hjul. Stången är drygt sex meter, fäst ungefär
+1,5 m upp och lutad, så dysorna hamnar på ungefär 6–7 m — `lanceHeight` är
+7. Huvudet har tolv dysor i två rader om sex, och alla går bara när det är
+ordentligt kallt: styrsystemet kopplar in dem stegvis. Appen räknar inte
+stegen utan med den mjuka kurvan i `capacity`, som når drygt 90 % ungefär
+fem grader under startgränsen.
 
 Tjugo fasta brunnar med vatten och el, inlagda som `BUILTIN_WELLS`. Nummer ett
 längst i söder, ungefär sextio meters mellanrum. De sitter **i kanten på

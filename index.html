@@ -443,7 +443,7 @@ button{font-family:inherit}
         </div>
         <div class="field">
           <label for="lanceCount">Antal lansar</label>
-          <input type="number" id="lanceCount" min="0" max="199" step="1" value="3">
+          <input type="number" id="lanceCount" min="0" max="199" step="1" value="2">
         </div>
       </div>
       <p class="hint" style="margin-top:-4px">Styr hur många ni kan placera ut på kartan under Vind &amp; sikte.</p>
@@ -628,13 +628,16 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
   fanHeight: 5,       // m, fallhöjd för fläktfanan
   fanDist: 30,        // m, fläktkanonens kastlängd
-  lanceHeight: 7,     // m, lanshuvudets höjd över mark
+  lanceHeight: 7,     // m, lanshuvudets höjd över mark. Lansen är drygt sex
+                      // meter, fäst ca 1,5 m upp och lutad; dysorna sitter i
+                      // översta metern, alltså ungefär 6–7 m. Plymen stiger
+                      // en bit innan den faller, därför den övre siffran.
   lanceDist: 8,       // m, lansens horisontella räckvidd
   trailWidth: 8,      // m, spårgatans bredd — 2 spår + skejtbädd + 2 spår
   waterTemp: 1.5,     // °C
@@ -646,7 +649,7 @@ const DEFAULTS = {
   hoseLength: 8,      // m — tio meters slang, men brunnarna är djupa och
                       // slangen går inte att böja tvärt vid brunnskanten
   fanCount: 6,        // antal fläktkanoner
-  lanceCount: 3,      // antal lansar
+  lanceCount: 2,      // antal lansar — två, inte tre som det stod först
   wbModel: "psychro",
   wbOffset: 0         // °C, korrigering mot anläggningens egen våtmätare
 };

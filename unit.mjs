@@ -777,6 +777,13 @@ describe("Anläggningens förval", () => {
     assert.equal(app.$("hoseLength").getAttribute("value"), "8");
   });
 
+  test("sex fläktar och två lansar, i koden och i formuläret", () => {
+    assert.equal(app.run("DEFAULTS.fanCount"), 6);
+    assert.equal(app.run("DEFAULTS.lanceCount"), 2);
+    assert.equal(app.$("fanCount").getAttribute("value"), "6");
+    assert.equal(app.$("lanceCount").getAttribute("value"), "2");
+  });
+
   test("väderstationen och reserven syns på kartan", async () => {
     const a = await loadApp();
     try {
