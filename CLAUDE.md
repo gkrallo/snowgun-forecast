@@ -85,6 +85,33 @@ spår är inläst. Graferna räknade en gång mot den och visade noll tvärvind 
 Sparbanksspåret när verkligheten var nära tre m/s. Bäringsprofilen cachas —
 allt som ändrar spår, kanoner eller `S` ska anropa `invalidateWindProfile`.
 
+## Snödjup och barmark
+
+Snödjup = snöyta − barmark, ruta för ruta. Fliken **Snödjup** har än så länge
+bara barmarken; snömätningen och Firebase kommer sedan. Underlaget är
+`koncept_och_ux_f_r_sn_djupsm_tning.md` och TypeScript-modulen bredvid — idéer,
+inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
+
+- **Rutnät** på en meter med origo i brunn 7, via `bareXY`/`bareLatLon` och
+  WGS84-värdena i `BARE_M`. Allt som hamnar i rutnätet ska gå genom dem.
+- **Alla höjder relativt brunn 7-locket**, en frostfritt nedgrävd kassun.
+  Absoluta höjder blandas aldrig: varje pass räknas mot sin egen stund på
+  locket, så referensstation och höjdsystem spelar ingen roll. Höjden är inte
+  RH2000, vad mottagaren än kallar den.
+- **Kalibreringen läses ur loggen** i fältinstruktionens ordning: locket,
+  marken, fästet (skillnaden är antennhöjden), körning, stopp, locket igen.
+  Stoppet före kontrollen klipper bort punkterna medan pucken bärs i handen —
+  utan det hamnar handhöjden i rutnätet.
+- **Bara fix** och höjdosäkerhet under fem centimeter. Float ger decimeterfel.
+- **Ett varv täcker en meter.** Pucken mäter rakt under sig; en åttameters gata
+  behöver åtta varv. Luckorna mellan varven visas rött.
+- **Lagring:** färdig barmark i `barmark.json` i roten; inläst men inte sparad
+  i localStorage (`snowBareDraft`). Mätloggar i `matdata/`, som inte följer med
+  till git.
+- **Firestore** (projekt `snoprognos`, inte inkopplat än): lägg aldrig ett helt
+  rutnät i ett dokument. Gränserna är 1 MiB och 40 000 indexposter per
+  dokument; konceptets förslag slår i dem efter ett par hundra meter gata.
+
 ## Fallgropar som redan kostat tid
 
 - **Tidszon.** Open-Meteo levererar UTC utan zonmarkering som standard, och

@@ -96,7 +96,9 @@ button{font-family:inherit}
 /* tabs */
 .tabs{display:flex; gap:4px; background:var(--surface); border:1px solid var(--line);
   padding:4px; border-radius:12px; margin-bottom:10px}
-.tabs button{flex:1 1 0; min-width:0; background:transparent; border:none; color:var(--ink-dim);
+/* Bredden efter innehållet, inte lika för alla: med fyra flikar klipptes
+   "Vind & sikte" medan "Graf" hade plats över. */
+.tabs button{flex:1 1 auto; min-width:0; background:transparent; border:none; color:var(--ink-dim);
   padding:9px 4px; border-radius:9px; font-size:.82rem; font-weight:600; cursor:pointer;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .tabs button[aria-selected="true"]{background:var(--surface-2); color:var(--ink)}
@@ -175,6 +177,9 @@ button{font-family:inherit}
 #planMap{height:min(52vh,420px); height:min(52dvh,420px); background:var(--surface-2)}
 #windRose{position:absolute; right:10px; top:10px; width:74px; height:74px; z-index:500; pointer-events:none}
 #windRose svg{width:100%; height:100%}
+#bareMap{height:min(52vh,420px); height:min(52dvh,420px); border-radius:12px; border:1px solid var(--line); background:var(--surface-2)}
+/* En ruta är en pixel i bilden. Utjämnad blir den en suddig fläck. */
+.bare-overlay{image-rendering:pixelated}
 .leaflet-container{background:#0e1a2c; font-family:inherit}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface); color:var(--ink); border:1px solid var(--line)}
 .leaflet-control-layers{background:var(--surface); color:var(--ink); border:1px solid var(--line);
@@ -280,6 +285,7 @@ button{font-family:inherit}
   <button role="tab" id="tabGraph" aria-selected="true" aria-controls="panelGraph">Graf</button>
   <button role="tab" id="tabHours" aria-selected="false" aria-controls="panelHours">Timmar</button>
   <button role="tab" id="tabWind" aria-selected="false" aria-controls="panelWind">Vind &amp; sikte</button>
+  <button role="tab" id="tabDepth" aria-selected="false" aria-controls="panelDepth">Snödjup</button>
 </div>
 
 <div class="panel" id="panelGraph" role="tabpanel">
@@ -370,6 +376,24 @@ button{font-family:inherit}
     <h2>Vindens tim-för-tim-utveckling</h2>
     <div class="chartbox" style="height:230px"><canvas id="windChart"></canvas></div>
     <p class="caption">Gul linje = medelvind, streckad = byar, blå = tvärvindskomposant mot spåret.</p>
+  </div>
+</div>
+
+<div class="panel" id="panelDepth" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Barmark</h2>
+    <p class="hint" style="margin-top:0">Snödjupet räknas som snöytan minus marken under. Marken mäts därför en gång innan snön kommer, med pucken på fyrhjulingen, och räknas fram i efterhand mot Lantmäteriets referensstationer. Läs in resultatet här — en .pos-fil från RTKLIB eller puckens NMEA-logg.</p>
+    <p class="plannote" id="bareStatus">Ingen barmark inmätt än.</p>
+    <div class="gunbar" style="margin-top:4px">
+      <label class="filebtn" style="padding:8px 12px; font-size:.82rem">Läs in mätning<input type="file" id="bareInput" accept=".pos,.nmea,.txt,.log" multiple></label>
+      <button id="bareSave" hidden>Spara barmark som fil</button>
+      <button id="bareClear" hidden>Börja om</button>
+    </div>
+    <div id="bareWrap" hidden style="margin-top:12px">
+      <div id="bareMap"></div>
+    </div>
+    <div class="advice" id="bareReport" hidden style="margin-top:12px"></div>
+    <p class="caption" style="text-align:left">Blått = inmätt. Gult = rutan har spretiga värden. Rött = lucka mellan varven — kör där en gång till. Läser du in flera mätningar fylls rutnätet på; varje mätning räknas mot sin egen stund på brunn 7-locket.</p>
   </div>
 </div>
 
@@ -3262,7 +3286,7 @@ document.querySelectorAll(".rangebar button[data-hours-span]").forEach(b => {
   };
 });
 
-const TABS = [["tabGraph", "panelGraph"], ["tabHours", "panelHours"], ["tabWind", "panelWind"]];
+const TABS = [["tabGraph", "panelGraph"], ["tabHours", "panelHours"], ["tabWind", "panelWind"], ["tabDepth", "panelDepth"]];
 TABS.forEach(([t, p]) => {
   $(t).onclick = () => {
     TABS.forEach(([t2, p2]) => {
@@ -3274,6 +3298,7 @@ TABS.forEach(([t, p]) => {
       renderWindChart(); renderCompass(); renderPlan();
       if (planMap) setTimeout(() => planMap.invalidateSize(), 80);
     }
+    if (p === "panelDepth") openBare();
   };
 });
 
@@ -3388,6 +3413,389 @@ $("clearGuns").onclick = () => {
     setPlanNote(`Tog bort ${n} aggregat.`);
   });
   if (!done) setPlanNote("Tryck en gång till för att ta bort alla. Ett enskilt aggregat tar du bort genom att trycka på det på kartan.");
+};
+
+/* ==========================================================================
+   16. BARMARK
+   --------------------------------------------------------------------------
+   Snödjup är snöytan minus marken under den. Marken mäts en gång innan
+   snön kommer — pucken på fyrhjulingen, rådata på minneskortet, positionerna
+   framräknade i efterhand mot Lantmäteriets referensstationer — och sparas
+   som ett rutnät på en meter.
+
+   Alla höjder räknas relativt brunn 7-locket, en frostfritt nedgrävd
+   betongkassun. Då spelar det ingen roll vilken referensstation, vilket
+   höjdsystem eller vilken dag ett pass gjordes: varje pass börjar på locket
+   och räknas mot det.
+   ========================================================================== */
+
+const BARE_CELL = 1;            // m
+const BARE_FORMAT = "snoprognos-barmark-1";
+const BARE_ORIGIN = BUILTIN_WELLS.find(w => w.station);
+
+// Meter per grad vid brunn 7, på WGS84-ellipsoiden. Rutnätet behöver bara
+// vara konsekvent med sig självt, men med riktiga värden hamnar rutorna
+// också rätt på kartan. En sfär ger 0,2 % fel i öst–väst.
+const BARE_M = (() => {
+  const p = toRad(BARE_ORIGIN.lat);
+  return { lat: 111132.92 - 559.82 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p),
+           lon: 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p) };
+})();
+const bareXY = (lat, lon) => [(lon - BARE_ORIGIN.lon) * BARE_M.lon, (lat - BARE_ORIGIN.lat) * BARE_M.lat];
+const bareLatLon = (x, y) => [BARE_ORIGIN.lat + y / BARE_M.lat, BARE_ORIGIN.lon + x / BARE_M.lon];
+// Talnycklar i stället för text: luckletningen slår upp hundratusentals rutor
+// och strängar gjorde den sekunder långsam på en telefon. Räcker till ±32 km.
+const bareKey = (gx, gy) => (gx + 32768) * 65536 + (gy + 32768);
+const bareAvg = a => a.reduce((s, v) => s + v, 0) / a.length;
+const bareMedian = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+const bareSd = c => Math.sqrt(Math.max(0, c.sq / c.n - (c.sum / c.n) ** 2));
+
+let bareCells = new Map();      // bareKey -> { gx, gy, sum, sq, n }, höjd i m relativt locket
+let bareFiles = [];             // vilka pass rutnätet är byggt av
+let bareSource = null;          // "app" = filen i appen, "draft" = inläst här men inte sparad
+let bareLoaded = false, bareMap = null, bareLayer = null, bareFitted = false;
+
+/* ---- mätfilerna ----
+   Två format. RTKLIB:s .pos är den efterberäknade filen; puckens NMEA-logg
+   duger om den fick korrektioner i realtid. Kvaliteten översätts till
+   RTKLIB:s skala: 1 = fix, 2 = float, högre = sämre. */
+
+function nmeaDeg(v, hemi) {
+  const d = v.indexOf(".") - 2;
+  if (d < 1) return NaN;
+  const deg = +v.slice(0, d) + +v.slice(d) / 60;
+  return hemi === "S" || hemi === "W" ? -deg : deg;
+}
+
+// En NMEA-rad räknas bara om kontrollsumman stämmer. På minneskort och över
+// Bluetooth kan rader komma halva, och en halv höjd är värre än ingen.
+function nmeaOk(line) {
+  const star = line.indexOf("*");
+  if (line[0] !== "$" || star < 0) return false;
+  let x = 0;
+  for (let i = 1; i < star; i++) x ^= line.charCodeAt(i);
+  return x === parseInt(line.slice(star + 1, star + 3), 16);
+}
+
+function parseSurveyLog(text) {
+  const pts = [];
+  let lastTod = null, dayShift = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line[0] === "%") continue;
+    if (line[0] === "$") {
+      if (!nmeaOk(line)) continue;
+      const f = line.slice(0, line.indexOf("*")).split(",");
+      const type = f[0].slice(3);
+      if (type === "GST" && pts.length && pts[pts.length - 1].tag === f[1]) {
+        pts[pts.length - 1].sdu = parseFloat(f[8]);
+      } else if (type === "GGA" && f[6] && f[6] !== "0") {
+        // Bara klockslag i GGA. Tiden används bara för ordning och längd,
+        // så ett passerat midnatt räcker att hantera.
+        const tod = (+f[1].slice(0, 2) * 3600 + +f[1].slice(2, 4) * 60 + parseFloat(f[1].slice(4))) * 1000;
+        if (lastTod !== null && tod < lastTod - 43200000) dayShift += 86400000;
+        lastTod = tod;
+        pts.push({ t: tod + dayShift, lat: nmeaDeg(f[2], f[3]), lon: nmeaDeg(f[4], f[5]),
+                   h: parseFloat(f[9]) + (parseFloat(f[11]) || 0), q: { 4: 1, 5: 2 }[f[6]] || 5,
+                   sdu: null, tag: f[1] });
+      }
+      continue;
+    }
+    // .pos: tid (två fält) lat lon höjd Q ns sdn sde sdu …
+    const f = line.split(/\s+/);
+    if (f.length < 6) continue;
+    const t = f[0].includes("/")
+      ? Date.parse(f[0].replace(/\//g, "-") + "T" + f[1] + "Z")
+      : Date.UTC(1980, 0, 6) + +f[0] * 604800000 + parseFloat(f[1]) * 1000;
+    const lat = +f[2], lon = +f[3], h = +f[4], q = +f[5];
+    if (!Number.isFinite(t) || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180) || !Number.isFinite(h)) continue;
+    pts.push({ t, lat, lon, h, q, sdu: f.length > 9 ? +f[9] : null });
+  }
+  return pts.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon) && Number.isFinite(p.h));
+}
+
+// Stunder då pucken stod still: fixpunkterna håller sig inom tio centimeter
+// i plan i minst 45 sekunder. Där gjordes kalibreringen, och där stod
+// fyrhjulingen innan pucken lyftes av.
+function findStillPeriods(pts, radius = 0.1, minSec = 45) {
+  const fix = pts.filter(p => p.q === 1);
+  const out = [];
+  let i = 0;
+  while (i < fix.length) {
+    const [x0, y0] = bareXY(fix[i].lat, fix[i].lon);
+    let j = i + 1;
+    while (j < fix.length) {
+      const [x, y] = bareXY(fix[j].lat, fix[j].lon);
+      if (Math.hypot(x - x0, y - y0) > radius) break;
+      j++;
+    }
+    const seg = fix.slice(i, j);
+    if (seg.length >= 10 && (seg[seg.length - 1].t - seg[0].t) / 1000 >= minSec) {
+      out.push({ start: seg[0].t, end: seg[seg.length - 1].t, n: seg.length,
+                 lat: bareAvg(seg.map(p => p.lat)), lon: bareAvg(seg.map(p => p.lon)),
+                 h: bareMedian(seg.map(p => p.h)) });
+      i = j;
+    } else i++;
+  }
+  return out;
+}
+
+/* Kalibreringen läses ur loggen i den ordning den görs ute:
+   1. pucken på brunn 7-locket — passets nollpunkt,
+   2. pucken på marken bredvid fyrhjulingen,
+   3. pucken på fästet — skillnaden mot steg 2 är antennhöjden.
+   Sedan körning. Fyrhjulingen står still en stund innan pucken lyfts av,
+   och pucken ställs på locket igen som kontroll. Punkterna medan den bärs
+   i handen ligger på fel höjd och får inte komma med, därför klipps
+   körningen vid stoppet före kontrollen. */
+function calibrateSurvey(periods) {
+  const nearLid = p => haversine([p.lat, p.lon], [BARE_ORIGIN.lat, BARE_ORIGIN.lon]) < 3;
+  const li = periods.findIndex(nearLid);
+  if (li < 0) return { error: "Pucken stod aldrig still på brunn 7-locket. Utan den nollpunkten går passet inte att räkna mot andra pass." };
+  const lid = periods[li];
+  for (let k = li + 1; k + 1 < periods.length; k++) {
+    const ground = periods[k], mounted = periods[k + 1];
+    const H = mounted.h - ground.h;
+    if (haversine([ground.lat, ground.lon], [mounted.lat, mounted.lon]) > 4 || H < 0.05 || H > 3.5) continue;
+    // En stund vid brunn 7 på fyrhjulingen är inte locket — höjden avslöjar det.
+    const ci = periods.findLastIndex((p, idx) => idx > k + 1 && nearLid(p) && Math.abs(p.h - lid.h) < 0.3);
+    const closing = ci > 0 ? periods[ci] : null;
+    const stop = ci > k + 2 ? periods[ci - 1] : null;
+    const warnings = [];
+    let to = Infinity;
+    if (!closing) warnings.push("Pucken ställdes inte på locket igen i slutet, så passet går inte att kontrollera.");
+    else if (stop) to = stop.end;
+    else {
+      to = closing.start - 120000;
+      warnings.push("Fyrhjulingen stod inte still innan pucken togs loss. De sista två minuterna före kontrollen är bortklippta.");
+    }
+    return { lid, ground, mounted, antennaHeight: H, closing, from: mounted.end, to, warnings,
+             drift: closing ? closing.h - lid.h : null };
+  }
+  return { lid, error: "Hittar inte stunderna med pucken på marken och sedan på fästet, efter brunn 7-locket." };
+}
+
+// Körningen in i rutnätet. Bara fix, och bara där mottagaren själv tror på
+// höjden inom fem centimeter. Float ger lätt decimeterfel i höjd.
+function addSurvey(pts, cal) {
+  let used = 0, rejected = 0;
+  for (const p of pts) {
+    if (p.t <= cal.from || p.t >= cal.to) continue;
+    if (p.q !== 1 || (Number.isFinite(p.sdu) && p.sdu > 0.05)) { rejected++; continue; }
+    const [x, y] = bareXY(p.lat, p.lon);
+    const gx = Math.floor(x / BARE_CELL), gy = Math.floor(y / BARE_CELL);
+    const dz = p.h - cal.antennaHeight - cal.lid.h;
+    const k = bareKey(gx, gy);
+    const c = bareCells.get(k) || { gx, gy, sum: 0, sq: 0, n: 0 };
+    c.sum += dz; c.sq += dz * dz; c.n++;
+    bareCells.set(k, c);
+    used++;
+  }
+  return { used, rejected };
+}
+
+// Luckor mellan varven: upp till fem omätta rutor i rad mellan två mätta,
+// längs en rad, kolumn eller diagonal. Där behövs ett varv till. Gatans
+// kanter går inte att se ur mätningen, så det är luckorna inne i det körda
+// som räknas. Bredare glipor än fem meter är oftast skog mellan två ben.
+function bareGaps() {
+  const gaps = new Map();
+  // [linje, läge längs linjen, och tillbaka till ruta] för varje riktning.
+  const dirs = [
+    [c => c.gy, c => c.gx, (l, p) => [p, l]],
+    [c => c.gx, c => c.gy, (l, p) => [l, p]],
+    [c => c.gx - c.gy, c => c.gx, (l, p) => [p, p - l]],
+    [c => c.gx + c.gy, c => c.gx, (l, p) => [p, l - p]]
+  ];
+  for (const [lineOf, posOf, back] of dirs) {
+    const lines = new Map();
+    for (const c of bareCells.values()) {
+      const l = lineOf(c);
+      (lines.get(l) || lines.set(l, []).get(l)).push(posOf(c));
+    }
+    for (const [l, ps] of lines) {
+      ps.sort((a, b) => a - b);
+      for (let i = 1; i < ps.length; i++) {
+        const d = ps[i] - ps[i - 1];
+        if (d < 2 || d > 6) continue;
+        for (let p = ps[i - 1] + 1; p < ps[i]; p++) {
+          const [gx, gy] = back(l, p);
+          gaps.set(bareKey(gx, gy), { gx, gy });
+        }
+      }
+    }
+  }
+  return gaps;
+}
+
+function bareReport() {
+  const gaps = bareGaps();
+  let shaky = 0;
+  for (const c of bareCells.values()) if (c.n >= 3 && bareSd(c) > 0.05) shaky++;
+  // Brunnarna sitter i gatans kant. Finns ingen mätning inom tolv meter har
+  // den biten av gatan inte körts alls.
+  const pts = [...bareCells.values()].map(c => [c.gx + 0.5, c.gy + 0.5]);
+  const missed = BUILTIN_WELLS.filter(w => !w.spare).filter(w => {
+    const [wx, wy] = bareXY(w.lat, w.lon);
+    return !pts.some(([x, y]) => Math.hypot(x - wx, y - wy) <= 12);
+  }).map(w => w.no);
+  return { cells: bareCells.size, gaps, shaky, missed,
+           coverage: bareCells.size ? bareCells.size / (bareCells.size + gaps.size) : 0 };
+}
+
+/* ---- lagring ----
+   Barmarken ändras inte under säsongen. Den sparas som en fil i appen,
+   barmark.json, precis som brunnarna ligger i koden. Det som lästs in men
+   inte sparats än ligger kvar i telefonen så att det överlever en omstart. */
+
+function bareToJson() {
+  return {
+    format: BARE_FORMAT,
+    note: "Barmark för Sparbanksspåret. Höjder i millimeter relativt brunn 7-locket, rutor på en meter med origo i brunn 7.",
+    cell: BARE_CELL, origin: [BARE_ORIGIN.lat, BARE_ORIGIN.lon],
+    files: bareFiles,
+    cells: [...bareCells.values()].sort((a, b) => a.gy - b.gy || a.gx - b.gx)
+      .map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n, Math.round(bareSd(c) * 1000)])
+  };
+}
+
+function bareFromJson(j) {
+  if (!j || j.format !== BARE_FORMAT || !Array.isArray(j.cells)) return false;
+  bareCells = new Map();
+  for (const [gx, gy, mm, n, sdmm] of j.cells) {
+    const m = mm / 1000, sd = (sdmm || 0) / 1000;
+    bareCells.set(bareKey(gx, gy), { gx, gy, sum: m * n, sq: (sd * sd + m * m) * n, n });
+  }
+  bareFiles = Array.isArray(j.files) ? j.files : [];
+  return true;
+}
+
+function saveBareDraft() {
+  try { localStorage.setItem("snowBareDraft", JSON.stringify(bareToJson())); }
+  catch { setBareNote("Telefonens lagring räckte inte till. Spara barmarken som fil innan du stänger appen."); }
+}
+
+async function openBare() {
+  if (!bareLoaded) {
+    bareLoaded = true;
+    if (bareFromJson(safeParse(localStorage.getItem("snowBareDraft"), null))) bareSource = "draft";
+    else {
+      try {
+        const r = await fetch("./barmark.json", { cache: "no-cache" });
+        if (r.ok && bareFromJson(await r.json())) bareSource = "app";
+      } catch { /* ingen fil i appen än */ }
+    }
+  }
+  renderBare();
+}
+
+async function importBareFiles(files) {
+  const notes = [];
+  for (const file of files) {
+    const pts = parseSurveyLog(await file.text());
+    if (pts.length < 50) {
+      notes.push(`<b>${file.name}</b>: hittade inga positioner. Spara .pos-filen med latitud, longitud och höjd i grader, eller använd puckens NMEA-logg.`);
+      continue;
+    }
+    const cal = calibrateSurvey(findStillPeriods(pts));
+    if (cal.error) { notes.push(`<b>${file.name}</b>: ${cal.error}`); continue; }
+    const r = addSurvey(pts, cal);
+    const fixShare = pts.filter(p => p.q === 1).length / pts.length;
+    bareFiles.push({ name: file.name, measured: new Date(pts[0].t).toISOString().slice(0, 16),
+                     antennaHeight: +cal.antennaHeight.toFixed(3),
+                     drift: cal.drift === null ? null : +cal.drift.toFixed(3), used: r.used });
+    const lines = [`<b>${file.name}</b>: ${r.used} punkter i rutnätet, ${Math.round(fixShare * 100)} % fix.`,
+                   `Antennhöjd ${fmt(cal.antennaHeight * 100)} cm.`];
+    if (cal.drift !== null) lines.push(Math.abs(cal.drift) > 0.03
+      ? `<span style="color:var(--warn)">Kontrollen på locket skiljer ${fmt(cal.drift * 100)} cm från starten — passet kan ha glidit.</span>`
+      : `Kontrollen på locket: ${fmt(cal.drift * 100)} cm från starten.`);
+    if (fixShare < 0.8) lines.push(`<span style="color:var(--warn)">Bara ${Math.round(fixShare * 100)} % av punkterna hade fix.</span>`);
+    cal.warnings.forEach(w => lines.push(`<span style="color:var(--warn)">${w}</span>`));
+    notes.push(lines.join(" "));
+  }
+  if (bareFiles.length) { bareSource = "draft"; saveBareDraft(); }
+  renderBare(notes);
+}
+
+function setBareNote(html) {
+  const el = $("bareReport");
+  el.hidden = !html;
+  el.innerHTML = html || "";
+}
+
+/* ---- visning ---- */
+
+function ensureBareMap() {
+  if (bareMap) { bareMap.invalidateSize(); return true; }
+  if ($("panelDepth").hidden) return false;
+  bareMap = L.map("bareMap", { zoomControl: true }).setView([BARE_ORIGIN.lat, BARE_ORIGIN.lon], 16);
+  const bases = baseLayers();
+  bases["Flygbild"].addTo(bareMap);
+  L.control.layers(bases, null, { position: "bottomleft" }).addTo(bareMap);
+  return true;
+}
+
+// Rutnätet ritas som en bild med en pixel per ruta. Femtontusen rutor som
+// enskilda kartobjekt gör telefonen seg; en bild kostar ingenting.
+function drawBare(gaps) {
+  if (bareLayer) bareLayer.remove();
+  bareLayer = L.layerGroup().addTo(bareMap);
+  if (track) L.polyline(track.pts, { color: "#e8eef7", weight: 1.5, opacity: .5, dashArray: "4 4" }).addTo(bareLayer);
+  BUILTIN_WELLS.forEach(w => L.circleMarker([w.lat, w.lon], { radius: 4, weight: 1.5, color: w.station ? "#fbbf24" : "#38bdf8",
+    fillOpacity: w.spare ? 0 : .6 }).bindTooltip(`Brunn ${w.no}`).addTo(bareLayer));
+  const all = [...bareCells.values(), ...gaps.values()];
+  if (!all.length) return;
+  const minX = Math.min(...all.map(c => c.gx)), maxX = Math.max(...all.map(c => c.gx));
+  const minY = Math.min(...all.map(c => c.gy)), maxY = Math.max(...all.map(c => c.gy));
+  const cv = document.createElement("canvas");
+  cv.width = maxX - minX + 1; cv.height = maxY - minY + 1;
+  const ctx = cv.getContext("2d");
+  const dot = (c, col) => { ctx.fillStyle = col; ctx.fillRect(c.gx - minX, maxY - c.gy, 1, 1); };
+  gaps.forEach(c => dot(c, "rgba(248,113,113,.9)"));
+  bareCells.forEach(c => dot(c, c.n >= 3 && bareSd(c) > 0.05 ? "rgba(251,191,36,.95)" : "rgba(56,189,248,.9)"));
+  const sw = bareLatLon(minX * BARE_CELL, minY * BARE_CELL), ne = bareLatLon((maxX + 1) * BARE_CELL, (maxY + 1) * BARE_CELL);
+  L.imageOverlay(cv.toDataURL(), [sw, ne], { className: "bare-overlay" }).addTo(bareLayer);
+  if (!bareFitted) { bareMap.fitBounds([sw, ne], { padding: [20, 20] }); bareFitted = true; }
+}
+
+function renderBare(notes = []) {
+  const has = bareCells.size > 0;
+  $("bareSave").hidden = !has || bareSource !== "draft";
+  $("bareClear").hidden = !has;
+  $("bareWrap").hidden = !has;
+  if (!has) {
+    $("bareStatus").textContent = "Ingen barmark inmätt än.";
+    setBareNote(notes.join("<br>"));
+    return;
+  }
+  const r = bareReport();
+  const area = r.cells * BARE_CELL * BARE_CELL;
+  $("bareStatus").textContent =
+    `${r.cells} rutor, ${area} m², från ${bareFiles.length} pass. ` +
+    (bareSource === "draft" ? "Inläst på den här enheten och inte sparat i appen än." : "Sparad i appen.");
+  const lines = [...notes];
+  lines.push(`<b>${Math.round(r.coverage * 100)} %</b> av ytan mellan varven är inmätt` +
+    (r.gaps.size ? `, ${r.gaps.size} rutor är luckor.` : "."));
+  if (r.missed.length) lines.push(`Ingen mätning nära brunn ${r.missed.join(", ")}.`);
+  if (r.shaky) lines.push(`${r.shaky} rutor har värden som spretar mer än fem centimeter.`);
+  setBareNote(lines.join("<br>"));
+  if (ensureBareMap()) drawBare(r.gaps);
+}
+
+$("bareInput").onchange = e => { const f = [...e.target.files]; e.target.value = ""; importBareFiles(f); };
+$("bareSave").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(bareToJson())], { type: "application/json" }));
+  a.download = "barmark.json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("bareClear").onclick = () => {
+  armConfirm($("bareClear"), "Ja, börja om", () => {
+    localStorage.removeItem("snowBareDraft");
+    bareCells = new Map(); bareFiles = []; bareSource = null; bareLoaded = false; bareFitted = false;
+    openBare();
+  });
 };
 
 /* ==========================================================================

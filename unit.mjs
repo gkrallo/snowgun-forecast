@@ -106,6 +106,7 @@ async function loadApp({ storage = {}, wx = COLD_NIGHT, fetch, url = "https://gk
       };
       w.fetch = fetch || (async () => okResponse(data));
       w.HTMLCanvasElement.prototype.getContext = () => chain();
+      w.HTMLCanvasElement.prototype.toDataURL = () => "data:,";
       w.matchMedia = () => ({ matches: false });
       // Webbläsarens egna frågerutor ska inte användas. Anropas de ändå
       // noteras det, och svaret blir det som förhandsvisningen ger: nej.
@@ -798,6 +799,188 @@ describe("Anläggningens förval", () => {
     try {
       a.run(`saveTrack({ ...BUILTIN_TRACK, source: "import", name: "Egen runda" })`);
       assert.equal(a.run("wells.length"), 0);
+    } finally { a.close(); }
+  });
+});
+
+describe("Barmark", () => {
+  // En påhittad men realistisk mätning, gjord som fältinstruktionen säger.
+  // Marken är en svag lutning med vågor; locket ligger 20 cm över 100 m.
+  const LID = 100.20, PUCK = 0.06, MOUNT = 1.18;
+  const terrain = (x, y) => 100 + 0.002 * y + 0.15 * Math.sin(x / 9);
+  let app, M, O;
+  before(async () => {
+    app = await loadApp();
+    M = app.get("BARE_M"); O = app.get("[BARE_ORIGIN.lat, BARE_ORIGIN.lon]");
+  });
+  after(() => app.close());
+  const xy = (lat, lon) => [(lon - O[1]) * M.lon, (lat - O[0]) * M.lat];
+  const ll = (x, y) => [O[0] + y / M.lat, O[1] + x / M.lon];
+  const reset = () => app.run("bareCells = new Map(); bareFiles = []; localStorage.removeItem('snowBareDraft')");
+
+  function survey({ passes = 8, spacing = 1, closing = true, endStop = true } = {}) {
+    let seed = 11;
+    const noise = s => (((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5) * 2 * s;
+    let t = Date.UTC(2026, 10, 10, 13, 0, 0);
+    const lines = [];
+    const put = (x, y, h, q = 1) => {
+      const [lat, lon] = ll(x, y);
+      const d = new Date(t);
+      const stamp = `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCDate()).padStart(2, "0")} ` +
+        `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")}.${String(d.getUTCMilliseconds()).padStart(3, "0")}`;
+      lines.push(`${stamp} ${lat.toFixed(9)} ${lon.toFixed(9)} ${h.toFixed(4)} ${q} 18 0.0040 0.0040 ${q === 1 ? "0.0090" : "0.2500"} 0 0 0 0.00 999.9`);
+      t += 250;
+    };
+    const still = (x, y, h, sec) => { for (let i = 0; i < sec * 4; i++) put(x + noise(0.004), y + noise(0.004), h + noise(0.004)); };
+    const walk = (a, b, hOf, speed) => {
+      const n = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / (speed / 4)));
+      for (let i = 1; i <= n; i++) { const x = a[0] + (b[0] - a[0]) * i / n, y = a[1] + (b[1] - a[1]) * i / n; put(x, y, hOf(x, y)); }
+    };
+    const hand = (x, y) => terrain(x, y) + 1.0 + PUCK;       // pucken i handen
+    const rig = (x, y) => terrain(x, y) + MOUNT + PUCK;      // pucken på fästet
+
+    // Utbenet söder om parkeringen, där brunn 4–9 står.
+    const line = app.get("BUILTIN_TRACK.pts").slice(13, 27).map(p => xy(p[0], p[1]));
+    const G = [line[0][0] - 6, line[0][1]];
+
+    lines.push("% program   : RTKPOST ver.demo5 b34", "%  GPST                  latitude(deg) longitude(deg)  height(m)   Q  ns   sdn(m)   sde(m)   sdu(m)");
+    still(0, 0, LID + PUCK, 300);
+    walk([0, 0], G, hand, 1.2);
+    still(G[0], G[1], terrain(G[0], G[1]) + PUCK, 120);
+    walk(G, [G[0], G[1] + 1], hand, 0.5);
+    still(G[0], G[1] + 1, rig(G[0], G[1] + 1), 120);
+
+    let pos = [G[0], G[1] + 1];
+    for (let k = 0; k < passes; k++) {
+      const off = (k - (passes - 1) / 2) * spacing;
+      const path = (k % 2 ? [...line].reverse() : line).map((p, i, arr) => {
+        const q = arr[Math.min(i + 1, arr.length - 1)], r = arr[Math.max(i - 1, 0)];
+        const dx = q[0] - r[0], dy = q[1] - r[1], L = Math.hypot(dx, dy);
+        const s = k % 2 ? -1 : 1;
+        return [p[0] + s * dy / L * off, p[1] - s * dx / L * off];
+      });
+      walk(pos, path[0], rig, 1.5);
+      for (let i = 1; i < path.length; i++) {
+        const before = lines.length;
+        walk(path[i - 1], path[i], rig, 1.5);
+        // Ett stycke float på varv två, med fel höjd som RTK-float ofta ger.
+        if (k === 1 && i === 4) for (let j = before; j < lines.length; j++)
+          lines[j] = lines[j].replace(/ (\d+\.\d{4}) 1 18 0\.0040 0\.0040 0\.0090/, (m, h) => ` ${(+h + 0.3).toFixed(4)} 2 18 0.0040 0.0040 0.2500`);
+      }
+      pos = path[path.length - 1];
+    }
+    if (endStop) still(pos[0], pos[1], rig(pos[0], pos[1]), 60);
+    if (closing) { walk(pos, [0, 0], hand, 1.2); still(0, 0, LID + PUCK + 0.004, 120); }
+    return lines.join("\n");
+  }
+
+  async function importText(text, name = "barmark.pos") {
+    await app.win.importBareFiles([{ name, text: async () => text }]);
+  }
+
+  test("kalibreringen hittas i loggen: antennhöjd och kontroll på locket", () => {
+    const pts = app.win.parseSurveyLog(survey());
+    const cal = app.win.calibrateSurvey(app.win.findStillPeriods(pts));
+    assert.equal(cal.error, undefined);
+    assert.ok(Math.abs(cal.antennaHeight - MOUNT) < 0.005, `antennhöjd ${cal.antennaHeight}`);
+    assert.ok(Math.abs(cal.drift - 0.004) < 0.003, `kontroll ${cal.drift}`);
+    assert.deepEqual([...cal.warnings], []);
+  });
+
+  test("varje ruta får markens höjd relativt locket, utan float och utan handburna punkter", async () => {
+    reset();
+    await importText(survey());
+    const cells = app.get("[...bareCells.values()].map(c => [c.gx, c.gy, c.sum / c.n, c.n])");
+    assert.ok(cells.length > 2500, `${cells.length} rutor`);
+    let worst = 0, where = null;
+    for (const [gx, gy, dz] of cells) {
+      const err = Math.abs(dz - (terrain(gx + 0.5, gy + 0.5) - LID));
+      if (err > worst) { worst = err; where = [gx, gy]; }
+    }
+    assert.ok(worst < 0.025, `största fel ${(worst * 100).toFixed(1)} cm i ruta ${where}`);
+  });
+
+  test("åtta varv med en meter emellan täcker gatan, fyra med två meter gör det inte", async () => {
+    reset();
+    await importText(survey({ passes: 8, spacing: 1 }));
+    const tight = app.get("(() => { const r = bareReport(); return { c: r.coverage, missed: r.missed }; })()");
+    reset();
+    await importText(survey({ passes: 4, spacing: 2 }));
+    const loose = app.get("bareReport().coverage");
+    assert.ok(tight.c > 0.9, `täta varv gav ${Math.round(tight.c * 100)} %`);
+    assert.ok(loose < 0.7, `glesa varv gav ${Math.round(loose * 100)} %`);
+    for (const no of [1, 2, 19]) assert.ok(tight.missed.includes(no), `brunn ${no} borde sakna mätning`);
+    for (const no of [6, 7]) assert.ok(!tight.missed.includes(no), `brunn ${no} är inmätt`);
+  });
+
+  test("utan kontroll på locket varnar appen, och utan stopp klipps slutet bort", () => {
+    const noClose = app.win.calibrateSurvey(app.win.findStillPeriods(app.win.parseSurveyLog(survey({ closing: false }))));
+    assert.match(noClose.warnings.join(" "), /inte på locket igen/);
+    assert.equal(noClose.drift, null);
+    const noStop = app.win.calibrateSurvey(app.win.findStillPeriods(app.win.parseSurveyLog(survey({ endStop: false }))));
+    assert.match(noStop.warnings.join(" "), /stod inte still/);
+    assert.ok(noStop.to < noStop.closing.start);
+  });
+
+  test("en logg utan stund på brunn 7-locket ger ett begripligt fel", async () => {
+    reset();
+    const text = survey().split("\n").filter((l, i) => i < 2 || i > 1201).join("\n");
+    await importText(text, "utanlock.pos");
+    assert.match(app.$("bareReport").textContent, /brunn 7-locket/);
+    assert.equal(app.run("bareCells.size"), 0);
+  });
+
+  test("puckens NMEA-logg läses också: fix, höjd över ellipsoiden och höjdosäkerhet", () => {
+    const cs = s => { let x = 0; for (const ch of s) x ^= ch.charCodeAt(0); return x.toString(16).toUpperCase().padStart(2, "0"); };
+    const n = s => `$${s}*${cs(s)}`;
+    const text = [
+      n("GNGGA,130000.00,5830.22686,N,01305.27532,E,4,24,0.6,72.512,M,35.210,M,1.0,0000"),
+      n("GNGST,130000.00,0.010,0.008,0.006,45.0,0.007,0.006,0.012"),
+      n("GNGGA,130000.25,5830.22686,N,01305.27532,E,5,24,0.6,72.700,M,35.210,M,1.0,0000"),
+      "$GNGGA,130000.50,5830.22686,N,01305.27532,E,4,24,0.6,72.512,M,35.210,M,1.0,0000*00",
+      n("GNGGA,130000.75,5830.22686,N,01305.27532,E,0,0,99,0,M,0,M,,")
+    ].join("\n");
+    const pts = app.get(`parseSurveyLog(${JSON.stringify(text)})`);
+    assert.equal(pts.length, 2, "fel kontrollsumma och 'ingen fix' ska bort");
+    assert.equal(pts[0].q, 1);
+    assert.equal(pts[1].q, 2);
+    assert.ok(Math.abs(pts[0].h - 107.722) < 1e-9);
+    assert.equal(pts[0].sdu, 0.012);
+    assert.ok(Math.abs(pts[0].lat - 58.503781) < 1e-6 && Math.abs(pts[0].lon - 13.087922) < 1e-6);
+  });
+
+  test(".pos med GPS-vecka och sekunder i stället för datum", () => {
+    const pts = app.get(`parseSurveyLog("2390 345600.000 58.503781 13.087922 100.2600 1 18 0.004 0.004 0.009")`);
+    assert.equal(pts.length, 1);
+    assert.equal(pts[0].t, Date.UTC(1980, 0, 6) + 2390 * 604800000 + 345600000);
+  });
+
+  test("barmarken sparas som fil och läses tillbaka utan att något ändras", async () => {
+    reset();
+    await importText(survey({ passes: 2 }));
+    const json = app.get("bareToJson()");
+    assert.equal(json.format, "snoprognos-barmark-1");
+    assert.equal(json.files.length, 1);
+    const before = app.get("[...bareCells.values()].map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n])").sort();
+    app.run(`bareFromJson(${JSON.stringify(json)})`);
+    const after = app.get("[...bareCells.values()].map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n])").sort();
+    assert.deepEqual(after, before);
+    assert.ok(app.win.localStorage.getItem("snowBareDraft"), "det inlästa ska ligga kvar i telefonen");
+  });
+
+  test("fliken Snödjup visar rutnätet och vad passet gav", async () => {
+    const a = await loadApp();
+    try {
+      a.$("tabDepth").click();
+      await a.settle();
+      assert.match(a.$("bareStatus").textContent, /Ingen barmark/);
+      await a.win.importBareFiles([{ name: "barmark.pos", text: async () => survey() }]);
+      assert.match(a.$("bareStatus").textContent, /rutor/);
+      assert.match(a.$("bareStatus").textContent, /inte sparat i appen/);
+      assert.match(a.$("bareReport").textContent, /Antennhöjd 118,\d cm/);
+      assert.match(a.$("bareReport").textContent, /av ytan mellan varven är inmätt/);
+      assert.equal(a.$("bareSave").hidden, false);
+      assert.deepEqual(a.errors, []);
     } finally { a.close(); }
   });
 });
