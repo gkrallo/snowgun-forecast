@@ -690,6 +690,20 @@ describe("Spår, platser och aggregat", () => {
     } finally { app.close(); }
   });
 
+  test("slangavståndet visas på decimetern och stämmer med varningen", async () => {
+    // Med hela meter stod det "8 m — mer än 8 m slang" när brunnen låg 8,3 m
+    // bort. Nu ska 8,3 m varna och knappt 8 m inte göra det.
+    const lat7 = 58.503781, lon7 = 13.087922, m = 1 / 111320;
+    const { app, gunMarkers } = await withGuns([
+      { id: "far", type: "fan", lat: lat7 + 8.3 * m, lon: lon7 },
+      { id: "near", type: "fan", lat: lat7 - 7.96 * m, lon: lon7 }]);
+    try {
+      const popup = id => gunMarkers().find(x => x.popup.includes(`data-del="${id}"`)).popup.replace(/\s+/g, " ");
+      assert.match(popup("far"), /Brunn 7, 8,3 m <span[^>]*>— mer än 8 m slang/);
+      assert.match(popup("near"), /Brunn 7, 8,0 m<br>/);
+    } finally { app.close(); }
+  });
+
   test("ikonen pekar dit aggregatet är riktat", async () => {
     const { app, gunMarkers } = await withGuns(THREE_GUNS);
     try {

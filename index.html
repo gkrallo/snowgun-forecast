@@ -2028,7 +2028,10 @@ function renderPlan() {
 
     const m = L.marker([g.lat, g.lon], { icon: gunIcon(g.type, st, plume.aim), draggable: true }).addTo(gunLayers);
     const nw = nearestWell(g.lat, g.lon);
-    const hoseOk = nw && nw.dist <= S.hoseLength;
+    // Avståndet visas och bedöms på samma decimeter. Med hela meter stod det
+    // "8 m — mer än 8 m slang" när brunnen låg 8,3 m bort.
+    const hoseDist = nw ? Math.round(nw.dist * 10) / 10 : Infinity;
+    const hoseOk = nw && hoseDist <= S.hoseLength;
     if (nw && nw.dist <= S.hoseLength * 2.5) {
       L.polyline([[g.lat, g.lon], [nw.well.lat, nw.well.lon]],
         { color: hoseOk ? "#38bdf8" : "#f87171", weight: 2, opacity: .7, dashArray: "3 4" }).addTo(aimLayers);
@@ -2039,8 +2042,8 @@ function renderPlan() {
       `<div style="font:13px/1.5 sans-serif; min-width:210px">
         <b>${g.type === "fan" ? "Fläktkanon" : "Lans"}</b>
         ${aimed ? `· siktad ${Math.round(g.aim)}°, ${gunDist(g)} m` : "· följer spåret"}<br>
-        ${nw ? `Brunn ${nw.well.no}, ${Math.round(nw.dist)} m${hoseOk ? "" :
-          ` <span style="color:#dc2626">— mer än ${S.hoseLength} m slang</span>`}<br>` :
+        ${nw ? `Brunn ${nw.well.no}, ${hoseDist < 20 ? fmt(hoseDist) : Math.round(hoseDist)} m${hoseOk ? "" :
+          ` <span style="color:#dc2626">— mer än ${fmt(S.hoseLength, S.hoseLength % 1 ? 1 : 0)} m slang</span>`}<br>` :
           `<span style="color:#93a4bd">Ingen brunn utsatt.</span><br>`}
         ${Math.round(cov.offset)} m från spåret, täcker ${Math.round(cov.covered)} m.<br>
         ${outOfReach ? `<span style="color:#dc2626">Når inte spåret — flytta ${Math.round(cov.offset - cov.reach)} m närmare eller sikta fritt.</span><br>` : ""}
