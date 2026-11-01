@@ -728,6 +728,66 @@ describe("Spår, platser och aggregat", () => {
   });
 });
 
+describe("Anläggningens förval", () => {
+  // Snögruppens egna uppgifter om Sparbanksspåret. Ändras de ska det vara
+  // med avsikt, inte för att någon råkat ladda upp en gammal kopia.
+  let app;
+  before(async () => { app = await loadApp(); });
+  after(() => app.close());
+
+  test("alla tjugo brunnar laddas som förval på Sparbanksspåret", () => {
+    assert.deepEqual(app.get("wells.map(w => w.no)"), Array.from({ length: 20 }, (_, i) => i + 1));
+  });
+
+  test("brunn 7 är väderstationen och brunn 20 reserven", () => {
+    assert.deepEqual(app.get("wells.filter(w => w.station).map(w => w.no)"), [7]);
+    assert.deepEqual(app.get("wells.filter(w => w.spare).map(w => w.no)"), [20]);
+  });
+
+  test("nitton brunnar ligger vid spåret, reserven vid schaktytan", () => {
+    const d = app.get("wells.map(w => [w.no, nearestSegment(w.lat, w.lon).dist])");
+    const far = d.filter(([, m]) => m >= 20);
+    assert.deepEqual(far.map(([no]) => no), [20], `långt från spåret: ${far.map(([no, m]) => `${no} (${Math.round(m)} m)`).join(", ")}`);
+    assert.ok(far[0][1] > 40);
+  });
+
+  test("reservbrunnen föreslås aldrig som inkoppling", () => {
+    assert.notEqual(app.run("nearestWell(58.50341, 13.086911).well.no"), 20);
+  });
+
+  test("spårgatan och slanglängden är åtta meter, i koden och i formuläret", () => {
+    assert.equal(app.run("DEFAULTS.trailWidth"), 8);
+    assert.equal(app.run("DEFAULTS.hoseLength"), 8);
+    assert.equal(app.$("trailWidth").getAttribute("value"), "8");
+    assert.equal(app.$("hoseLength").getAttribute("value"), "8");
+  });
+
+  test("väderstationen och reserven syns på kartan", async () => {
+    const a = await loadApp();
+    try {
+      a.$("tabWind").click();
+      const icon = no => a.win.__markers.filter(m => m.opts.icon?.className === "well-icon" && m.popup.includes(`<b>Brunn ${no}</b>`)).pop();
+      assert.match(icon(7).opts.icon.html, /#fbbf24/);
+      assert.match(icon(7).popup, /väderstation/);
+      assert.match(icon(20).popup, /reserv/);
+      assert.match(icon(3).opts.icon.html, /#38bdf8/);
+    } finally { a.close(); }
+  });
+
+  test("en egen brunnslista tar över förvalet, även en tom", async () => {
+    const a = await loadApp({ storage: { snowWellsByTrack: { sparbanksparet: [] } } });
+    try { assert.equal(a.run("wells.length"), 0); } finally { a.close(); }
+  });
+
+  test("förvalsbrunnarna följer inte med till ett inläst spår", async () => {
+    const a = await loadApp();
+    try {
+      a.run(`saveTrack({ ...BUILTIN_TRACK, source: "import", name: "Egen runda" })`);
+      assert.equal(a.run("wells.length"), 0);
+    } finally { a.close(); }
+  });
+});
+
 describe("Frågor i appen", () => {
   // Webbläsarens alert, confirm och prompt svarar tyst nej i förhandsvisningen
   // och i inbyggda webbläsare. Allt ska gå genom appens egen ruta.
