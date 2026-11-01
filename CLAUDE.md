@@ -164,3 +164,15 @@ Kristian i snögruppen. Inte programmerare, men tekniskt påläst och van vid
 anläggningen. Förklara vad en ändring gör och varför, inte bara att den är
 gjord. Han hittar fel som inte syns i koden — lyssna när han säger att något
 inte stämmer med verkligheten.
+
+## Två vägar in i samma fil är den farligaste buggen
+
+Den 1 november skrevs en hel commit bort — kanonernas riktningsspets, de egna
+frågerutorna och rättningen av att en kanons ruta stängdes direkt — eftersom en
+äldre `index.html` laddades upp via GitHubs webbgränssnitt ovanpå arbete som
+gjorts i Claude Code. Uppladdningen ersätter filen rakt av och varnar inte för
+att den är äldre.
+
+Projektet redigeras därför i Claude Code. Kommer en fil utifrån: `git pull`
+först, läs `git log` och jämför, lägg ändringen ovanpå. Ladda aldrig upp en
+fil som byggts på något annat än aktuell HEAD.
