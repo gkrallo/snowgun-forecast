@@ -186,8 +186,16 @@ GitHub Pages serverar direkt från `main`, gren-läge, root. Det finns inget
 eget arbetsflöde och ska inte behövas. Ladda upp, så är det ute inom någon
 minut.
 
-**Höj `VERSION` i `sw.js` vid varje utgåva.** Annars kan de som installerat
-appen bli kvar på gammal kod.
+**Höj `VERSION` i `sw.js` och `APP_VERSION` i `index.html` vid varje utgåva.**
+Annars kan de som installerat appen bli kvar på gammal kod. `unit.mjs` fäller
+den som bara höjer den ena. `APP_VERSION` står under Om appen, så att man kan
+se vilken version telefonen kör.
+
+En installerad app laddas nästan aldrig om — telefonen håller den vid liv.
+Därför frågar appen efter en ny service worker när den kommer fram på
+skärmen och laddar om när den nya tagit över (`reloadForUpdate`). Den första
+utgåvan med det var version 10; äldre installationer måste startas om för
+hand en gång.
 
 Testa lokalt med en enkel server, till exempel `python -m http.server 8000`,
 och öppna `http://localhost:8000`. Service worker, geolocation och

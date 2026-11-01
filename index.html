@@ -625,6 +625,11 @@ button{font-family:inherit}
    1. INSTÄLLNINGAR OCH TILLSTÅND
    ========================================================================== */
 
+// Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
+// den som bara höjer den ena. Siffran står under Om appen, så att man kan se
+// vilken version telefonen faktiskt kör.
+const APP_VERSION = 10;
+
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
   fanHeight: 5,       // m, fallhöjd för fläktfanan
@@ -2973,6 +2978,9 @@ const INFO = {
     </ul>
     <div class="note">Öppnar ni länken inifrån Messenger eller Facebook hamnar ni i deras inbyggda webbläsare, som varken kan installera appen eller spara inställningar särskilt länge. Tryck på de tre prickarna och välj att öppna i Chrome eller Safari först.</div>
 
+    <h3>Nya versioner</h3>
+    <p>Det här är <b>version ${APP_VERSION}</b>. Appen letar efter en ny version varje gång den kommer fram på skärmen och laddar om sig själv när den hittat en. Är en ruta öppen väntar den tills ni lägger undan appen. Ser ni ändå en äldre siffra än den som är utlagd: stäng appen helt — svep bort den bland de senast använda apparna — och öppna den igen.</p>
+
     <h3>Era egna givare slår prognosen</h3>
     <p>Har anläggningen våttemperaturgivare i styrsystemet är de alltid närmare sanningen än en prognospunkt tio meter över öppen mark. Läs av referensgivaren, skriv in värdet under ⚙️ och tryck Kalibrera. Appen räknar ut skillnaden mot modellen och lägger den på alla våttemperaturer, också i körfönstren och tabellen.</p>
     <p>Välj referensgivaren, inte en kanon som står och går. Ett aggregat mitt i sin egen plym mäter sin egen fukt och visar flera grader för varmt. Ett styrsystem som listar tio givare där några skiljer sig kraftigt från klungan säger inte att vädret varierar så mycket — det säger vilka givare som står i snödimma eller har isat igen. Klungan är svaret, avvikarna är brus.</p>
@@ -3888,8 +3896,36 @@ function registerServiceWorker() {
   const secure = location.protocol === "https:" ||
                  ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
   if (!("serviceWorker" in navigator) || !secure) return;
-  navigator.serviceWorker.register("./sw.js").catch(err => console.warn("SW:", err));
+  const sw = navigator.serviceWorker;
+  // Fanns ingen service worker när sidan laddades är nästa övertagande bara
+  // den första installationen. Då finns inget nytt att ladda om till.
+  const hadController = !!sw.controller;
+  sw.register("./sw.js").then(reg => { swReg = reg; }).catch(err => console.warn("SW:", err));
+  sw.addEventListener("controllerchange", () => { if (hadController) reloadForUpdate(); });
 }
+
+/* En installerad app laddas nästan aldrig om. Telefonen håller den vid liv och
+   visar samma sida när man går tillbaka till den, så en ny version kom inte
+   fram fast den låg ute — i en vanlig flik i Chrome syntes den direkt. Appen
+   frågar därför efter en ny service worker varje gång den kommer fram. När
+   den nya har tagit över laddas sidan om, men inte mitt i något: med en ruta
+   öppen (en fråga, en GPS-inmätning) väntar den tills appen läggs undan. */
+let swReg = null, swCheckedAt = 0, updatePending = false;
+
+function reloadForUpdate() {
+  if (document.hidden || !document.querySelector(".overlay.open")) reloadPage();
+  else updatePending = true;
+}
+
+// Egen funktion, så att testerna kan se att sidan laddas om utan att göra det.
+function reloadPage() { location.reload(); }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { if (updatePending) reloadPage(); return; }
+  if (!swReg || Date.now() - swCheckedAt < 60000) return;
+  swCheckedAt = Date.now();
+  swReg.update().catch(() => {}); // utan nät blir det ingen kontroll, och det gör inget
+});
 
 window.addEventListener("beforeinstallprompt", e => {
   e.preventDefault();

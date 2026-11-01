@@ -1231,14 +1231,14 @@ describe("Bibliotek och service worker", () => {
   });
 
   // Kör sw.js i en egen sandlåda med låtsade cachar och nätsvar.
-  function loadSw(response) {
+  function loadSw(response, fetches = []) {
     const handlers = {}, puts = [];
     const cache = { put: async k => { puts.push(k); }, add: async () => {}, match: async () => undefined };
     vm.runInNewContext(SW, {
       self: { addEventListener: (ev, h) => { handlers[ev] = h; }, location: { origin: "https://gkrallo.github.io" },
               skipWaiting() {}, clients: { claim() {} } },
       caches: { open: async () => cache, match: async () => undefined, keys: async () => [] },
-      fetch: async () => response, URL, Promise
+      fetch: async (req, init) => { fetches.push(init); return response; }, URL, Promise
     });
     return async url => {
       let p;
@@ -1247,6 +1247,20 @@ describe("Bibliotek och service worker", () => {
       return puts;
     };
   }
+
+  test("appens version stämmer med service workerns", () => {
+    // Båda höjs vid varje utgåva. Höjs bara den ena syns fel siffra under Om appen.
+    const app = +HTML.match(/const APP_VERSION = (\d+);/)[1];
+    assert.equal(SW.match(/const VERSION = "snoprognos-v(\d+)"/)[1], String(app));
+  });
+
+  test("startsidan hämtas förbi webbläsarens cache", async () => {
+    // GitHub Pages tillåter tio minuters återanvändning. Utan "no-cache"
+    // kunde en nyss utlagd version dröja, eller aldrig nå en installerad app.
+    const fetches = [];
+    await loadSw({ ok: true, status: 200, clone() { return this; } }, fetches)("https://gkrallo.github.io/snowgun-forecast/");
+    assert.equal(fetches[0]?.cache, "no-cache");
+  });
 
   test("service workern sparar startsidan när den hämtas", async () => {
     const nav = loadSw({ ok: true, status: 200, clone() { return this; } });
@@ -1258,20 +1272,76 @@ describe("Bibliotek och service worker", () => {
     assert.deepEqual(await nav("https://gkrallo.github.io/snowgun-forecast/finns-inte"), []);
   });
 
-  async function registersOn(url) {
-    let registered = false;
+  /* Appen med en låtsad service worker. `controller` säger om en service
+     worker redan styrde sidan när den laddades. Sidan synlig eller dold
+     styrs med `app.win.__hidden`; jsdom själv påstår att den alltid är dold. */
+  async function withSw({ controller = {}, url = "https://gkrallo.github.io/snowgun-forecast/" } = {}) {
+    const sw = { registered: false, updates: 0, handlers: {} };
     const app = await loadApp({ url, setup: w => {
-      Object.defineProperty(w.navigator, "serviceWorker", { value: { register: async () => { registered = true; } } });
+      Object.defineProperty(w.navigator, "serviceWorker", { value: {
+        controller,
+        register: async () => { sw.registered = true; return { update: async () => { sw.updates++; } }; },
+        addEventListener: (ev, h) => { (sw.handlers[ev] ||= []).push(h); }
+      } });
+      Object.defineProperty(w.document, "hidden", { configurable: true, get: () => !!w.__hidden });
     } });
-    app.close();
-    return registered;
+    await app.settle(5);
+    app.run("var __reloads = 0; reloadPage = () => { __reloads++; }");
+    const show = hidden => { app.win.__hidden = hidden; app.win.document.dispatchEvent(new app.win.Event("visibilitychange")); };
+    const takeOver = () => sw.handlers.controllerchange.forEach(h => h());
+    return { app, sw, show, takeOver, reloads: () => app.run("__reloads") };
   }
 
   test("service workern registreras på GitHub Pages", async () => {
-    assert.ok(await registersOn("https://gkrallo.github.io/snowgun-forecast/"));
+    const { app, sw } = await withSw();
+    app.close();
+    assert.ok(sw.registered);
   });
 
   test("service workern registreras även på localhost", async () => {
-    assert.ok(await registersOn("http://localhost:8000/"));
+    const { app, sw } = await withSw({ url: "http://localhost:8000/" });
+    app.close();
+    assert.ok(sw.registered);
+  });
+
+  test("när appen kommer fram frågar den efter en ny version, högst en gång i minuten", async () => {
+    const { app, sw, show } = await withSw();
+    try {
+      show(false);
+      assert.equal(sw.updates, 1);
+      show(true); show(false);
+      assert.equal(sw.updates, 1);
+    } finally { app.close(); }
+  });
+
+  test("en ny version laddar om appen när den tagit över", async () => {
+    // En installerad app hålls vid liv av telefonen och laddades aldrig om,
+    // så den nya versionen kom inte fram fast den låg ute.
+    const { app, takeOver, reloads } = await withSw();
+    try {
+      takeOver();
+      assert.equal(reloads(), 1);
+    } finally { app.close(); }
+  });
+
+  test("mitt i en fråga väntar omladdningen tills appen läggs undan", async () => {
+    const { app, takeOver, show, reloads } = await withSw();
+    try {
+      app.$("surveyModal").classList.add("open");
+      takeOver();
+      assert.equal(reloads(), 0, "laddade om mitt i GPS-inmätningen");
+      show(false);
+      assert.equal(reloads(), 0);
+      show(true);
+      assert.equal(reloads(), 1);
+    } finally { app.close(); }
+  });
+
+  test("första installationen laddar inte om sidan", async () => {
+    const { app, takeOver, reloads } = await withSw({ controller: null });
+    try {
+      takeOver();
+      assert.equal(reloads(), 0);
+    } finally { app.close(); }
   });
 });

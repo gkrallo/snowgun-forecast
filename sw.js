@@ -3,7 +3,7 @@
    finns täckning ute vid spåret. Väderdata cachas inte här — den hanteras av
    appens egen kopia i localStorage. */
 
-const VERSION = "snoprognos-v9";
+const VERSION = "snoprognos-v10";
 const SHELL = [
   "./",
   "./index.html",
@@ -46,9 +46,11 @@ self.addEventListener("fetch", e => {
   if (ALWAYS_NETWORK.some(h => url.hostname.endsWith(h))) return;
 
   // Sidnavigering: nät först, men fall tillbaka på den sparade sidan offline.
+  // GitHub Pages låter webbläsaren återanvända sidan i tio minuter utan att
+  // fråga. "no-cache" frågar ändå varje gång — ett kort svar om inget ändrats.
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-cache" })
         .then(res => {
           // Bara ett giltigt svar får bli appens sparade startsida. Utan den
           // kontrollen cachades en 404-sida som index.html och låg kvar.
