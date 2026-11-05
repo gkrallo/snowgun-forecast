@@ -26,7 +26,8 @@ kostar ingenting.
 Registrera dig för Swepos öppna data (`swepos-open.lantmateriet.se`).
 Dygnsfilerna från referensstationerna är gratis. Närmaste station är **LIDK**
 i Lidköping, ungefär 2,4 km öster om brunn 7. Dess koordinater står i
-`docs/ppk-lidk.conf`.
+`docs/ppk-lidk.conf`. I filnamnen heter den **`0LKO`**. Förväxla den inte
+med `1LID`, som är Liden i Medelpad, 51 mil bort.
 
 **Fyrhjulingen**
 
@@ -67,8 +68,9 @@ börjar och slutar på brunn 7-locket och räknas för sig.
 2. **Hämta dygnsfilen** för LIDK samma datum. Öppna
    `ftp://swepos-open.lantmateriet.se/` i Utforskaren, eller `sftp://` i ett
    program som WinSCP. Gå till `rinex3/<år>/<dagnummer>/` och ta filen som
-   börjar på `LIDK` och slutar på `MO.crx.gz`. Lägg den i samma mapp. Dagnumret
-   räknas från 1 januari, så 1 november 2026 är dag 305.
+   börjar på `0LKO` och slutar på `MO.crx.gz`. Lägg den i samma mapp.
+   Dagnumret räknas från 1 januari, så 1 november 2026 är dag 305. Filen för ett
+   dygn finns ungefär en halvtimme efter midnatt UTC.
 3. **Efterberäkna** med RTKLIB (gratis). Använd Tim Everetts version
    *RTKLIB-EX*, som tidigare hette *demo5*, för SparkFuns loggar. Den ligger i
    `verktyg/rtklib/`, som inte följer med till GitHub. Hämta den från
@@ -76,7 +78,7 @@ börjar och slutar på brunn 7-locket och räknas för sig.
    `docs/ppk-lidk.conf`, och här är de viktiga. Första gången gör vi det
    tillsammans i Claude Code.
    - Läge: *Kinematic*, frekvenser L1+L2, filter *Combined*
-   - Basens position: LIDK:s koordinater från Swepos, inte RINEX-filens huvud
+   - Basens position: LIDK:s koordinater från Swepos och antennhöjden 0,071 m
    - Interpolering av basens data: på (dygnsfilerna har bara en mätning var
      30:e sekund)
    - Utdata: latitud, longitud och höjd i grader
