@@ -112,6 +112,13 @@ button{font-family:inherit}
 .chartbox{position:relative; height:44vh; height:44dvh; min-height:250px; max-height:400px;
   background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:10px 8px 4px}
 .caption{font-size:.72rem; color:var(--ink-faint); text-align:center; margin:6px 0 0}
+/* Avläsningen står under grafen i stället för i en ruta ovanpå den — rutan
+   täckte halva kurvan på en telefon. Fast höjd så att sidan inte hoppar. */
+.chartread{min-height:calc(4.35em + 14px); margin-top:6px; padding:6px 10px; font-size:.8rem; line-height:1.45;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); color:var(--ink-dim)}
+.chartread b{color:var(--ink)}
+.chartread .wbv{color:var(--ice); font-weight:650}
+.chartread .hint{color:var(--ink-faint)}
 .err{color:var(--stop); font-size:.85rem; text-align:center; min-height:18px; margin-top:6px}
 
 #loading{display:none; position:absolute; inset:0; background:rgba(11,18,32,.75);
@@ -300,6 +307,7 @@ button{font-family:inherit}
     <div id="loading"><div class="spin"></div><span>Hämtar väderdata…</span></div>
     <canvas id="mainChart"></canvas>
   </div>
+  <div class="chartread" id="chartReadout"><span class="hint">Tryck i grafen för att läsa av en tidpunkt.</span></div>
   <p class="caption">Blå yta = våttemperatur under startgränsen. Pilarna pekar dit vinden blåser. Nyp eller scrolla för att zooma, dra för att panorera.</p>
   <div class="err" id="err"></div>
 </div>
@@ -628,7 +636,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 11;
+const APP_VERSION = 12;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -2525,33 +2533,39 @@ function renderMainChart() {
           pan: { enabled: true, mode: "x", onPanComplete: onViewChange },
           zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: "x", onZoomComplete: onViewChange }
         },
-        tooltip: {
-          backgroundColor: "#0b1220", borderColor: "#2b3b57", borderWidth: 1, padding: 10,
-          callbacks: {
-            label(c) {
-              const v = c.parsed.y;
-              if (!Number.isFinite(v)) return null;
-              switch (c.dataset.label) {
-                case "Våttemperatur": return `Våttemp ${fmt(v)} °C`;
-                case "Lufttemperatur": return `Luft ${fmt(v)} °C · RF ${Math.round(c.raw.rh ?? NaN) || "–"} %`;
-                case "Medelvind": return `Vind ${fmt(v)} m/s från ${dirName(c.raw.dir)} · tvärs ${fmt(c.raw.cross)} m/s`;
-                case "Byvind": return `Byar ${fmt(v)} m/s`;
-              }
-              return `${c.dataset.label}: ${fmt(v)}`;
-            },
-            afterBody(items) {
-              const wb = items.find(i => i.dataset.label === "Våttemperatur");
-              if (!wb) return "";
-              const cap = capacity(wb.parsed.y, th.base, S.waterTemp);
-              return cap > 0 ? `Fläktkapacitet ca ${Math.round(cap)} %` : "Under startgränsen krävs kallare luft";
-            }
-          }
-        }
+        // Ingen ruta ovanpå grafen — värdena skrivs i raden under (chartReadout).
+        tooltip: { enabled: false, external: ({ tooltip }) => fillReadout(tooltip) }
       }
     },
     plugins: [windArrowPlugin, crosshairPlugin, nowLinePlugin]
   });
   setRange(currentRangeHours);
+}
+
+// Behåller senaste avläsningen när fingret lyfts, så att den går att läsa.
+// Luftfuktigheten ligger på vinddatasetet; rutan läste den förut från
+// lufttemperaturen och visade därför alltid "RF – %".
+function fillReadout(tooltip) {
+  const box = $("chartReadout");
+  const pts = tooltip?.dataPoints;
+  if (!box || !pts?.length || !tooltip.opacity) return;
+  const by = label => pts.find(p => p.dataset.label === label);
+  const wb = by("Våttemperatur")?.parsed.y, temp = by("Lufttemperatur")?.parsed.y;
+  const w = by("Medelvind"), gust = by("Byvind")?.parsed.y;
+  const x = pts[0].parsed.x;
+  const when = new Date(x).toLocaleDateString("sv-SE", { day: "numeric", month: "short" }).replace(".", "");
+  const th = thresholds();
+  const cap = capacity(wb, th.base, S.waterTemp);
+  const status = !Number.isFinite(wb) ? ""
+    : cap > 0 ? `fläktkapacitet ca ${Math.round(cap)} %`
+    : `${fmt(wb - th.base)}° över startgränsen`;
+  const rh = Math.round(w?.raw.rh);
+  box.innerHTML =
+    `<b>${shortDay(x)} ${when} ${clock(x)}</b> · våttemp <span class="wbv">${fmt(wb)} °C</span>` +
+    (status ? ` · ${status}` : "") + `<br>` +
+    `Luft ${fmt(temp)} °C · RF ${Number.isFinite(rh) ? rh : "–"} % · ` +
+    (w ? `vind ${fmt(w.parsed.y)} m/s från ${dirName(w.raw.dir)}, tvärs ${fmt(w.raw.cross)} · ` : "") +
+    `byar ${fmt(gust)} m/s`;
 }
 
 function onViewChange({ chart }) {
