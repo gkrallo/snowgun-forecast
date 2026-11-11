@@ -47,6 +47,13 @@ att den inte gungar. Samma fäste och samma höjd hela passet.
 Appen hittar kalibreringen själv i loggen, men bara om stegen görs i den här
 ordningen och pucken står **helt stilla** när det står så.
 
+Under fliken **Snödjup → Mätpass med pucken** finns en guide som tar dig
+igenom stegen, räknar ner stunderna, piper när de är klara och skriver upp
+klockslagen. Står pucken på **BLE** (System Configuration → Bluetooth
+Protocol) kan appen dessutom visa att pucken har en position, via
+**Anslut pucken**. Det fungerar i Chrome på Android och på dator, inte på
+iPhone.
+
 **Gör kalibreringen där himlen är fri** — på grusplanen, en öppen bit av
 gatan, inte under träd. Under tallarna vid brunn 7 fick pucken nästan ingen
 fix och gav en antennhöjd som var en halvmeter fel.

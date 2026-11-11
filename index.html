@@ -218,6 +218,15 @@ button{font-family:inherit}
   border-radius:10px; font-weight:650; cursor:pointer; font-size:.9rem}
 .filebtn input{display:none}
 .plannote{font-size:.8rem; color:var(--ink-dim); margin-top:9px; min-height:18px}
+/* Mätpassets nedräkning ska gå att läsa på armlängds avstånd med vantar på. */
+.guide-timer{font-size:2.6rem; font-weight:700; font-variant-numeric:tabular-nums; text-align:center; margin:12px 0 0; line-height:1.1}
+.guide-timer small{display:block; font-size:.8rem; font-weight:500; color:var(--ink-dim); margin-top:4px}
+.guide-timer.done{color:var(--go)}
+.gunbar button.primary{background:var(--ice); border-color:var(--ice); color:#03121c}
+.gunbar button:disabled{opacity:.55; cursor:default}
+.guide-log{background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:9px 10px; margin:0;
+  font-size:.78rem; line-height:1.5; white-space:pre-wrap; color:var(--ink-dim)}
+.advice ul{margin:6px 0 0; padding-left:18px}
 
 /* info modal */
 /* Flex-barn krymper under sitt innehåll om man inte säger ifrån. Utan
@@ -389,6 +398,31 @@ button{font-family:inherit}
 </div>
 
 <div class="panel" id="panelDepth" role="tabpanel" hidden>
+  <div class="card" id="guideCard">
+    <h2>Mätpass med pucken</h2>
+    <p class="hint" style="margin-top:0">Guiden tar dig genom passet i rätt ordning, räknar ner de stunder pucken ska ligga still och skriver upp klockslagen. Skärmen hålls tänd medan guiden är igång, och telefonen piper och vibrerar när en nedräkning är klar.</p>
+    <div class="advice" id="guideStep"></div>
+    <div class="guide-timer" id="guideTimer" hidden></div>
+    <div class="gunbar">
+      <button id="guideMain" class="primary">Starta guiden</button>
+      <button id="guideBack" hidden>Börja om steget</button>
+      <button id="guideStop" hidden>Avbryt guiden</button>
+    </div>
+    <div class="field" id="guideTapeRow" hidden style="margin:12px 0 0">
+      <label for="guideTape">Tumstock: marken vid framhjulet till puckens undersida på fästet (cm)</label>
+      <input type="number" id="guideTape" inputmode="decimal" step="0.5" min="0">
+      <p class="hint">Inget ska läggas till för antennen — appen räknar antennhöjden mellan samma punkt i pucken båda gångerna, så måttet ska stämma rakt av.</p>
+    </div>
+    <div id="guideLogWrap" hidden>
+      <h3>Klockslag</h3>
+      <pre class="guide-log" id="guideLog"></pre>
+      <div class="gunbar"><button id="guideCopy">Kopiera klockslagen</button></div>
+    </div>
+    <h3>Pucken via Bluetooth</h3>
+    <p class="hint" style="margin-top:0">Visar om pucken har hittat en position. Den räknar sin egen position utan korrektioner, ungefär en halvmeter rätt — det räcker för att se att den ser satelliterna. Centimetrarna kommer först efter efterberäkningen. Kräver Chrome på Android eller dator, och att pucken står på <b>BLE</b> under System Configuration → Bluetooth Protocol.</p>
+    <div class="gunbar"><button id="btConnect">Anslut pucken</button></div>
+    <p class="plannote" id="btStatus"></p>
+  </div>
   <div class="card">
     <h2>Barmark</h2>
     <p class="hint" style="margin-top:0">Snödjupet räknas som snöytan minus marken under. Marken mäts därför en gång innan snön kommer, med pucken på fyrhjulingen, och räknas fram i efterhand mot Lantmäteriets referensstationer. Läs in resultatet här — en .pos-fil från RTKLIB eller puckens NMEA-logg.</p>
@@ -636,7 +670,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -3933,6 +3967,320 @@ $("bareClear").onclick = () => {
 };
 
 /* ==========================================================================
+   17. MÄTPASS — guide och pucken via Bluetooth
+   --------------------------------------------------------------------------
+   Kalibreringen hittas bara om stegen görs i rätt ordning och pucken ligger
+   still tillräckligt länge (calibrateSurvey). Guiden räknar ner de stunderna
+   och skriver upp klockslagen, så att passet går att följa i efterhand.
+
+   Allt sparas i telefonen medan guiden pågår. En installerad app laddas om
+   när en ny version kommer, och man ska inte tappa bort var man var för det.
+   Tiderna räknas från klockslag, inte från timerns slag: en telefon som lagt
+   undan appen saktar ner timrar, men klockan går som den ska.
+   ========================================================================== */
+
+const GUIDE_STEPS = [
+  { key: "intro", kind: "intro", title: "Före passet",
+    text: `<ul><li>Pucken laddad, minneskortet i och <b>Rover</b> på skärmen.</li>
+      <li>Messages: Logging Defaults (RXM-RAWX och RXM-SFRBX på 1).</li>
+      <li>Ett ställe med fri himmel för marken och fästet — inte under träd.</li>
+      <li>Tumstock med.</li></ul>Starta guiden när du slår på pucken.` },
+  { key: "power", kind: "wait", sec: 240, title: "1. Pucken startar",
+    text: "Låt den ligga under fri himmel. Rådatan duger först när pucken vet vilken GPS-vecka det är — i provpasset tog det tre och en halv minut. Kontrollera att loggningsikonen syns.",
+    next: "Pucken är redo" },
+  { key: "ground", kind: "hold", sec: 120, title: "2. Pucken på marken",
+    text: "Lägg pucken på marken precis intill framhjulet. Rör den inte.",
+    start: "Pucken ligger på marken — starta 2:00", done: "Klart. Sätt pucken på fästet utan att flytta fyrhjulingen." },
+  { key: "mount", kind: "hold", sec: 120, title: "3. Pucken på fästet",
+    text: "Pucken på fästet, fyrhjulingen orörd. Mät med tumstock från marken vid framhjulet till puckens undersida medan du väntar.",
+    start: "Pucken sitter på fästet — starta 2:00", done: "Klart. Nu kan du börja köra." },
+  { key: "drive", kind: "drive", title: "4. Kör",
+    text: "Hela gatan, högst 5 km/h, ungefär en meter mellan varven. Titta på loggningsikonen vid varje vändpunkt — har den blivit ett streck loggar pucken inte längre.",
+    start: "Börja köra", next: "Körningen är klar" },
+  { key: "stop", kind: "hold", sec: 60, title: "5. Stå still",
+    text: "Ställ fyrhjulingen på ett öppet ställe. Pucken sitter kvar på fästet.",
+    start: "Fyrhjulingen står still — starta 1:00", done: "Klart. Ta loss pucken och lägg den på marken intill framhjulet." },
+  { key: "ground2", kind: "hold", sec: 120, title: "6. Pucken på marken igen",
+    text: "Pucken på marken intill framhjulet. Det är kontrollen av antennhöjden.",
+    start: "Pucken ligger på marken — starta 2:00", done: "Klart. Stäng av pucken." },
+  { key: "done", kind: "done", title: "Klart",
+    text: "Stäng av pucken med ett långt tryck <b>innan</b> minneskortet tas ut. Klockslagen nedan ligger kvar i telefonen tills du startar en ny guide." }
+];
+
+const GUIDE_EMPTY = () => ({ step: 0, phase: "idle", t0: null, log: [], tape: "" });
+let guide = (() => {
+  const g = safeParse(localStorage.getItem("snowGuide"), null);
+  return g && Number.isInteger(g.step) && GUIDE_STEPS[g.step] ? { ...GUIDE_EMPTY(), ...g } : GUIDE_EMPTY();
+})();
+let guideTimer = null, guideLock = null, guideAudio = null;
+
+const guideActive = () => guide.step > 0 && GUIDE_STEPS[guide.step].kind !== "done";
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const clockS = ts => new Date(ts).toLocaleTimeString("sv-SE");
+
+function saveGuide() {
+  try { localStorage.setItem("snowGuide", JSON.stringify(guide)); } catch { /* fullt — guiden går ändå */ }
+}
+
+// Ljudet måste låsas upp av ett tryck. Därför skapas det vid knapptrycken,
+// inte när nedräkningen tar slut.
+function guideUnlockAudio() {
+  try {
+    guideAudio = guideAudio || new (window.AudioContext || window.webkitAudioContext)();
+    guideAudio.resume?.();
+  } catch { guideAudio = null; }
+}
+
+function chime() {
+  try { navigator.vibrate?.([300, 120, 300, 120, 600]); } catch { /* ingen vibrator */ }
+  if (!guideAudio) return;
+  try {
+    const t = guideAudio.currentTime;
+    for (const d of [0, 0.35, 0.7]) {
+      const o = guideAudio.createOscillator(), g = guideAudio.createGain();
+      o.frequency.value = 880; g.gain.value = 0.25;
+      o.connect(g); g.connect(guideAudio.destination);
+      o.start(t + d); o.stop(t + d + 0.22);
+    }
+  } catch { /* inget ljud, vibrationen får räcka */ }
+}
+
+async function guideKeepAwake(on) {
+  if (on && !guideLock && document.visibilityState === "visible") {
+    try {
+      guideLock = await navigator.wakeLock?.request("screen");
+      guideLock?.addEventListener?.("release", () => { guideLock = null; });
+    } catch { guideLock = null; }
+  } else if (!on && guideLock) {
+    guideLock.release().catch(() => {});
+    guideLock = null;
+  }
+}
+
+function guideStartPhase() {
+  const s = GUIDE_STEPS[guide.step];
+  guide.phase = "running";
+  guide.t0 = Date.now();
+  guide.log.push({ key: s.key, title: s.title.replace(/^\d+\.\s*/, ""), start: guide.t0, end: null });
+}
+
+function guideEndPhase(at = Date.now()) {
+  const e = guide.log[guide.log.length - 1];
+  if (e && e.end === null) e.end = at;
+}
+
+function guideGo(i) {
+  guide.step = i;
+  guide.phase = "idle"; guide.t0 = null;
+  if (GUIDE_STEPS[i].kind === "wait") guideStartPhase();
+}
+
+// Ett slag: räkna om från klockslaget och se om en nedräkning tagit slut.
+function guideTick() {
+  const s = GUIDE_STEPS[guide.step];
+  if (s.kind === "hold" && guide.phase === "running" && Date.now() - guide.t0 >= s.sec * 1000) {
+    guide.phase = "finished";
+    guideEndPhase(guide.t0 + s.sec * 1000);
+    saveGuide();
+    chime();
+    renderGuide();   // knappen och "Klart. …" — annars stod den kvar på Väntar…
+  }
+  renderGuideTimer();
+  if (s.key === "power") renderGuide();
+}
+
+function guideRun() {
+  clearInterval(guideTimer); guideTimer = null;
+  if (guideActive()) { guideTimer = setInterval(guideTick, 500); guideKeepAwake(true); }
+  else guideKeepAwake(false);
+}
+
+function renderGuideTimer() {
+  const s = GUIDE_STEPS[guide.step], el = $("guideTimer");
+  const show = guide.phase !== "idle" && ["wait", "hold", "drive"].includes(s.kind);
+  el.hidden = !show;
+  if (!show) return;
+  const sec = (Date.now() - guide.t0) / 1000;
+  el.classList.toggle("done", guide.phase === "finished" || (s.kind === "wait" && sec >= s.sec));
+  if (s.kind === "hold") {
+    el.innerHTML = guide.phase === "finished" ? `0:00<small>klar</small>`
+      : `${mmss(Math.ceil(Math.max(0, s.sec - sec)))}<small>kvar — rör inte pucken</small>`;
+  } else if (s.kind === "wait") {
+    el.innerHTML = `${mmss(sec)}<small>${sec >= s.sec ? "minst " + mmss(s.sec) + " har gått" : "av minst " + mmss(s.sec)}</small>`;
+  } else {
+    el.innerHTML = `${mmss(sec)}<small>körtid</small>`;
+  }
+}
+
+function renderGuide() {
+  const s = GUIDE_STEPS[guide.step];
+  const numbered = !["intro", "done"].includes(s.kind);
+  let html = `<b>${s.title}</b>${numbered ? ` <span class="hint">steg ${guide.step} av ${GUIDE_STEPS.length - 2}</span>` : ""}<br>${s.text}`;
+  if (s.kind === "hold" && guide.phase === "finished") html += `<br><b style="color:var(--go)">${s.done}</b>`;
+  if (s.key === "power") html += `<br>${puckSummary()}`;
+  $("guideStep").innerHTML = html;
+
+  const main = $("guideMain");
+  main.disabled = false;
+  if (s.kind === "intro") main.textContent = "Starta guiden";
+  else if (s.kind === "wait") main.textContent = s.next;
+  else if (s.kind === "hold") {
+    main.textContent = guide.phase === "idle" ? s.start
+      : guide.phase === "finished" ? `Nästa: ${GUIDE_STEPS[guide.step + 1].title.replace(/^\d+\.\s*/, "")}`
+      : "Väntar…";
+    main.disabled = guide.phase === "running";
+  } else if (s.kind === "drive") main.textContent = guide.phase === "idle" ? s.start : s.next;
+  else main.textContent = "Till början";
+
+  $("guideBack").hidden = !guideActive() || guide.phase === "idle" || s.kind === "wait";
+  $("guideStop").hidden = !guideActive();
+  $("guideTapeRow").hidden = guide.step < GUIDE_STEPS.findIndex(x => x.key === "mount");
+  $("guideTape").value = guide.tape;
+  renderGuideLog();
+  renderGuideTimer();
+}
+
+function guideLogText() {
+  const lines = guide.log.map(e => `${clockS(e.start)}–${e.end ? clockS(e.end) : "pågår"}  ${e.title}` +
+    (e.end ? ` (${mmss((e.end - e.start) / 1000)})` : ""));
+  if (guide.tape !== "") lines.push(`Tumstock till puckens undersida: ${String(guide.tape).replace(".", ",")} cm`);
+  return lines.join("\n");
+}
+
+function renderGuideLog() {
+  $("guideLogWrap").hidden = !guide.log.length;
+  $("guideLog").textContent = guideLogText();
+}
+
+$("guideMain").onclick = () => {
+  guideUnlockAudio();
+  const s = GUIDE_STEPS[guide.step];
+  if (s.kind === "intro") { guide = GUIDE_EMPTY(); guideGo(1); }
+  else if (s.kind === "wait") { guideEndPhase(); guideGo(guide.step + 1); }
+  else if (s.kind === "hold") {
+    if (guide.phase === "idle") guideStartPhase();
+    else if (guide.phase === "finished") guideGo(guide.step + 1);
+  } else if (s.kind === "drive") {
+    if (guide.phase === "idle") guideStartPhase();
+    else { guideEndPhase(); guideGo(guide.step + 1); }
+  } else { guide.step = 0; guide.phase = "idle"; guide.t0 = null; }   // klockslagen ligger kvar tills nästa start
+  saveGuide(); renderGuide(); guideRun();
+};
+
+// Pucken rubbades eller startades för tidigt: ta om samma steg från början.
+$("guideBack").onclick = () => {
+  guideUnlockAudio();
+  const e = guide.log[guide.log.length - 1];
+  if (e && e.key === GUIDE_STEPS[guide.step].key) guide.log.pop();
+  guideGo(guide.step);
+  saveGuide(); renderGuide();
+};
+
+$("guideStop").onclick = () => {
+  armConfirm($("guideStop"), "Ja, avbryt", () => {
+    guideEndPhase();
+    guideGo(GUIDE_STEPS.length - 1);
+    saveGuide(); renderGuide(); guideRun();
+  });
+};
+
+$("guideTape").oninput = e => { guide.tape = e.target.value; saveGuide(); renderGuideLog(); };
+
+$("guideCopy").onclick = async () => {
+  try { await navigator.clipboard.writeText(guideLogText()); $("guideCopy").textContent = "Kopierat"; }
+  catch {
+    // Utan urklipp: markera texten så att den går att kopiera för hand.
+    const r = document.createRange(); r.selectNodeContents($("guideLog"));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    $("guideCopy").textContent = "Markerat — kopiera";
+  }
+  setTimeout(() => { $("guideCopy").textContent = "Kopiera klockslagen"; }, 2500);
+};
+
+// Skärmlåset släpps när appen läggs undan och måste begäras igen.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && guideActive()) { guideKeepAwake(true); guideTick(); }
+});
+
+/* ---- pucken via Bluetooth ----
+   SparkFuns firmware skickar samma ström över Bluetooth som till
+   minneskortet, med Nordics UART-tjänst i BLE-läge (biblioteket
+   ESP32_BleSerial). Webbläsaren kan bara BLE, inte det klassiska SPP som är
+   puckens förval. Strömmen innehåller också binär rådata (RAWX), så bara
+   hela NMEA-rader med rätt kontrollsumma räknas. */
+
+const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";   // pucken → telefonen
+let puck = { device: null, buf: "", gga: null, at: 0, timer: null };
+
+// GGA-kvaliteten översatt. Utan korrektioner är 1 eller 2 det bästa som går.
+const GGA_Q = { 0: "ingen position", 1: "position (GPS)", 2: "position (SBAS)", 4: "RTK fix", 5: "RTK float", 6: "uppskattad" };
+
+function feedPuck(text) {
+  puck.buf += text;
+  const parts = puck.buf.split("\n");
+  puck.buf = parts.pop().slice(-512);   // halv rad väntar på resten
+  for (const raw of parts) {
+    const i = raw.lastIndexOf("$");
+    if (i < 0) continue;
+    const line = raw.slice(i).trim();
+    if (!/^\$G.GGA,/.test(line) || !nmeaOk(line)) continue;
+    const f = line.slice(0, line.indexOf("*")).split(",");
+    puck.gga = { q: +f[6] || 0, sats: +f[7] || 0, hdop: parseFloat(f[8]), alt: parseFloat(f[9]) };
+    puck.at = Date.now();
+  }
+}
+
+function puckSummary() {
+  if (!puck.device) return `<span class="hint">Pucken är inte ansluten via Bluetooth.</span>`;
+  if (!puck.gga) return "Ansluten, väntar på position från pucken…";
+  const age = (Date.now() - puck.at) / 1000;
+  if (age > 5) return `<span style="color:var(--warn)">Inget från pucken på ${Math.round(age)} s.</span>`;
+  const g = puck.gga;
+  const ok = g.q > 0 && g.sats >= 10;
+  return `<span style="color:${ok ? "var(--go)" : "var(--warn)"}">${ok ? "✓ " : ""}${GGA_Q[g.q] || "kvalitet " + g.q}</span>` +
+    ` · ${g.sats} satelliter` + (Number.isFinite(g.hdop) ? ` · HDOP ${fmt(g.hdop)}` : "");
+}
+
+function renderPuck() {
+  $("btStatus").innerHTML = puckSummary();
+  $("btConnect").textContent = puck.device ? "Koppla från" : "Anslut pucken";
+  if (GUIDE_STEPS[guide.step].key === "power") renderGuide();
+}
+
+async function connectPuck() {
+  if (puck.device) { puck.device.gatt?.disconnect(); return; }
+  if (!navigator.bluetooth) {
+    $("btStatus").textContent = "Den här webbläsaren kan inte Bluetooth. Det fungerar i Chrome på Android och på dator, inte på iPhone.";
+    return;
+  }
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [NUS_SERVICE] }, { namePrefix: "Facet" }], optionalServices: [NUS_SERVICE] });
+    $("btStatus").textContent = "Ansluter…";
+    const server = await device.gatt.connect();
+    const ch = await (await server.getPrimaryService(NUS_SERVICE)).getCharacteristic(NUS_TX);
+    const dec = new TextDecoder("latin1");
+    ch.addEventListener("characteristicvaluechanged", e => feedPuck(dec.decode(e.target.value)));
+    await ch.startNotifications();
+    puck = { device, buf: "", gga: null, at: 0, timer: setInterval(renderPuck, 1000) };
+    device.addEventListener("gattserverdisconnected", () => {
+      clearInterval(puck.timer);
+      puck = { device: null, buf: "", gga: null, at: 0, timer: null };
+      renderPuck();
+      $("btStatus").textContent = "Bluetooth bröts. Loggningen på minneskortet påverkas inte.";
+    });
+    renderPuck();
+  } catch (e) {
+    $("btStatus").textContent = e.name === "NotFoundError" ? "Ingen pucke vald."
+      : `Kunde inte ansluta (${e.message}). Står pucken på BLE under System Configuration → Bluetooth Protocol?`;
+  }
+}
+
+$("btConnect").onclick = connectPuck;
+renderGuide(); guideRun();
+
+/* ==========================================================================
    15. INSTALLATION SOM APP
    ========================================================================== */
 
@@ -3960,8 +4308,10 @@ function registerServiceWorker() {
    öppen (en fråga, en GPS-inmätning) väntar den tills appen läggs undan. */
 let swReg = null, swCheckedAt = 0, updatePending = false;
 
+// Mitt i ett mätpass väntar den också: guiden klarar en omladdning, men
+// Bluetooth-anslutningen och skärmlåset gör det inte.
 function reloadForUpdate() {
-  if (document.hidden || !document.querySelector(".overlay.open")) reloadPage();
+  if (document.hidden || (!document.querySelector(".overlay.open") && !guideActive())) reloadPage();
   else updatePending = true;
 }
 

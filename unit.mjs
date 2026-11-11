@@ -1141,6 +1141,107 @@ describe("Barmark", () => {
   });
 });
 
+describe("Mätpass med pucken", () => {
+  // Spolar fram klockan i guiden genom att flytta stegets start bakåt.
+  const rewind = (app, sec) => {
+    app.run(`guide.t0 -= ${sec * 1000}; const e = guide.log[guide.log.length - 1]; if (e && e.end === null) e.start -= ${sec * 1000}; guideTick()`);
+  };
+  const click = (app, id) => app.$(id).click();
+
+  test("guiden går igenom passet, räknar ner och skriver upp klockslagen", async () => {
+    const app = await loadApp();
+    try {
+      app.$("tabDepth").click();
+      assert.match(app.$("guideStep").textContent, /Före passet/);
+      click(app, "guideMain");                                   // pucken startar
+      assert.match(app.$("guideStep").textContent, /steg 1 av 6/);
+      assert.match(app.$("guideTimer").textContent, /av minst 4:00/);
+      rewind(app, 250);
+      assert.match(app.$("guideTimer").textContent, /minst 4:00 har gått/);
+      click(app, "guideMain");                                   // marken
+      assert.equal(app.$("guideTimer").hidden, true, "nedräkningen ska vänta på trycket");
+      click(app, "guideMain");
+      assert.equal(app.$("guideMain").disabled, true, "nästa steg går inte medan pucken ska ligga still");
+      assert.match(app.$("guideTimer").textContent, /2:00/);
+      rewind(app, 121);
+      assert.match(app.$("guideStep").textContent, /Sätt pucken på fästet/);
+      assert.equal(app.$("guideMain").disabled, false);
+      click(app, "guideMain");                                   // fästet
+      assert.equal(app.$("guideTapeRow").hidden, false);
+      app.$("guideTape").value = "94.5"; app.$("guideTape").dispatchEvent(new app.win.Event("input"));
+      click(app, "guideMain"); rewind(app, 121);
+      assert.match(app.$("guideStep").textContent, /Nu kan du börja köra/);
+      click(app, "guideMain"); click(app, "guideMain");          // kör
+      rewind(app, 1500);
+      click(app, "guideMain");                                   // stå still
+      click(app, "guideMain"); rewind(app, 61);
+      click(app, "guideMain");                                   // marken igen
+      click(app, "guideMain"); rewind(app, 121);
+      click(app, "guideMain");
+      assert.match(app.$("guideStep").textContent, /innan<\/b> minneskortet|innan minneskortet/);
+      const log = app.$("guideLog").textContent;
+      for (const t of ["Pucken startar", "Pucken på marken (2:00)", "Pucken på fästet (2:00)", "Kör (25:00)", "Stå still (1:00)",
+                       "Pucken på marken igen (2:00)", "Tumstock till puckens undersida: 94,5 cm"])
+        assert.ok(log.includes(t), `saknar "${t}" i\n${log}`);
+      // Klockslagen ligger kvar tills en ny guide startas.
+      click(app, "guideMain");
+      assert.match(app.$("guideStep").textContent, /Före passet/);
+      assert.equal(app.$("guideLogWrap").hidden, false);
+      assert.deepEqual(app.errors, []);
+    } finally { app.close(); }
+  });
+
+  test("guiden fortsätter där den var efter en omladdning", async () => {
+    const t0 = Date.now() - 30000;
+    const app = await loadApp({ storage: { snowGuide: { step: 2, phase: "running", t0, tape: "",
+      log: [{ key: "ground", title: "Pucken på marken", start: t0, end: null }] } } });
+    try {
+      app.$("tabDepth").click();
+      assert.match(app.$("guideStep").textContent, /Pucken på marken/);
+      assert.match(app.$("guideTimer").textContent, /1:3\d/);
+      assert.equal(app.$("guideMain").disabled, true);
+    } finally { app.close(); }
+  });
+
+  test("börja om steget tar bort det påbörjade klockslaget", async () => {
+    const app = await loadApp();
+    try {
+      click(app, "guideMain"); click(app, "guideMain");          // till marken
+      click(app, "guideMain");                                   // starta nedräkningen
+      assert.equal(app.get("guide.log.length"), 2);
+      click(app, "guideBack");
+      assert.equal(app.get("guide.log.length"), 1);
+      assert.equal(app.get("guide.phase"), "idle");
+    } finally { app.close(); }
+  });
+
+  test("Bluetooth: GGA plockas ur strömmen trots binär rådata och halva rader", async () => {
+    const app = await loadApp();
+    try {
+      const cs = s => { let x = 0; for (const ch of s) x ^= ch.charCodeAt(0); return x.toString(16).toUpperCase().padStart(2, "0"); };
+      const gga = "GNGGA,201500.00,5830.22686,N,01305.27532,E,2,24,0.6,72.512,M,35.210,M,,";
+      const bin = "\xb5b\x02\x15\x10\x00\x01\x02\x03$\x05\n\xff";
+      const stream = `${bin}$${gga}*${cs(gga)}\r\n$GNGGA,201500.25,5830.2,N,01305.2,E,1,30,0.5,72.5,M,35.2,M,,*00\r\n`;
+      for (let i = 0; i < stream.length; i += 7) app.run(`feedPuck(${JSON.stringify(stream.slice(i, i + 7))})`);
+      const g = app.get("puck.gga");
+      assert.equal(g.q, 2, "raden med fel kontrollsumma ska inte räknas");
+      assert.equal(g.sats, 24);
+      app.run("puck.device = {}");
+      assert.match(app.get("puckSummary()").replace(/<[^>]+>/g, ""), /✓ position \(SBAS\) · 24 satelliter · HDOP 0,6/);
+      app.run("puck.at = Date.now() - 9000");
+      assert.match(app.get("puckSummary()"), /Inget från pucken på 9 s/);
+    } finally { app.close(); }
+  });
+
+  test("utan Bluetooth i webbläsaren säger appen var det fungerar", async () => {
+    const app = await loadApp();
+    try {
+      await app.win.connectPuck();
+      assert.match(app.$("btStatus").textContent, /Chrome på Android/);
+    } finally { app.close(); }
+  });
+});
+
 describe("Frågor i appen", () => {
   // Webbläsarens alert, confirm och prompt svarar tyst nej i förhandsvisningen
   // och i inbyggda webbläsare. Allt ska gå genom appens egen ruta.
@@ -1383,6 +1484,18 @@ describe("Bibliotek och service worker", () => {
       assert.equal(reloads(), 0, "laddade om mitt i GPS-inmätningen");
       show(false);
       assert.equal(reloads(), 0);
+      show(true);
+      assert.equal(reloads(), 1);
+    } finally { app.close(); }
+  });
+
+  test("mitt i ett mätpass väntar omladdningen tills appen läggs undan", async () => {
+    const { app, takeOver, show, reloads } = await withSw();
+    try {
+      app.run("guide.step = 3; guide.phase = 'running'; guide.t0 = Date.now()");
+      takeOver();
+      assert.equal(reloads(), 0, "laddade om mitt i guiden");
+      show(false);
       show(true);
       assert.equal(reloads(), 1);
     } finally { app.close(); }

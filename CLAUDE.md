@@ -114,6 +114,11 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   före kontrollen klipper bort punkterna medan pucken bärs i handen — utan
   det hamnar handhöjden i rutnätet. Ett tankstopp mitt i passet följs inte av
   marken och räknas inte som kontroll.
+- **Mätpassguiden** (Snödjup) sparar sitt läge i `snowGuide` och räknar tid
+  från klockslag, så att en omladdning eller en nedsaktad timer inte tappar
+  bort var man var. `reloadForUpdate` väntar medan guiden pågår. Pucken läses
+  via Bluetooth LE med Nordics UART-tjänst — det klassiska SPP, puckens
+  förval, kan webbläsaren inte.
 - **Bara fix** och höjdosäkerhet under fem centimeter. Float ger decimeterfel.
 - **Ett varv täcker en meter.** Pucken mäter rakt under sig; en åttameters gata
   behöver åtta varv. Luckorna mellan varven visas rött.
