@@ -101,14 +101,19 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
 
 - **Rutnät** på en meter med origo i brunn 7, via `bareXY`/`bareLatLon` och
   WGS84-värdena i `BARE_M`. Allt som hamnar i rutnätet ska gå genom dem.
-- **Alla höjder relativt brunn 7-locket**, en frostfritt nedgrävd kassun.
-  Absoluta höjder blandas aldrig: varje pass räknas mot sin egen stund på
-  locket, så referensstation och höjdsystem spelar ingen roll. Höjden är inte
-  RH2000, vad mottagaren än kallar den.
-- **Kalibreringen läses ur loggen** i fältinstruktionens ordning: locket,
-  marken, fästet (skillnaden är antennhöjden), körning, stopp, locket igen.
-  Stoppet före kontrollen klipper bort punkterna medan pucken bärs i handen —
-  utan det hamnar handhöjden i rutnätet.
+- **Höjderna är ellipsoidhöjder mot Swepos-stationen LIDK**, med stationens
+  koordinater låsta i `docs/ppk-lidk.conf`. Alla pass räknas mot samma punkt
+  och hamnar i samma höjdsystem. Ändra aldrig koordinaterna mitt i en säsong.
+  Höjden är inte RH2000, och den är vad pucken visar liggande på marken —
+  fascentrum några centimeter upp ingår och tar ut sig mot snöytan. Förut var
+  brunn 7-locket nollpunkt (format `snoprognos-barmark-1`), men det står under
+  tallar och gav ingen användbar fix i provpasset 10 november.
+- **Kalibreringen läses ur loggen** i fältinstruktionens ordning: marken,
+  fästet (skillnaden är antennhöjden), körning, stopp, marken igen
+  (kontrollen). Allt på ett ställe med fri himmel, var som helst. Stoppet
+  före kontrollen klipper bort punkterna medan pucken bärs i handen — utan
+  det hamnar handhöjden i rutnätet. Ett tankstopp mitt i passet följs inte av
+  marken och räknas inte som kontroll.
 - **Bara fix** och höjdosäkerhet under fem centimeter. Float ger decimeterfel.
 - **Ett varv täcker en meter.** Pucken mäter rakt under sig; en åttameters gata
   behöver åtta varv. Luckorna mellan varven visas rött.

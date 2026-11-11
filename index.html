@@ -402,7 +402,7 @@ button{font-family:inherit}
       <div id="bareMap"></div>
     </div>
     <div class="advice" id="bareReport" hidden style="margin-top:12px"></div>
-    <p class="caption" style="text-align:left">Blått = inmätt. Gult = rutan har spretiga värden. Rött = lucka mellan varven — kör där en gång till. Läser du in flera mätningar fylls rutnätet på; varje mätning räknas mot sin egen stund på brunn 7-locket.</p>
+    <p class="caption" style="text-align:left">Blått = inmätt. Gult = rutan har spretiga värden. Rött = lucka mellan varven — kör där en gång till. Läser du in flera mätningar fylls rutnätet på; alla är efterberäknade mot samma referensstation (LIDK) och hamnar i samma höjdsystem.</p>
   </div>
 </div>
 
@@ -636,7 +636,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -3526,14 +3526,24 @@ $("btnWellReset").onclick = () => {
    framräknade i efterhand mot Lantmäteriets referensstationer — och sparas
    som ett rutnät på en meter.
 
-   Alla höjder räknas relativt brunn 7-locket, en frostfritt nedgrävd
-   betongkassun. Då spelar det ingen roll vilken referensstation, vilket
-   höjdsystem eller vilken dag ett pass gjordes: varje pass börjar på locket
-   och räknas mot det.
+   Höjderna är ellipsoidhöjder ur efterberäkningen mot Swepos-stationen LIDK,
+   vars koordinater står fast i docs/ppk-lidk.conf. Alla pass räknas mot
+   samma punkt och hamnar därför i samma höjdsystem, vilken dag de än gjordes.
+   Förut var brunn 7-locket nollpunkt, men locket står under höga tallar
+   intill väderstationens mast: provpasset 10 november fick nästan ingen fix
+   där, och höjden på locket skilde över en meter beroende på hur den räknades.
+
+   Höjden i en ruta är den pucken skulle visa om den låg på marken där, alltså
+   marken plus några centimeter upp till antennens fascentrum. Snöytan mäts på
+   samma sätt, så de centimetrarna tar ut sig i snödjupet. Etiketten under
+   pucken anger 61,4 mm till L1 och 57,4 mm till L2 från undersidan, men
+   SparkFuns produktsida säger 71,8 och 67,3 — därför räknas det inte in.
    ========================================================================== */
 
 const BARE_CELL = 1;            // m
-const BARE_FORMAT = "snoprognos-barmark-1";
+// Version 2: höjder mot LIDK. Version 1 var relativt brunn 7-locket och går
+// inte att blanda med den, så en sådan fil läses inte längre.
+const BARE_FORMAT = "snoprognos-barmark-2";
 const BARE_ORIGIN = BUILTIN_WELLS.find(w => w.station);
 
 // Meter per grad vid brunn 7, på WGS84-ellipsoiden. Rutnätet behöver bara
@@ -3553,7 +3563,7 @@ const bareAvg = a => a.reduce((s, v) => s + v, 0) / a.length;
 const bareMedian = a => { const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
 const bareSd = c => Math.sqrt(Math.max(0, c.sq / c.n - (c.sum / c.n) ** 2));
 
-let bareCells = new Map();      // bareKey -> { gx, gy, sum, sq, n }, höjd i m relativt locket
+let bareCells = new Map();      // bareKey -> { gx, gy, sum, sq, n }, ellipsoidhöjd i m mot LIDK
 let bareFiles = [];             // vilka pass rutnätet är byggt av
 let bareSource = null;          // "app" = filen i appen, "draft" = inläst här men inte sparad
 let bareLoaded = false, bareMap = null, bareLayer = null, bareFitted = false;
@@ -3618,8 +3628,10 @@ function parseSurveyLog(text) {
 }
 
 // Stunder då pucken stod still: fixpunkterna håller sig inom tio centimeter
-// i plan i minst 45 sekunder. Där gjordes kalibreringen, och där stod
-// fyrhjulingen innan pucken lyftes av.
+// i plan och femton i höjd i minst 45 sekunder. Där gjordes kalibreringen,
+// och där stod fyrhjulingen innan pucken lyftes av. Höjden behövs också:
+// läggs pucken på marken rakt under fästet flyttas den nästan inte i sidled,
+// och då blev mark och fäste en och samma stund.
 function findStillPeriods(pts, radius = 0.1, minSec = 45) {
   const fix = pts.filter(p => p.q === 1);
   const out = [];
@@ -3629,7 +3641,7 @@ function findStillPeriods(pts, radius = 0.1, minSec = 45) {
     let j = i + 1;
     while (j < fix.length) {
       const [x, y] = bareXY(fix[j].lat, fix[j].lon);
-      if (Math.hypot(x - x0, y - y0) > radius) break;
+      if (Math.hypot(x - x0, y - y0) > radius || Math.abs(fix[j].h - fix[i].h) > 0.15) break;
       j++;
     }
     const seg = fix.slice(i, j);
@@ -3643,39 +3655,58 @@ function findStillPeriods(pts, radius = 0.1, minSec = 45) {
   return out;
 }
 
-/* Kalibreringen läses ur loggen i den ordning den görs ute:
-   1. pucken på brunn 7-locket — passets nollpunkt,
-   2. pucken på marken bredvid fyrhjulingen,
-   3. pucken på fästet — skillnaden mot steg 2 är antennhöjden.
-   Sedan körning. Fyrhjulingen står still en stund innan pucken lyfts av,
-   och pucken ställs på locket igen som kontroll. Punkterna medan den bärs
-   i handen ligger på fel höjd och får inte komma med, därför klipps
-   körningen vid stoppet före kontrollen. */
-function calibrateSurvey(periods) {
-  const nearLid = p => haversine([p.lat, p.lon], [BARE_ORIGIN.lat, BARE_ORIGIN.lon]) < 3;
-  const li = periods.findIndex(nearLid);
-  if (li < 0) return { error: "Pucken stod aldrig still på brunn 7-locket. Utan den nollpunkten går passet inte att räkna mot andra pass." };
-  const lid = periods[li];
-  for (let k = li + 1; k + 1 < periods.length; k++) {
+/* Kalibreringen läses ur loggen i den ordning den görs ute, på ett ställe
+   med fri himmel:
+   1. pucken på marken bredvid framhjulet,
+   2. pucken på fästet utan att fyrhjulingen flyttas — skillnaden är
+      antennhöjden.
+   Sedan körning. Till sist står fyrhjulingen still en stund med pucken kvar
+   på fästet, och pucken läggs på marken bredvid hjulet igen. Det ger samma
+   antennhöjd en gång till som kontroll. Punkterna medan pucken bärs i handen
+   ligger på fel höjd och får inte komma med, därför klipps körningen vid
+   stoppet.
+
+   Var det görs spelar ingen roll, bara himlen är fri. Under träd blir det
+   float eller, värre, fix med fel heltal — provpasset 10 november gav en
+   antennhöjd på 46 cm för ett fäste som sitter närmare en meter upp. */
+function calibrateSurvey(periods, pts = []) {
+  // Mark och fäste är två stunder tätt efter varandra, högst fyra meter
+  // isär. Fästet sitter minst 30 cm upp på en fyrhjuling. Utan de spärrarna
+  // tog appen två stunder på brunn 7-locket i provpasset 10 november, tio
+  // minuter isär och med 20 cm felaktig fix emellan, för mark och fäste.
+  const pair = (a, b) => haversine([a.lat, a.lon], [b.lat, b.lon]) <= 4 && b.start - a.end <= 180000;
+  for (let k = 0; k + 1 < periods.length; k++) {
     const ground = periods[k], mounted = periods[k + 1];
     const H = mounted.h - ground.h;
-    if (haversine([ground.lat, ground.lon], [mounted.lat, mounted.lon]) > 4 || H < 0.05 || H > 3.5) continue;
-    // En stund vid brunn 7 på fyrhjulingen är inte locket — höjden avslöjar det.
-    const ci = periods.findLastIndex((p, idx) => idx > k + 1 && nearLid(p) && Math.abs(p.h - lid.h) < 0.3);
-    const closing = ci > 0 ? periods[ci] : null;
-    const stop = ci > k + 2 ? periods[ci - 1] : null;
-    const warnings = [];
-    let to = Infinity;
-    if (!closing) warnings.push("Pucken ställdes inte på locket igen i slutet, så passet går inte att kontrollera.");
-    else if (stop) to = stop.end;
-    else {
-      to = closing.start - 120000;
-      warnings.push("Fyrhjulingen stod inte still innan pucken togs loss. De sista två minuterna före kontrollen är bortklippta.");
+    if (!pair(ground, mounted) || H < 0.3 || H > 3.5) continue;
+    // Kontrollen i slutet: ett stopp på fästet och sedan marken intill, med
+    // ungefär samma antennhöjd. Ett tankstopp mitt i passet följs inte av
+    // marken och räknas därför inte.
+    let ci = -1;
+    for (let j = periods.length - 1; j > k + 2; j--) {
+      const s = periods[j - 1], g = periods[j];
+      if (pair(s, g) && Math.abs(s.h - g.h - H) < 0.15) { ci = j; break; }
     }
-    return { lid, ground, mounted, antennaHeight: H, closing, from: mounted.end, to, warnings,
-             drift: closing ? closing.h - lid.h : null };
+    const warnings = [];
+    let to = Infinity, stop = null, closing = null;
+    if (ci > 0) {
+      stop = periods[ci - 1]; closing = periods[ci];
+      to = stop.end;
+    } else {
+      warnings.push("Passet slutade inte med ett stopp och pucken på marken bredvid hjulet, så antennhöjden går inte att kontrollera.");
+      // Står pucken still alldeles i slutet av loggen har den troligen lyfts
+      // av och lagts ner. Klipp två minuter före, så att handen inte kommer med.
+      const last = periods[periods.length - 1];
+      const end = pts.length ? pts[pts.length - 1].t : -Infinity;
+      if (periods.length - 1 > k + 1 && end - last.end < 240000) {
+        to = last.start - 120000;
+        warnings.push("De sista två minuterna innan pucken stod still i slutet är bortklippta, eftersom den kan ha burits i handen.");
+      }
+    }
+    return { ground, mounted, antennaHeight: H, stop, closing, from: mounted.end, to, warnings,
+             drift: closing ? (stop.h - closing.h) - H : null };
   }
-  return { lid, error: "Hittar inte stunderna med pucken på marken och sedan på fästet, efter brunn 7-locket." };
+  return { error: "Hittar inte stunderna med pucken på marken och sedan på fästet, två minuter vardera. Utan dem går antennhöjden inte att räkna. Står pucken under träd blir det ofta så — gör det på ett öppet ställe." };
 }
 
 // Körningen in i rutnätet. Bara fix, och bara där mottagaren själv tror på
@@ -3687,7 +3718,7 @@ function addSurvey(pts, cal) {
     if (p.q !== 1 || (Number.isFinite(p.sdu) && p.sdu > 0.05)) { rejected++; continue; }
     const [x, y] = bareXY(p.lat, p.lon);
     const gx = Math.floor(x / BARE_CELL), gy = Math.floor(y / BARE_CELL);
-    const dz = p.h - cal.antennaHeight - cal.lid.h;
+    const dz = p.h - cal.antennaHeight;
     const k = bareKey(gx, gy);
     const c = bareCells.get(k) || { gx, gy, sum: 0, sq: 0, n: 0 };
     c.sum += dz; c.sq += dz * dz; c.n++;
@@ -3754,7 +3785,7 @@ function bareReport() {
 function bareToJson() {
   return {
     format: BARE_FORMAT,
-    note: "Barmark för Sparbanksspåret. Höjder i millimeter relativt brunn 7-locket, rutor på en meter med origo i brunn 7.",
+    note: "Barmark för Sparbanksspåret. Ellipsoidhöjder i millimeter, efterberäknade mot Swepos LIDK (koordinater i docs/ppk-lidk.conf), som pucken visar liggande på marken. Rutor på en meter med origo i brunn 7.",
     cell: BARE_CELL, origin: [BARE_ORIGIN.lat, BARE_ORIGIN.lon],
     files: bareFiles,
     cells: [...bareCells.values()].sort((a, b) => a.gy - b.gy || a.gx - b.gx)
@@ -3800,7 +3831,7 @@ async function importBareFiles(files) {
       notes.push(`<b>${file.name}</b>: hittade inga positioner. Spara .pos-filen med latitud, longitud och höjd i grader, eller använd puckens NMEA-logg.`);
       continue;
     }
-    const cal = calibrateSurvey(findStillPeriods(pts));
+    const cal = calibrateSurvey(findStillPeriods(pts), pts);
     if (cal.error) { notes.push(`<b>${file.name}</b>: ${cal.error}`); continue; }
     const r = addSurvey(pts, cal);
     const fixShare = pts.filter(p => p.q === 1).length / pts.length;
@@ -3810,8 +3841,8 @@ async function importBareFiles(files) {
     const lines = [`<b>${file.name}</b>: ${r.used} punkter i rutnätet, ${Math.round(fixShare * 100)} % fix.`,
                    `Antennhöjd ${fmt(cal.antennaHeight * 100)} cm.`];
     if (cal.drift !== null) lines.push(Math.abs(cal.drift) > 0.03
-      ? `<span style="color:var(--warn)">Kontrollen på locket skiljer ${fmt(cal.drift * 100)} cm från starten — passet kan ha glidit.</span>`
-      : `Kontrollen på locket: ${fmt(cal.drift * 100)} cm från starten.`);
+      ? `<span style="color:var(--warn)">Antennhöjden i slutet skiljer ${fmt(cal.drift * 100)} cm från början — fästet kan ha rört sig, eller så fick någon av stunderna fel fix.</span>`
+      : `Antennhöjden i slutet: ${fmt(cal.drift * 100)} cm från början.`);
     if (fixShare < 0.8) lines.push(`<span style="color:var(--warn)">Bara ${Math.round(fixShare * 100)} % av punkterna hade fix.</span>`);
     cal.warnings.forEach(w => lines.push(`<span style="color:var(--warn)">${w}</span>`));
     notes.push(lines.join(" "));

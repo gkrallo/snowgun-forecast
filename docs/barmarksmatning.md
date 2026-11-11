@@ -15,10 +15,18 @@ kostar ingenting.
 
 1. Uppdatera firmware till senaste version.
 2. Sätt i ett minneskort.
-3. I menyn **Messages**: välj **Reset to PPP Logging Defaults (NMEAx5 +
-   RXMx2)**. Då loggas både vanliga positioner och den rådata som
-   efterberäkningen behöver.
-4. Kontrollera att loggning till minneskortet är påslagen.
+3. Inställningen görs i webbsidan, inte på pucken: välj **Config** med
+   knappen, anslut telefonen eller datorn till puckens wifi och öppna sidan.
+   Vänta tills sidan visar riktig firmwareversion och position. Står det
+   `v0.0` och en position i Colorado har den inte fått kontakt med pucken än.
+   Under **GNSS Configuration → Message Rates**: tryck **Reset to Logging
+   Defaults (NMEAx5 + RXMx2)** (i manualen heter den "PPP Logging Defaults").
+   Då loggas både vanliga positioner och den rådata som efterberäkningen
+   behöver: RXM-RAWX och RXM-SFRBX ska stå på 1 i listan under knapparna.
+   Mätfrekvensen får stå kvar på 4 Hz — i gångfart blir det en punkt ungefär
+   var 35:e centimeter, så att varje meterruta längs varvet får träff.
+4. Kontrollera under **System Configuration** att **Log to SD Card** är
+   ikryssad. Tryck **Save Configuration** och sedan **Exit and Reset**.
 5. Ladda batteriet fullt.
 
 **Lantmäteriet**
@@ -39,27 +47,38 @@ att den inte gungar. Samma fäste och samma höjd hela passet.
 Appen hittar kalibreringen själv i loggen, men bara om stegen görs i den här
 ordningen och pucken står **helt stilla** när det står så.
 
+**Gör kalibreringen där himlen är fri** — på grusplanen, en öppen bit av
+gatan, inte under träd. Under tallarna vid brunn 7 fick pucken nästan ingen
+fix och gav en antennhöjd som var en halvmeter fel.
+
 1. **Slå på pucken** och vänta några minuter tills den har fix. Den visar inte
-   RTK — det är som det ska utan korrektioner.
-2. **Brunn 7-locket, 5 minuter.** Ställ pucken mitt på locket, alltid på samma
-   punkt (märk den gärna med färg). Rör den inte. Detta är passets nollpunkt.
-3. **Marken bredvid fyrhjulingen, 2 minuter.** Ställ pucken på marken precis
-   där ett hjul står.
-4. **På fästet, 2 minuter.** Sätt pucken på fästet utan att flytta
-   fyrhjulingen. Skillnaden mot steg 3 blir antennhöjden.
-5. **Kör.** Hela spårgatan, kurvorna och spårdelningarna också, i lugn
+   RTK — det är som det ska utan korrektioner. Kontrollera att
+   loggningsikonen syns.
+2. **Marken bredvid framhjulet, 2 minuter.** Lägg pucken på marken precis
+   intill där hjulet står.
+3. **På fästet, 2 minuter.** Sätt pucken på fästet utan att flytta
+   fyrhjulingen. Skillnaden mot steg 2 blir antennhöjden.
+4. **Kör.** Hela spårgatan, kurvorna och spårdelningarna också, i lugn
    gångfart — högst 5 km/h. **Ungefär en meter mellan varven**: pucken mäter
    bara rakt under sig, så en 8 meter bred gata behöver omkring åtta varv.
-   Det går bra att stanna och att köra om en bit.
-6. **Stå still en minut** med pucken kvar på fästet innan du tar loss den.
+   Det går bra att stanna, tanka och köra om en bit. Titta på
+   loggningsikonen vid varje vändpunkt; har den blivit ett streck loggar
+   pucken inte längre.
+5. **Stå still en minut** på ett öppet ställe med pucken kvar på fästet.
    Appen klipper körningen där, så att punkterna medan pucken bärs i handen
    inte kommer med.
-7. **Brunn 7-locket igen, 2 minuter.** Kontrollen: om höjden skiljer mer än
-   några centimeter från steg 2 har något glidit under passet.
-8. Stäng av pucken. Skriv upp datum och ungefärliga klockslag.
+6. **Marken bredvid framhjulet igen, 2 minuter.** Kontrollen: antennhöjden
+   räknas en gång till och ska stämma med steg 2–3 inom några centimeter.
+7. Stäng av pucken med ett långt tryck **innan** minneskortet tas ut. Skriv
+   upp datum och ungefärliga klockslag.
 
-Hinner ni inte hela gatan i ett pass går det bra att dela upp — varje pass
-börjar och slutar på brunn 7-locket och räknas för sig.
+Mät också med tumstock från marken där framhjulet står upp till pucken på
+fästet, och skriv upp det. Det ska vara samma som antennhöjden appen räknar
+fram — pucken mäter till samma punkt i sig själv båda gångerna, så etikettens
+millimetrar under pucken behöver inte läggas till.
+
+Hinner ni inte hela gatan i ett pass går det bra att dela upp. Varje pass
+räknas för sig och gör sin egen kalibrering.
 
 ## Efteråt
 
@@ -84,15 +103,27 @@ börjar och slutar på brunn 7-locket och räknas för sig.
    - Utdata: latitud, longitud och höjd i grader
 4. **Läs in .pos-filen** i appen under fliken **Snödjup → Läs in mätning**.
    Kartan visar vad som är inmätt (blått) och luckorna mellan varven (rött).
-   Under kartan står antennhöjden, kontrollen på locket och vilka brunnar som
+   Under kartan står antennhöjden, kontrollen i slutet och vilka brunnar som
    saknar mätning i närheten.
 5. **Kör om luckorna** ett annat pass och läs in det också — rutnätet fylls på.
 6. När allt ser bra ut: **Spara barmark som fil**. Filen `barmark.json` läggs in
    i appen, så att alla ser samma barmark.
 
-## Varför brunn 7
+## Varför LIDK och inte brunn 7-locket
 
-Locket sitter på en frostfritt nedgrävd betongkassun och rör sig inte med
-tjälen. Alla höjder sparas relativt locket. Då spelar det ingen roll vilken
-referensstation eller vilket höjdsystem ett pass använde — varje pass börjar
-på locket och räknas mot det, både barmarken nu och snöytan i vinter.
+Först var tanken att varje pass skulle börja på brunn 7-locket och att alla
+höjder skulle sparas relativt det. Locket sitter på en frostfritt nedgrävd
+kassun och rör sig inte med tjälen. Men det står under höga tallar intill
+väderstationens mast, och provpasset 10 november fick nästan ingen fix där:
+lockets höjd skilde över en meter beroende på hur den räknades.
+
+Locket behövs inte heller. Alla pass efterberäknas mot samma station, LIDK,
+med samma fasta koordinater (`docs/ppk-lidk.conf`), och hamnar därför i samma
+höjdsystem vilken dag de än gjordes. Swepos stationer rör sig millimeter per
+år. Höjderna i `barmark.json` är ellipsoidhöjder mot LIDK — inte RH2000 — som
+pucken visar liggande på marken. Snöytan mäts på samma sätt, så snödjupet blir
+skillnaden rakt av.
+
+Kontrollen mellan passen sköter rutnätet själv: varven ligger en meter isär,
+och grannrutor från olika pass ska ge nästan samma höjd. Gula rutor i appen
+betyder att de inte gör det.

@@ -917,8 +917,9 @@ describe("Brunnarna på kartan", () => {
 
 describe("Barmark", () => {
   // En påhittad men realistisk mätning, gjord som fältinstruktionen säger.
-  // Marken är en svag lutning med vågor; locket ligger 20 cm över 100 m.
-  const LID = 100.20, PUCK = 0.06, MOUNT = 1.18;
+  // Marken är en svag lutning med vågor. Höjderna är ellipsoidhöjder mot
+  // LIDK; pucken visar sitt fascentrum, PUCK över det den ligger på.
+  const PUCK = 0.06, MOUNT = 1.18;
   const terrain = (x, y) => 100 + 0.002 * y + 0.15 * Math.sin(x / 9);
   let app, M, O;
   before(async () => {
@@ -930,7 +931,7 @@ describe("Barmark", () => {
   const ll = (x, y) => [O[0] + y / M.lat, O[1] + x / M.lon];
   const reset = () => app.run("bareCells = new Map(); bareFiles = []; localStorage.removeItem('snowBareDraft')");
 
-  function survey({ passes = 8, spacing = 1, closing = true, endStop = true } = {}) {
+  function survey({ passes = 8, spacing = 1, closing = true, endStop = true, calib = true, midStop = false } = {}) {
     let seed = 11;
     const noise = s => (((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5) * 2 * s;
     let t = Date.UTC(2026, 10, 10, 13, 0, 0);
@@ -956,14 +957,18 @@ describe("Barmark", () => {
     const G = [line[0][0] - 6, line[0][1]];
 
     lines.push("% program   : RTKPOST ver.demo5 b34", "%  GPST                  latitude(deg) longitude(deg)  height(m)   Q  ns   sdn(m)   sde(m)   sdu(m)");
-    still(0, 0, LID + PUCK, 300);
-    walk([0, 0], G, hand, 1.2);
-    still(G[0], G[1], terrain(G[0], G[1]) + PUCK, 120);
-    walk(G, [G[0], G[1] + 1], hand, 0.5);
-    still(G[0], G[1] + 1, rig(G[0], G[1] + 1), 120);
+    // Pucken bärs fram till fyrhjulingen. Brunn 7 behövs inte längre.
+    walk([G[0] + 8, G[1]], G, hand, 1.2);
+    if (calib) {
+      still(G[0], G[1], terrain(G[0], G[1]) + PUCK, 120);
+      walk(G, [G[0], G[1] + 1], hand, 0.5);
+      still(G[0], G[1] + 1, rig(G[0], G[1] + 1), 120);
+    } else walk(G, [G[0], G[1] + 1], hand, 0.5);
 
     let pos = [G[0], G[1] + 1];
     for (let k = 0; k < passes; k++) {
+      // Tankstopp mellan två varv: still på fästet, men inte följt av marken.
+      if (midStop && k === 2) still(pos[0], pos[1], rig(pos[0], pos[1]), 90);
       const off = (k - (passes - 1) / 2) * spacing;
       const path = (k % 2 ? [...line].reverse() : line).map((p, i, arr) => {
         const q = arr[Math.min(i + 1, arr.length - 1)], r = arr[Math.max(i - 1, 0)];
@@ -982,31 +987,49 @@ describe("Barmark", () => {
       pos = path[path.length - 1];
     }
     if (endStop) still(pos[0], pos[1], rig(pos[0], pos[1]), 60);
-    if (closing) { walk(pos, [0, 0], hand, 1.2); still(0, 0, LID + PUCK + 0.004, 120); }
+    // Kontrollen: pucken på marken bredvid hjulet, en meter från fästet.
+    // Fyra millimeter fel, så att kontrollen har något att visa.
+    const E = [pos[0], pos[1] + 1];
+    if (closing) { walk(pos, E, hand, 0.5); still(E[0], E[1], terrain(E[0], E[1]) + PUCK + 0.004, 120); }
     return lines.join("\n");
   }
+  // Kontrollens förväntade värde: antennhöjden i slutet minus den i början.
+  // Marken lutar två millimeter på metern mellan fästet och kontrollpunkten.
+  const DRIFT = -0.002 - 0.004;
 
   async function importText(text, name = "barmark.pos") {
     await app.win.importBareFiles([{ name, text: async () => text }]);
   }
 
-  test("kalibreringen hittas i loggen: antennhöjd och kontroll på locket", () => {
-    const pts = app.win.parseSurveyLog(survey());
-    const cal = app.win.calibrateSurvey(app.win.findStillPeriods(pts));
+  const calOf = opts => {
+    const pts = app.win.parseSurveyLog(survey(opts));
+    return app.win.calibrateSurvey(app.win.findStillPeriods(pts), pts);
+  };
+
+  test("kalibreringen hittas i loggen: antennhöjd och kontroll i slutet", () => {
+    const cal = calOf();
     assert.equal(cal.error, undefined);
     assert.ok(Math.abs(cal.antennaHeight - MOUNT) < 0.005, `antennhöjd ${cal.antennaHeight}`);
-    assert.ok(Math.abs(cal.drift - 0.004) < 0.003, `kontroll ${cal.drift}`);
+    assert.ok(Math.abs(cal.drift - DRIFT) < 0.003, `kontroll ${cal.drift}`);
     assert.deepEqual([...cal.warnings], []);
   });
 
-  test("varje ruta får markens höjd relativt locket, utan float och utan handburna punkter", async () => {
+  test("ett tankstopp mitt i passet tas inte för kontrollen", () => {
+    const withClose = calOf({ midStop: true });
+    assert.ok(Math.abs(withClose.drift - DRIFT) < 0.003, `kontroll ${withClose.drift}`);
+    const noClose = calOf({ midStop: true, closing: false, endStop: false });
+    assert.equal(noClose.drift, null);
+    assert.equal(noClose.to, Infinity, "loggen slutar under körning — inget ska klippas");
+  });
+
+  test("varje ruta får markens höjd mot LIDK, utan float och utan handburna punkter", async () => {
     reset();
     await importText(survey());
     const cells = app.get("[...bareCells.values()].map(c => [c.gx, c.gy, c.sum / c.n, c.n])");
     assert.ok(cells.length > 2500, `${cells.length} rutor`);
     let worst = 0, where = null;
     for (const [gx, gy, dz] of cells) {
-      const err = Math.abs(dz - (terrain(gx + 0.5, gy + 0.5) - LID));
+      const err = Math.abs(dz - (terrain(gx + 0.5, gy + 0.5) + PUCK));
       if (err > worst) { worst = err; where = [gx, gy]; }
     }
     assert.ok(worst < 0.025, `största fel ${(worst * 100).toFixed(1)} cm i ruta ${where}`);
@@ -1025,21 +1048,40 @@ describe("Barmark", () => {
     for (const no of [6, 7]) assert.ok(!tight.missed.includes(no), `brunn ${no} är inmätt`);
   });
 
-  test("utan kontroll på locket varnar appen, och utan stopp klipps slutet bort", () => {
-    const noClose = app.win.calibrateSurvey(app.win.findStillPeriods(app.win.parseSurveyLog(survey({ closing: false }))));
-    assert.match(noClose.warnings.join(" "), /inte på locket igen/);
+  test("utan kontroll i slutet varnar appen, och utan stopp klipps slutet bort", () => {
+    const noClose = calOf({ closing: false });
+    assert.match(noClose.warnings.join(" "), /går inte att kontrollera/);
     assert.equal(noClose.drift, null);
-    const noStop = app.win.calibrateSurvey(app.win.findStillPeriods(app.win.parseSurveyLog(survey({ endStop: false }))));
-    assert.match(noStop.warnings.join(" "), /stod inte still/);
-    assert.ok(noStop.to < noStop.closing.start);
+    const noStop = calOf({ endStop: false });
+    assert.match(noStop.warnings.join(" "), /burits i handen/);
+    const lastStill = app.win.findStillPeriods(app.win.parseSurveyLog(survey({ endStop: false }))).pop();
+    assert.ok(noStop.to <= lastStill.start - 120000);
   });
 
-  test("en logg utan stund på brunn 7-locket ger ett begripligt fel", async () => {
+  test("en logg utan mark och fäste ger ett begripligt fel", async () => {
     reset();
-    const text = survey().split("\n").filter((l, i) => i < 2 || i > 1201).join("\n");
-    await importText(text, "utanlock.pos");
-    assert.match(app.$("bareReport").textContent, /brunn 7-locket/);
+    await importText(survey({ calib: false, closing: false }), "utankalib.pos");
+    assert.match(app.$("bareReport").textContent, /marken och sedan på fästet/);
     assert.equal(app.run("bareCells.size"), 0);
+  });
+
+  test("två stunder långt isär eller med låg höjdskillnad tas inte för mark och fäste", () => {
+    // Som på brunn 7-locket 10 november: tio minuter isär, 20 cm felaktig fix.
+    const P = (min, h) => ({ start: min * 60000, end: min * 60000 + 60000, n: 200, lat: 58.50377, lon: 13.08793, h });
+    assert.ok(app.win.calibrateSurvey([P(0, 126.81), P(10, 127.01)]).error, "tio minuter isär");
+    assert.ok(app.win.calibrateSurvey([P(0, 126.81), P(1.5, 127.01)]).error, "20 cm är inget fäste");
+    assert.equal(app.win.calibrateSurvey([P(0, 126.81), P(1.5, 127.80)]).error, undefined);
+  });
+
+  test("pucken rakt under fästet: mark och fäste blir ändå två stunder", () => {
+    // Samma läge i plan, bara höjden skiljer.
+    const pts = app.get(`(() => {
+      const p = [];
+      for (let i = 0; i < 240; i++) p.push({ t: i * 250, lat: 58.5, lon: 13.08, h: 100.06, q: 1 });
+      for (let i = 0; i < 240; i++) p.push({ t: 70000 + i * 250, lat: 58.5, lon: 13.08, h: 101.24, q: 1 });
+      return findStillPeriods(p).map(s => s.h);
+    })()`);
+    assert.deepEqual(pts, [100.06, 101.24]);
   });
 
   test("puckens NMEA-logg läses också: fix, höjd över ellipsoiden och höjdosäkerhet", () => {
@@ -1071,7 +1113,9 @@ describe("Barmark", () => {
     reset();
     await importText(survey({ passes: 2 }));
     const json = app.get("bareToJson()");
-    assert.equal(json.format, "snoprognos-barmark-1");
+    assert.equal(json.format, "snoprognos-barmark-2");
+    // Version 1 var relativt brunn 7-locket och får inte blandas in.
+    assert.equal(app.run(`bareFromJson(${JSON.stringify({ ...json, format: "snoprognos-barmark-1" })})`), false);
     assert.equal(json.files.length, 1);
     const before = app.get("[...bareCells.values()].map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n])").sort();
     app.run(`bareFromJson(${JSON.stringify(json)})`);
