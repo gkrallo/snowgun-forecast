@@ -23,11 +23,34 @@ kostar ingenting.
    Defaults (NMEAx5 + RXMx2)** (i manualen heter den "PPP Logging Defaults").
    Då loggas både vanliga positioner och den rådata som efterberäkningen
    behöver: RXM-RAWX och RXM-SFRBX ska stå på 1 i listan under knapparna.
+   Sätt sedan **NMEA-GSA** och **NMEA-GSV** till 0. Varken efterberäkningen
+   eller appen använder dem, och utan dem blir det ungefär en fjärdedel
+   mindre att skriva till kortet och att skicka över Bluetooth.
    Mätfrekvensen får stå kvar på 4 Hz — i gångfart blir det en punkt ungefär
    var 35:e centimeter, så att varje meterruta längs varvet får träff.
 4. Kontrollera under **System Configuration** att **Log to SD Card** är
-   ikryssad. Tryck **Save Configuration** och sedan **Exit and Reset**.
-5. Ladda batteriet fullt.
+   ikryssad och att **Bluetooth Protocol** står på **BLE**. Tryck
+   **Save Configuration**, vänta tills sidan har sparat, och tryck sedan
+   **Exit and Reset**.
+5. **Kontrollera på kortet att ändringen kom med.** Stäng av pucken med ett
+   långt tryck, ta ut kortet och öppna `SFE_Facet_Settings_0.txt` i
+   Anteckningar. Pucken sparar inställningarna både i sig själv och i den
+   filen, men när den startar läser den filen sist — det som står där gäller,
+   vad webbsidan än visade. Både 10 och 11 november kom ändringarna från
+   webbsidan aldrig fram till filen, och pucken gick tillbaka till de gamla
+   vid omstart. Detta ska stå i filen:
+   - `message.UBX_NMEA_GSA.msgRate=0`
+   - `message.UBX_NMEA_GSV.msgRate=0`
+   - `bluetoothRadioType=1` (1 är BLE, 0 är SPP)
+
+   Står det fel: ändra raderna direkt i filen och sätt dessutom
+   `updateZEDSettings=1`. Utan den behåller GPS-kretsen i pucken sin egen
+   sparade lista över meddelanden, och GSA och GSV fortsätter komma. Spara,
+   sätt tillbaka kortet i den avstängda pucken och slå på den. Det är
+   SparkFuns eget sätt att ställa in pucken med fil. Efter starten står
+   `updateZEDSettings` på 0 igen — det betyder att kretsen har fått de nya
+   inställningarna.
+6. Ladda batteriet fullt.
 
 **Lantmäteriet**
 
