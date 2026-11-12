@@ -43,9 +43,17 @@ vänder i övre delen av backen, strax öster om brunn 16, runt en liten trädö
 Den stora, lite svårare, går ner för backen förbi 17 och 18 och kommer upp
 igen via 19. Mellan slingornas ben är det skog, inte spårgata, så luckor och
 interpolering i barmark och snödjup får inte fylla över dem. Kristian ritar
-sådana områden själv under fliken Uppdrag (`bareAreas`); tills trädön är
-ritad räknas den fram som gata. Längst ner i stora slingan är gatan 15–20 m
-bred, och allt mellan linjerna där är spårgata.
+sådana områden själv under fliken Uppdrag (`bareAreas`). Fyra är ritade 12
+november och ligger i `barmark.json`: trädön, skogen inne i stora slingan,
+södra vändslingans mitt vid brunn 1 och kilen väster om spåret mellan brunn
+6 och 7. Längst ner i stora slingan är gatan 15–20 m bred, och allt mellan
+linjerna där är spårgata.
+
+Innerkurvan mellan brunn 3 och 4 kördes utan fix 11 november, med 23
+satelliter och i 3,5 km/h. Framåt- och bakåtberäkningen hade var sin fix men
+skilde 10–24 cm — falska fixar av reflexer från träden. Högre elevationsmask
+(25°) gav "fix" där men bara från en riktning och två meter fel på andra
+ställen; SNR-mask och 20° hjälpte inte. Kör om kurvan, inte inställningarna.
 
 Brunn 20 är en reserv vid schaktytan, aldrig använd, markerad `spare: true` och
 utesluten ur förslag om inkoppling.
