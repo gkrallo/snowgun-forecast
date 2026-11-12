@@ -91,12 +91,13 @@ fix och gav en antennhöjd som var en halvmeter fel.
    fyrhjulingen som när du kör** och sitt still. Fjädringen sjunker med
    någon på, och antennhöjden ska vara den som gäller under körningen.
    Skillnaden mot steg 2 blir antennhöjden.
-4. **Kör.** Hela spårgatan, kurvorna och spårdelningarna också, i lugn
-   gångfart — högst 5 km/h. **Ungefär en meter mellan varven**: pucken mäter
-   bara rakt under sig, så en 8 meter bred gata behöver omkring åtta varv.
-   Det går bra att stanna, tanka och köra om en bit. Titta på
-   loggningsikonen vid varje vändpunkt; har den blivit ett streck loggar
-   pucken inte längre.
+4. **Kör.** Gatans **kanter**: ytterkanten, och innerkanten i
+   vändslingorna. Kör dessutom **utfyllnad** däremellan där marken har åsar
+   och dalar, så att det blir högst ungefär tio meter mellan linjerna. Pucken
+   mäter bara rakt under sig, men marken mellan linjerna räknar appen fram.
+   Ta kurvorna och spårdelningarna också, i lugn gångfart runt 5 km/h. Det
+   går bra att stanna, tanka och köra om en bit. Titta på loggningsikonen
+   vid varje vändpunkt; har den blivit ett streck loggar pucken inte längre.
 5. **Stå still en minut** på ett öppet ställe med pucken kvar på fästet,
    och **sitt kvar** som när du kör — det här är steg 3 en gång till.
    Appen klipper körningen där, så att punkterna medan pucken bärs i handen
@@ -141,10 +142,18 @@ räknas för sig och gör sin egen kalibrering.
      30:e sekund)
    - Utdata: latitud, longitud och höjd i grader
 4. **Läs in .pos-filen** i appen under fliken **Snödjup → Läs in mätning**.
-   Kartan visar vad som är inmätt (blått) och luckorna mellan varven (rött).
-   Under kartan står antennhöjden, kontrollen i slutet och vilka brunnar som
-   saknar mätning i närheten.
-5. **Kör om luckorna** ett annat pass och läs in det också — rutnätet fylls på.
+   Kartan visar vad som är uppmätt (blått), vad som är framräknat mellan
+   linjerna (ljusblått), var det är för långt mellan linjerna (rött) och var
+   pucken saknade fix (lila). Under kartan står antennhöjden och kontrollen
+   i slutet.
+5. **Fliken Uppdrag** listar det som återstår: kanter där fixen saknades,
+   mellanrum som behöver en utfyllnad och kanter som inte är körda förbi
+   brunnarna. Rita där också runt det som inte är spårgata — trädön i lilla
+   vändslingan, skogen där spåret delar sig — med **Rita område utan
+   spårgata**, så räknas ingenting fram där. Kör uppdragen ett annat pass och
+   läs in det också; rutnätet fylls på, och det som blivit klart stryks.
+   **Visa var jag är** visar puckens position om den är ansluten, annars
+   telefonens.
 6. När allt ser bra ut: **Spara barmark som fil**. Filen `barmark.json` läggs in
    i appen, så att alla ser samma barmark.
 
@@ -163,6 +172,6 @@ höjdsystem vilken dag de än gjordes. Swepos stationer rör sig millimeter per
 pucken visar liggande på marken. Snöytan mäts på samma sätt, så snödjupet blir
 skillnaden rakt av.
 
-Kontrollen mellan passen sköter rutnätet själv: varven ligger en meter isär,
-och grannrutor från olika pass ska ge nästan samma höjd. Gula rutor i appen
-betyder att de inte gör det.
+Kontrollen mellan passen sköter rutnätet själv: där linjer från olika pass
+korsar varandra ska rutan få nästan samma höjd. Gula rutor i appen betyder
+att den inte gör det.

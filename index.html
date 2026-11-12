@@ -184,7 +184,15 @@ button{font-family:inherit}
 #planMap{height:min(52vh,420px); height:min(52dvh,420px); background:var(--surface-2)}
 #windRose{position:absolute; right:10px; top:10px; width:74px; height:74px; z-index:500; pointer-events:none}
 #windRose svg{width:100%; height:100%}
-#bareMap{height:min(52vh,420px); height:min(52dvh,420px); border-radius:12px; border:1px solid var(--line); background:var(--surface-2)}
+#bareMap,#taskMap{height:min(52vh,420px); height:min(52dvh,420px); border-radius:12px; border:1px solid var(--line); background:var(--surface-2)}
+/* Uppdragen: numrerade i listan och på kartan, i samma färg som rutorna. */
+.tasklist{list-style:none; margin:10px 0 0; padding:0}
+.tasklist button{display:flex; gap:10px; align-items:flex-start; width:100%; text-align:left; background:none;
+  border:none; border-top:1px solid var(--line); color:var(--ink); padding:9px 2px; font:inherit; font-size:.86rem;
+  line-height:1.45; cursor:pointer}
+.tasknum,.task-pin{flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:22px; height:22px;
+  border-radius:50%; font-size:.72rem; font-weight:700; color:#03121c; border:2px solid #0b1220}
+.tk-edge{background:#38bdf8} .tk-nofix{background:#c084fc} .tk-sparse{background:#f87171}
 /* En ruta är en pixel i bilden. Utjämnad blir den en suddig fläck. */
 .bare-overlay{image-rendering:pixelated}
 .leaflet-container{background:#0e1a2c; font-family:inherit}
@@ -302,6 +310,7 @@ button{font-family:inherit}
   <button role="tab" id="tabHours" aria-selected="false" aria-controls="panelHours">Timmar</button>
   <button role="tab" id="tabWind" aria-selected="false" aria-controls="panelWind">Vind &amp; sikte</button>
   <button role="tab" id="tabDepth" aria-selected="false" aria-controls="panelDepth">Snödjup</button>
+  <button role="tab" id="tabTasks" aria-selected="false" aria-controls="panelTasks">Uppdrag</button>
 </div>
 
 <div class="panel" id="panelGraph" role="tabpanel">
@@ -436,7 +445,28 @@ button{font-family:inherit}
       <div id="bareMap"></div>
     </div>
     <div class="advice" id="bareReport" hidden style="margin-top:12px"></div>
-    <p class="caption" style="text-align:left">Blått = inmätt. Gult = rutan har spretiga värden. Rött = lucka mellan varven — kör där en gång till. Läser du in flera mätningar fylls rutnätet på; alla är efterberäknade mot samma referensstation (LIDK) och hamnar i samma höjdsystem.</p>
+    <p class="caption" style="text-align:left">Blått = uppmätt. Ljusblått = framräknat mellan körda linjer. Gult = rutan har spretiga värden. Rött = för långt mellan linjerna — kör en utfyllnad. Lila = kört utan fix. Läser du in flera mätningar fylls rutnätet på; alla är efterberäknade mot samma referensstation (LIDK) och hamnar i samma höjdsystem.</p>
+  </div>
+</div>
+
+<div class="panel" id="panelTasks" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Uppdrag</h2>
+    <p class="hint" style="margin-top:0">Det som återstår för att barmarken ska bli hel: kanter där fixen saknades, mellanrum som är för breda för att räkna fram, och kanter som inte är körda förbi brunnarna. Kör det, efterberäkna och läs in passet under Snödjup — det som blivit klart stryks av sig självt.</p>
+    <p class="plannote" id="taskStatus">Ingen barmark inläst. Läs in en mätning under Snödjup först.</p>
+    <div id="taskWrap" hidden>
+      <div id="taskMap"></div>
+      <div class="gunbar">
+        <button id="taskWhere">Visa var jag är</button>
+        <button id="taskDraw">Rita område utan spårgata</button>
+        <button id="taskDrawDone" class="armed" hidden>Klar</button>
+        <button id="taskDrawUndo" hidden>Ångra hörn</button>
+        <button id="taskDrawCancel" hidden>Avbryt</button>
+      </div>
+      <p class="plannote" id="taskNote"></p>
+      <ol class="tasklist" id="taskList"></ol>
+      <p class="caption" style="text-align:left">Områden utan spårgata — trädöar, skogen mellan två ben där spåret delar sig — ritar du runt med Rita område. Inget räknas fram över dem. Tryck på ett område för att ta bort det. Blått = uppmätt, ljusblått = framräknat, rött = fyll ut, lila = kört utan fix.</p>
+    </div>
   </div>
 </div>
 
@@ -670,7 +700,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 15;
+const APP_VERSION = 16;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -3415,7 +3445,8 @@ document.querySelectorAll(".rangebar button[data-hours-span]").forEach(b => {
   };
 });
 
-const TABS = [["tabGraph", "panelGraph"], ["tabHours", "panelHours"], ["tabWind", "panelWind"], ["tabDepth", "panelDepth"]];
+const TABS = [["tabGraph", "panelGraph"], ["tabHours", "panelHours"], ["tabWind", "panelWind"], ["tabDepth", "panelDepth"],
+              ["tabTasks", "panelTasks"]];
 TABS.forEach(([t, p]) => {
   $(t).onclick = () => {
     TABS.forEach(([t2, p2]) => {
@@ -3428,6 +3459,9 @@ TABS.forEach(([t, p]) => {
       if (planMap) setTimeout(() => planMap.invalidateSize(), 80);
     }
     if (p === "panelDepth") openBare();
+    if (p === "panelTasks") openTasks();
+    // Telefonens GPS drar ström. Den behövs bara medan Uppdrag syns.
+    else if (taskWhere.on) stopTaskWhere();
   };
 });
 
@@ -3598,6 +3632,12 @@ const bareMedian = a => { const s = [...a].sort((x, y) => x - y); return s[s.len
 const bareSd = c => Math.sqrt(Math.max(0, c.sq / c.n - (c.sum / c.n) ** 2));
 
 let bareCells = new Map();      // bareKey -> { gx, gy, sum, sq, n }, ellipsoidhöjd i m mot LIDK
+// Rutor som pucken kördes över utan fix. Sparas för att uppdragen ska kunna
+// visa var en kant behöver köras om — en rejekterad punkt syns annars inte.
+let bareNoFix = new Map();      // bareKey -> { gx, gy }
+// Områden som inte är spårgata, ritade i appen: trädön i lilla vändslingan,
+// kilarna där spåret delar sig. Inget räknas fram över dem.
+let bareAreas = [];             // [{ pts: [[lat, lon], …] }]
 let bareFiles = [];             // vilka pass rutnätet är byggt av
 let bareSource = null;          // "app" = filen i appen, "draft" = inläst här men inte sparad
 let bareLoaded = false, bareMap = null, bareLayer = null, bareFitted = false;
@@ -3749,9 +3789,13 @@ function addSurvey(pts, cal) {
   let used = 0, rejected = 0;
   for (const p of pts) {
     if (p.t <= cal.from || p.t >= cal.to) continue;
-    if (p.q !== 1 || (Number.isFinite(p.sdu) && p.sdu > 0.05)) { rejected++; continue; }
     const [x, y] = bareXY(p.lat, p.lon);
     const gx = Math.floor(x / BARE_CELL), gy = Math.floor(y / BARE_CELL);
+    if (p.q !== 1 || (Number.isFinite(p.sdu) && p.sdu > 0.05)) {
+      rejected++;
+      bareNoFix.set(bareKey(gx, gy), { gx, gy });
+      continue;
+    }
     const dz = p.h - cal.antennaHeight;
     const k = bareKey(gx, gy);
     const c = bareCells.get(k) || { gx, gy, sum: 0, sq: 0, n: 0 };
@@ -3762,42 +3806,202 @@ function addSurvey(pts, cal) {
   return { used, rejected };
 }
 
-// Luckor mellan varven: upp till fem omätta rutor i rad mellan två mätta,
-// längs en rad, kolumn eller diagonal. Där behövs ett varv till. Gatans
-// kanter går inte att se ur mätningen, så det är luckorna inne i det körda
-// som räknas. Bredare glipor än fem meter är oftast skog mellan två ben.
-function bareGaps() {
-  const gaps = new Map();
-  // [linje, läge längs linjen, och tillbaka till ruta] för varje riktning.
-  const dirs = [
-    [c => c.gy, c => c.gx, (l, p) => [p, l]],
-    [c => c.gx, c => c.gy, (l, p) => [l, p]],
-    [c => c.gx - c.gy, c => c.gx, (l, p) => [p, p - l]],
-    [c => c.gx + c.gy, c => c.gx, (l, p) => [p, l - p]]
-  ];
-  for (const [lineOf, posOf, back] of dirs) {
-    const lines = new Map();
-    for (const c of bareCells.values()) {
-      const l = lineOf(c);
-      (lines.get(l) || lines.set(l, []).get(l)).push(posOf(c));
+/* ---- mellan linjerna ----
+   Gatan körs i kanterna — ytterkanten, och innerkanten i vändslingorna — och
+   med utfyllnad över åsar och dalar, inte ett varv per meter. Marken mellan
+   linjerna räknas fram rakt över dem. Provet på passet 11 november, där en
+   del av körningen i taget doldes och räknades fram ur resten: i mitten
+   3,5 cm fel och nio av tio rutor inom 9 cm, nästan lika bra vid tolv meter
+   mellan linjerna som vid tre. Det är samma spridning som där två varv
+   korsar varandra, alltså mätningens eget brus och inte glesheten. */
+const BARE_SPAN = 10;        // m — längre mellanrum räknas inte fram
+// Upp hit är det gata som behöver en utfyllnad: längst ner i stora slingan
+// är gatan 15–20 m bred. Längre glipor är oftast skog mellan två ben.
+const BARE_SPAN_MAX = 20;    // m
+// Brunnarnas lägen är inte inmätta med pucken, så kanten får ligga en bit
+// ifrån innan den räknas som okörd.
+const BARE_WELL_EDGE = 5;    // m
+// Minsta uppdrag. Passet 11 november gav ett tjugotal fixlösa bitar på fem
+// till tio meter längs kanterna, med fix strax före och efter; som egna
+// uppdrag dränkte de det som faktiskt behövde köras om. De syns ändå lila
+// på kartan.
+const BARE_TASK_NOFIX = 10;  // rutor, ungefär meter längs en linje
+const BARE_TASK_SPARSE = 25; // m²
+
+// Linjens riktning i varje mätt ruta, ur de mätta rutorna inom två rutor.
+// En korsning eller täta varv ger ingen tydlig riktning, och då saknas den.
+function bareLineDirs() {
+  const dirs = new Map();
+  for (const [k, c] of bareCells) {
+    let n = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+    for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+      if (!bareCells.has(bareKey(c.gx + dx, c.gy + dy))) continue;
+      n++; sx += dx; sy += dy; sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
     }
-    for (const [l, ps] of lines) {
-      ps.sort((a, b) => a - b);
-      for (let i = 1; i < ps.length; i++) {
-        const d = ps[i] - ps[i - 1];
-        if (d < 2 || d > 6) continue;
-        for (let p = ps[i - 1] + 1; p < ps[i]; p++) {
-          const [gx, gy] = back(l, p);
-          gaps.set(bareKey(gx, gy), { gx, gy });
+    if (n < 3) continue;
+    const a = sxx / n - (sx / n) ** 2, b = syy / n - (sy / n) ** 2, cxy = sxy / n - (sx / n) * (sy / n);
+    const disc = Math.sqrt(((a - b) / 2) ** 2 + cxy * cxy);
+    if ((a + b) / 2 + disc < 3 * ((a + b) / 2 - disc)) continue;
+    const th = Math.atan2(2 * cxy, a - b) / 2;
+    dirs.set(k, [Math.cos(th), Math.sin(th)]);
+  }
+  return dirs;
+}
+
+// Ligger rutan i ett område som inte är spårgata? Testet görs i rutnätets
+// koordinater, med rutans mitt.
+function bareAreaTest() {
+  const polys = bareAreas.map(a => a.pts.map(([lat, lon]) => bareXY(lat, lon)));
+  const memo = new Map();
+  return (gx, gy) => {
+    if (!polys.length) return false;
+    const k = bareKey(gx, gy);
+    if (memo.has(k)) return memo.get(k);
+    const x = (gx + 0.5) * BARE_CELL, y = (gy + 0.5) * BARE_CELL;
+    const hit = polys.some(P => {
+      let inside = false;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+        const [xi, yi] = P[i], [xj, yj] = P[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    });
+    memo.set(k, hit);
+    return hit;
+  };
+}
+
+// Marken mellan linjerna, längs rader, kolumner och diagonaler: rakt fram
+// mellan två mätta rutors höjder, viktat så att korta mellanrum väger mest.
+// Bara tvärs över linjerna, minst 45 grader mot dem i båda ändar. Inne i en
+// kurva går en rad annars från den inre kanten och tillbaka till samma kant,
+// och skogen innanför blev gata. Ett mellanrum som går genom ett område utan
+// spårgata räknas inte alls — det är inte ett tvärsnitt av gatan.
+function bareFill() {
+  const lineDir = bareLineDirs(), inArea = bareAreaTest();
+  const acc = new Map(), sparse = new Map();
+  const R = Math.SQRT1_2;
+  // [linje, läge längs linjen, tillbaka till ruta, riktning, meter per steg]
+  const dirs = [
+    [c => c.gy, c => c.gx, (l, p) => [p, l], [1, 0], 1],
+    [c => c.gx, c => c.gy, (l, p) => [l, p], [0, 1], 1],
+    [c => c.gx - c.gy, c => c.gx, (l, p) => [p, p - l], [R, R], Math.SQRT2],
+    [c => c.gx + c.gy, c => c.gx, (l, p) => [p, l - p], [R, -R], Math.SQRT2]
+  ];
+  const across = (k, [ux, uy]) => { const d = lineDir.get(k); return !d || Math.abs(ux * d[1] - uy * d[0]) >= R; };
+  for (const [lineOf, posOf, back, u, step] of dirs) {
+    const lines = new Map();
+    for (const [k, c] of bareCells) {
+      const l = lineOf(c);
+      (lines.get(l) || lines.set(l, []).get(l)).push({ p: posOf(c), k, h: c.sum / c.n });
+    }
+    for (const [l, cs] of lines) {
+      cs.sort((a, b) => a.p - b.p);
+      for (let i = 1; i < cs.length; i++) {
+        const a = cs[i - 1], b = cs[i], d = b.p - a.p, span = d * step;
+        if (d < 2 || span > BARE_SPAN_MAX || !across(a.k, u) || !across(b.k, u)) continue;
+        const between = [];
+        for (let p = a.p + 1; p < b.p; p++) between.push([p, ...back(l, p)]);
+        if (between.some(([, gx, gy]) => inArea(gx, gy))) continue;
+        for (const [p, gx, gy] of between) {
+          const key = bareKey(gx, gy);
+          if (span > BARE_SPAN) { sparse.set(key, { gx, gy }); continue; }
+          const h = a.h + (b.h - a.h) * (p - a.p) / d, w = 1 / span;
+          const e = acc.get(key) || acc.set(key, { gx, gy, sw: 0, swh: 0, span: Infinity }).get(key);
+          e.sw += w; e.swh += w * h; e.span = Math.min(e.span, span);
         }
       }
     }
   }
-  return gaps;
+  const interp = new Map();
+  for (const [key, e] of acc) {
+    interp.set(key, { gx: e.gx, gy: e.gy, h: e.swh / e.sw, span: e.span });
+    sparse.delete(key);   // går det att räkna fram åt något håll räcker det
+  }
+  return { interp, sparse };
+}
+
+/* ---- uppdrag ----
+   Det som återstår för att barmarken ska bli hel, i spårets ordning efter
+   närmaste brunn. Allt räknas om ur rutnätet, så det som blivit klart i ett
+   senare pass stryks av sig självt. */
+
+// Rutor högst fem rutor isär hör till samma uppdrag. Med två blev en kant
+// med korta bitar fix emellan tre uppdrag i rad vid samma brunn.
+function bareGroups(cells, reach = 5) {
+  const left = new Map(cells), groups = [];
+  for (const [k0, c0] of cells) {
+    if (!left.has(k0)) continue;
+    left.delete(k0);
+    const g = [c0], queue = [c0];
+    while (queue.length) {
+      const c = queue.pop();
+      for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++) {
+        const k = bareKey(c.gx + dx, c.gy + dy), n = left.get(k);
+        if (n) { left.delete(k); g.push(n); queue.push(n); }
+      }
+    }
+    groups.push(g);
+  }
+  return groups;
+}
+
+function bareNearestWell(x, y) {
+  let best = null;
+  for (const w of BUILTIN_WELLS) {
+    if (w.spare) continue;
+    const [wx, wy] = bareXY(w.lat, w.lon), d = Math.hypot(x - wx, y - wy);
+    if (!best || d < best.d) best = { w, d };
+  }
+  return best;
+}
+
+function bareMissions(fill) {
+  const covered = k => bareCells.has(k) || fill.interp.has(k);
+  const out = [];
+  // Markören sätts på den ruta som ligger närmast gruppens mitt. En böjd
+  // sträckas tyngdpunkt kan hamna i skogen.
+  const place = g => {
+    const mx = bareAvg(g.map(c => c.gx + 0.5)), my = bareAvg(g.map(c => c.gy + 0.5));
+    const c = g.reduce((b, c) => Math.hypot(c.gx + 0.5 - mx, c.gy + 0.5 - my) < Math.hypot(b.gx + 0.5 - mx, b.gy + 0.5 - my) ? c : b);
+    const [lat, lon] = bareLatLon((c.gx + 0.5) * BARE_CELL, (c.gy + 0.5) * BARE_CELL);
+    return { lat, lon, near: bareNearestWell(mx * BARE_CELL, my * BARE_CELL).w };
+  };
+  // Fix saknades och ingenting runt omkring räcker för att räkna fram det.
+  // Har linjerna på båda sidor fix blir det inget uppdrag.
+  for (const g of bareGroups(new Map([...bareNoFix].filter(([k]) => !covered(k))))) {
+    if (g.length < BARE_TASK_NOFIX) continue;
+    const at = place(g);
+    out.push({ kind: "nofix", size: g.length, ...at,
+      text: `Fixen saknades på ungefär ${Math.round(g.length / 5) * 5} m vid brunn ${at.near.no}. Kör den biten igen.` });
+  }
+  for (const g of bareGroups(fill.sparse)) {
+    if (g.length < BARE_TASK_SPARSE) continue;
+    const at = place(g);
+    out.push({ kind: "sparse", size: g.length, ...at,
+      text: `${g.length} m² vid brunn ${at.near.no} ligger för långt från körda linjer för att räknas fram. Kör en utfyllnad genom mitten.` });
+  }
+  // Brunnarna sitter i gatans kant, så kanten ska ha körts tätt förbi dem.
+  for (const w of BUILTIN_WELLS) {
+    if (w.spare) continue;
+    const [wx, wy] = bareXY(w.lat, w.lon);
+    const gx0 = Math.floor(wx / BARE_CELL), gy0 = Math.floor(wy / BARE_CELL);
+    let d = Infinity;
+    for (let dx = -12; dx <= 12; dx++) for (let dy = -12; dy <= 12; dy++) {
+      if (covered(bareKey(gx0 + dx, gy0 + dy)))
+        d = Math.min(d, Math.hypot((gx0 + dx + 0.5) * BARE_CELL - wx, (gy0 + dy + 0.5) * BARE_CELL - wy));
+    }
+    if (d <= BARE_WELL_EDGE) continue;
+    out.push({ kind: "edge", lat: w.lat, lon: w.lon, near: w, dist: d,
+      text: Number.isFinite(d) ? `Kanten vid brunn ${w.no} verkar inte körd — närmaste mätning ${Math.round(d)} m bort.`
+                               : `Ingen mätning nära brunn ${w.no}.` });
+  }
+  const order = { edge: 0, nofix: 1, sparse: 2 };
+  return out.sort((a, b) => a.near.no - b.near.no || order[a.kind] - order[b.kind]);
 }
 
 function bareReport() {
-  const gaps = bareGaps();
+  const fill = bareFill();
   let shaky = 0;
   for (const c of bareCells.values()) if (c.n >= 3 && bareSd(c) > 0.05) shaky++;
   // Brunnarna sitter i gatans kant. Finns ingen mätning inom tolv meter har
@@ -3807,8 +4011,11 @@ function bareReport() {
     const [wx, wy] = bareXY(w.lat, w.lon);
     return !pts.some(([x, y]) => Math.hypot(x - wx, y - wy) <= 12);
   }).map(w => w.no);
-  return { cells: bareCells.size, gaps, shaky, missed,
-           coverage: bareCells.size ? bareCells.size / (bareCells.size + gaps.size) : 0 };
+  const nofix = [...bareNoFix.keys()].filter(k => !bareCells.has(k) && !fill.interp.has(k)).length;
+  const total = bareCells.size + fill.interp.size + fill.sparse.size;
+  return { cells: bareCells.size, interp: fill.interp.size, sparse: fill.sparse.size, nofix, fill,
+           shaky, missed, missions: bareMissions(fill),
+           coverage: total ? (bareCells.size + fill.interp.size) / total : 0 };
 }
 
 /* ---- lagring ----
@@ -3819,11 +4026,15 @@ function bareReport() {
 function bareToJson() {
   return {
     format: BARE_FORMAT,
-    note: "Barmark för Sparbanksspåret. Ellipsoidhöjder i millimeter, efterberäknade mot Swepos LIDK (koordinater i docs/ppk-lidk.conf), som pucken visar liggande på marken. Rutor på en meter med origo i brunn 7.",
+    note: "Barmark för Sparbanksspåret. Ellipsoidhöjder i millimeter, efterberäknade mot Swepos LIDK (koordinater i docs/ppk-lidk.conf), som pucken visar liggande på marken. Rutor på en meter med origo i brunn 7. nofix är rutor som kördes utan fix, areas områden som inte är spårgata.",
     cell: BARE_CELL, origin: [BARE_ORIGIN.lat, BARE_ORIGIN.lon],
     files: bareFiles,
     cells: [...bareCells.values()].sort((a, b) => a.gy - b.gy || a.gx - b.gx)
-      .map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n, Math.round(bareSd(c) * 1000)])
+      .map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n, Math.round(bareSd(c) * 1000)]),
+    // Bara de som ingen annan körning har täckt; resten behövs inte.
+    nofix: [...bareNoFix.values()].filter(c => !bareCells.has(bareKey(c.gx, c.gy)))
+      .sort((a, b) => a.gy - b.gy || a.gx - b.gx).map(c => [c.gx, c.gy]),
+    areas: bareAreas.map(a => ({ pts: a.pts.map(([lat, lon]) => [+lat.toFixed(7), +lon.toFixed(7)]) }))
   };
 }
 
@@ -3834,6 +4045,10 @@ function bareFromJson(j) {
     const m = mm / 1000, sd = (sdmm || 0) / 1000;
     bareCells.set(bareKey(gx, gy), { gx, gy, sum: m * n, sq: (sd * sd + m * m) * n, n });
   }
+  // nofix och areas kom till i version 16. Äldre filer har dem inte.
+  bareNoFix = new Map();
+  for (const [gx, gy] of Array.isArray(j.nofix) ? j.nofix : []) bareNoFix.set(bareKey(gx, gy), { gx, gy });
+  bareAreas = (Array.isArray(j.areas) ? j.areas : []).filter(a => Array.isArray(a?.pts) && a.pts.length >= 3);
   bareFiles = Array.isArray(j.files) ? j.files : [];
   return true;
 }
@@ -3843,19 +4058,22 @@ function saveBareDraft() {
   catch { setBareNote("Telefonens lagring räckte inte till. Spara barmarken som fil innan du stänger appen."); }
 }
 
-async function openBare() {
-  if (!bareLoaded) {
-    bareLoaded = true;
-    if (bareFromJson(safeParse(localStorage.getItem("snowBareDraft"), null))) bareSource = "draft";
-    else {
-      try {
-        const r = await fetch("./barmark.json", { cache: "no-cache" });
-        if (r.ok && bareFromJson(await r.json())) bareSource = "app";
-      } catch { /* ingen fil i appen än */ }
-    }
+async function loadBare() {
+  if (bareLoaded) return;
+  bareLoaded = true;
+  if (bareFromJson(safeParse(localStorage.getItem("snowBareDraft"), null))) bareSource = "draft";
+  else {
+    try {
+      const r = await fetch("./barmark.json", { cache: "no-cache" });
+      if (r.ok && bareFromJson(await r.json())) bareSource = "app";
+    } catch { /* ingen fil i appen än */ }
   }
-  renderBare();
 }
+
+async function openBare() { await loadBare(); renderBare(); }
+
+// Något i barmarken ändrades här — ett område ritat eller borttaget.
+function bareChanged() { bareSource = "draft"; saveBareDraft(); }
 
 async function importBareFiles(files) {
   const notes = [];
@@ -3893,37 +4111,63 @@ function setBareNote(html) {
 
 /* ---- visning ---- */
 
+function bareBaseMap(id) {
+  const m = L.map(id, { zoomControl: true }).setView([BARE_ORIGIN.lat, BARE_ORIGIN.lon], 16);
+  const bases = baseLayers();
+  bases["Flygbild"].addTo(m);
+  L.control.layers(bases, null, { position: "bottomleft" }).addTo(m);
+  return m;
+}
+
 function ensureBareMap() {
   if (bareMap) { bareMap.invalidateSize(); return true; }
   if ($("panelDepth").hidden) return false;
-  bareMap = L.map("bareMap", { zoomControl: true }).setView([BARE_ORIGIN.lat, BARE_ORIGIN.lon], 16);
-  const bases = baseLayers();
-  bases["Flygbild"].addTo(bareMap);
-  L.control.layers(bases, null, { position: "bottomleft" }).addTo(bareMap);
+  bareMap = bareBaseMap("bareMap");
   return true;
 }
 
+// Samma färger på kartan i Snödjup och Uppdrag.
+const BARE_COLORS = { cell: "rgba(56,189,248,.9)", shaky: "rgba(251,191,36,.95)", interp: "rgba(56,189,248,.38)",
+                      sparse: "rgba(248,113,113,.9)", nofix: "rgba(192,132,252,.95)" };
+const AREA_STYLE = { color: "#e8eef7", weight: 1.5, dashArray: "5 4", fillColor: "#e8eef7", fillOpacity: .1 };
+
 // Rutnätet ritas som en bild med en pixel per ruta. Femtontusen rutor som
-// enskilda kartobjekt gör telefonen seg; en bild kostar ingenting.
-function drawBare(gaps) {
-  if (bareLayer) bareLayer.remove();
-  bareLayer = L.layerGroup().addTo(bareMap);
-  if (track) L.polyline(track.pts, { color: "#e8eef7", weight: 1.5, opacity: .5, dashArray: "4 4" }).addTo(bareLayer);
+// enskilda kartobjekt gör telefonen seg; en bild kostar ingenting. Ger
+// bildens hörn tillbaka, så att kartan kan zooma dit första gången.
+function drawBareGrid(layer, r) {
+  if (track) L.polyline(track.pts, { color: "#e8eef7", weight: 1.5, opacity: .5, dashArray: "4 4" }).addTo(layer);
   BUILTIN_WELLS.forEach(w => L.circleMarker([w.lat, w.lon], { radius: 4, weight: 1.5, color: w.station ? "#fbbf24" : "#38bdf8",
-    fillOpacity: w.spare ? 0 : .6 }).bindTooltip(`Brunn ${w.no}`).addTo(bareLayer));
-  const all = [...bareCells.values(), ...gaps.values()];
-  if (!all.length) return;
-  const minX = Math.min(...all.map(c => c.gx)), maxX = Math.max(...all.map(c => c.gx));
-  const minY = Math.min(...all.map(c => c.gy)), maxY = Math.max(...all.map(c => c.gy));
+    fillOpacity: w.spare ? 0 : .6 }).bindTooltip(`Brunn ${w.no}`).addTo(layer));
+  const nofix = [...bareNoFix.entries()].filter(([k]) => !bareCells.has(k) && !r.fill.interp.has(k)).map(([, c]) => c);
+  const groups = [[r.fill.sparse.values(), () => BARE_COLORS.sparse], [nofix, () => BARE_COLORS.nofix],
+                  [r.fill.interp.values(), () => BARE_COLORS.interp],
+                  [bareCells.values(), c => c.n >= 3 && bareSd(c) > 0.05 ? BARE_COLORS.shaky : BARE_COLORS.cell]];
+  // Utan spridning till Math.min: framräknat och mätt kan bli tiotusentals
+  // rutor, och så många argument klarar inte alla webbläsare.
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const lists = groups.map(([cells, col]) => [[...cells], col]);
+  for (const [cells] of lists) for (const c of cells) {
+    if (c.gx < minX) minX = c.gx; if (c.gx > maxX) maxX = c.gx;
+    if (c.gy < minY) minY = c.gy; if (c.gy > maxY) maxY = c.gy;
+  }
+  if (minX === Infinity) return null;
   const cv = document.createElement("canvas");
   cv.width = maxX - minX + 1; cv.height = maxY - minY + 1;
   const ctx = cv.getContext("2d");
-  const dot = (c, col) => { ctx.fillStyle = col; ctx.fillRect(c.gx - minX, maxY - c.gy, 1, 1); };
-  gaps.forEach(c => dot(c, "rgba(248,113,113,.9)"));
-  bareCells.forEach(c => dot(c, c.n >= 3 && bareSd(c) > 0.05 ? "rgba(251,191,36,.95)" : "rgba(56,189,248,.9)"));
+  for (const [cells, col] of lists) for (const c of cells) {
+    ctx.fillStyle = col(c); ctx.fillRect(c.gx - minX, maxY - c.gy, 1, 1);
+  }
   const sw = bareLatLon(minX * BARE_CELL, minY * BARE_CELL), ne = bareLatLon((maxX + 1) * BARE_CELL, (maxY + 1) * BARE_CELL);
-  L.imageOverlay(cv.toDataURL(), [sw, ne], { className: "bare-overlay" }).addTo(bareLayer);
-  if (!bareFitted) { bareMap.fitBounds([sw, ne], { padding: [20, 20] }); bareFitted = true; }
+  L.imageOverlay(cv.toDataURL(), [sw, ne], { className: "bare-overlay" }).addTo(layer);
+  return [sw, ne];
+}
+
+function drawBare(r) {
+  if (bareLayer) bareLayer.remove();
+  bareLayer = L.layerGroup().addTo(bareMap);
+  const box = drawBareGrid(bareLayer, r);
+  bareAreas.forEach(a => L.polygon(a.pts, { ...AREA_STYLE, interactive: false }).addTo(bareLayer));
+  if (box && !bareFitted) { bareMap.fitBounds(box, { padding: [20, 20] }); bareFitted = true; }
 }
 
 function renderBare(notes = []) {
@@ -3937,17 +4181,18 @@ function renderBare(notes = []) {
     return;
   }
   const r = bareReport();
-  const area = r.cells * BARE_CELL * BARE_CELL;
+  const m2 = n => n * BARE_CELL * BARE_CELL;
   $("bareStatus").textContent =
-    `${r.cells} rutor, ${area} m², från ${bareFiles.length} pass. ` +
+    `${r.cells} rutor, ${m2(r.cells)} m², från ${bareFiles.length} pass. ` +
     (bareSource === "draft" ? "Inläst på den här enheten och inte sparat i appen än." : "Sparad i appen.");
   const lines = [...notes];
-  lines.push(`<b>${Math.round(r.coverage * 100)} %</b> av ytan mellan varven är inmätt` +
-    (r.gaps.size ? `, ${r.gaps.size} rutor är luckor.` : "."));
+  lines.push(`${m2(r.cells)} m² uppmätt och ${m2(r.interp)} m² framräknat mellan linjerna.` +
+    (r.sparse ? ` <span style="color:var(--warn)">${m2(r.sparse)} m² ligger för långt från körda linjer för att räknas fram.</span>` : ""));
+  if (r.missions.length) lines.push(`<b>${r.missions.length} uppdrag</b> kvar — se fliken Uppdrag.`);
   if (r.missed.length) lines.push(`Ingen mätning nära brunn ${r.missed.join(", ")}.`);
   if (r.shaky) lines.push(`${r.shaky} rutor har värden som spretar mer än fem centimeter.`);
   setBareNote(lines.join("<br>"));
-  if (ensureBareMap()) drawBare(r.gaps);
+  if (ensureBareMap()) drawBare(r);
 }
 
 $("bareInput").onchange = e => { const f = [...e.target.files]; e.target.value = ""; importBareFiles(f); };
@@ -3959,11 +4204,192 @@ $("bareSave").onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $("bareClear").onclick = () => {
-  armConfirm($("bareClear"), "Ja, börja om", () => {
+  armConfirm($("bareClear"), "Ja, börja om", async () => {
+    // Områdena utan spårgata beskriver spåret, inte mätningen. De följer
+    // med, så att de inte behöver ritas om när ett pass läses in på nytt.
+    const areas = bareAreas;
     localStorage.removeItem("snowBareDraft");
-    bareCells = new Map(); bareFiles = []; bareSource = null; bareLoaded = false; bareFitted = false;
-    openBare();
+    bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareFiles = [];
+    bareSource = null; bareLoaded = false; bareFitted = false; taskFitted = false;
+    await loadBare();
+    if (areas.length && !bareAreas.length) { bareAreas = areas; bareChanged(); }
+    renderBare();
   });
+};
+
+/* ---- fliken Uppdrag ----
+   Det som återstår, på en egen karta. Där ritas också områdena som inte är
+   spårgata, och där syns var man är när man kör ut till ett uppdrag. */
+
+let taskMap = null, taskLayer = null, taskFitted = false;
+let taskDraw = null;            // hörnen medan ett område ritas, annars null
+let taskDraftLayer = null, taskWhereLayer = null;
+let taskWhere = { on: false, watch: null, phone: null, panned: false };
+
+function setTaskNote(text) { $("taskNote").textContent = text || ""; }
+
+function ensureTaskMap() {
+  if (taskMap) { taskMap.invalidateSize(); return true; }
+  if ($("panelTasks").hidden) return false;
+  taskMap = bareBaseMap("taskMap");
+  // Hanteraren registreras direkt när kartan skapas, före allt annat. En
+  // gång hamnade en tidig retur före kartans klickhanterare, och då gick
+  // ingenting att placera.
+  taskMap.on("click", e => {
+    if (!taskDraw) return;
+    taskDraw.push([+e.latlng.lat.toFixed(7), +e.latlng.lng.toFixed(7)]);
+    drawTaskDraft();
+  });
+  return true;
+}
+
+async function openTasks() { await loadBare(); renderTasks(); }
+
+const TASK_KIND = { edge: "Kanten", nofix: "Fix saknas", sparse: "Fyll ut" };
+
+function renderTasks() {
+  const has = bareCells.size > 0;
+  $("taskWrap").hidden = !has;
+  if (!has) {
+    $("taskStatus").textContent = "Ingen barmark inläst. Läs in en mätning under Snödjup först.";
+    return;
+  }
+  const r = bareReport();
+  $("taskStatus").textContent = r.missions.length
+    ? `${r.missions.length} uppdrag kvar. Tryck på ett för att se det på kartan.`
+    : "Inga uppdrag kvar — barmarken är hel så långt den är körd.";
+  $("taskList").innerHTML = r.missions.map((m, i) =>
+    `<li><button type="button" data-task="${i}"><span class="tasknum tk-${m.kind}">${i + 1}</span>` +
+    `<span><b>${TASK_KIND[m.kind]}.</b> ${m.text}</span></button></li>`).join("");
+  $("taskList").querySelectorAll("[data-task]").forEach(b => {
+    b.onclick = () => {
+      const m = r.missions[+b.dataset.task];
+      if (taskMap) taskMap.setView([m.lat, m.lon], 19);
+      $("taskMap").scrollIntoView?.({ behavior: "smooth", block: "center" });
+    };
+  });
+  if (ensureTaskMap()) drawTasks(r);
+  renderDrawButtons();
+}
+
+function drawTasks(r) {
+  if (taskLayer) taskLayer.remove();
+  taskLayer = L.layerGroup().addTo(taskMap);
+  const box = drawBareGrid(taskLayer, r);
+  bareAreas.forEach((a, i) => {
+    // Medan ett nytt område ritas ska ett tryck på ett gammalt bli ett hörn,
+    // inte öppna dess ruta.
+    const poly = L.polygon(a.pts, { ...AREA_STYLE, interactive: !taskDraw }).addTo(taskLayer);
+    if (taskDraw) return;
+    poly.bindPopup(`<div style="font:13px/1.5 sans-serif">Område utan spårgata. Inget räknas fram här.
+      <div class="popbtns"><a href="#" class="del" data-del-area>Ta bort området</a></div></div>`);
+    poly.on("popupopen", ev => {
+      const link = ev.popup.getElement().querySelector("[data-del-area]");
+      link?.addEventListener("click", e => {
+        e.preventDefault();
+        armConfirm(link, "Tryck igen för att ta bort", () => {
+          bareAreas.splice(i, 1);
+          bareChanged();
+          taskMap.closePopup();
+          setTaskNote("Området är borttaget.");
+          renderTasks();
+        });
+      });
+    });
+  });
+  if (!taskDraw) r.missions.forEach((m, i) => L.marker([m.lat, m.lon], {
+    icon: L.divIcon({ className: "task-pin tk-" + m.kind, html: String(i + 1), iconSize: [22, 22], iconAnchor: [11, 11] })
+  }).bindTooltip(m.text).addTo(taskLayer));
+  if (box && !taskFitted) { taskMap.fitBounds(box, { padding: [20, 20] }); taskFitted = true; }
+  drawTaskDraft();
+  drawTaskWhere();
+}
+
+/* Rita ett område: varje tryck på kartan blir ett hörn. */
+
+function renderDrawButtons() {
+  const on = !!taskDraw;
+  $("taskDraw").hidden = on;
+  for (const id of ["taskDrawDone", "taskDrawUndo", "taskDrawCancel"]) $(id).hidden = !on;
+  if (!on) return;
+  $("taskDrawDone").disabled = taskDraw.length < 3;
+  $("taskDrawUndo").disabled = !taskDraw.length;
+  setTaskNote(taskDraw.length < 3
+    ? `Tryck ut hörnen runt området på kartan, ett i taget — ${taskDraw.length} av minst 3.`
+    : `${taskDraw.length} hörn. Tryck Klar när du är runt.`);
+}
+
+function drawTaskDraft() {
+  if (taskDraftLayer) { taskDraftLayer.remove(); taskDraftLayer = null; }
+  if (taskMap && taskDraw && taskDraw.length) {
+    taskDraftLayer = L.layerGroup().addTo(taskMap);
+    if (taskDraw.length >= 2) L.polyline(taskDraw.length >= 3 ? [...taskDraw, taskDraw[0]] : taskDraw,
+      { color: "#fbbf24", weight: 2, dashArray: "4 3", interactive: false }).addTo(taskDraftLayer);
+    taskDraw.forEach(p => L.circleMarker(p, { radius: 4, color: "#fbbf24", fillColor: "#fbbf24", fillOpacity: 1,
+      interactive: false }).addTo(taskDraftLayer));
+  }
+  renderDrawButtons();
+}
+
+$("taskDraw").onclick = () => { taskDraw = []; renderTasks(); };
+$("taskDrawUndo").onclick = () => { taskDraw?.pop(); drawTaskDraft(); };
+$("taskDrawCancel").onclick = () => { taskDraw = null; setTaskNote(""); renderTasks(); };
+$("taskDrawDone").onclick = () => {
+  if (!taskDraw || taskDraw.length < 3) return;
+  bareAreas.push({ pts: taskDraw });
+  taskDraw = null;
+  bareChanged();
+  setTaskNote("Området är sparat på den här enheten. Spara barmarken som fil under Snödjup, så följer det med i appen.");
+  renderTasks();
+};
+
+/* Var är jag? Pucken om den är ansluten — en halvmeter — annars telefonen.
+   Telefonens GPS startas ändå, så att den tar över om pucken tappar
+   kontakten. */
+
+const puckFresh = () => !!(puck.device && puck.gga && puck.gga.q > 0 && Number.isFinite(puck.gga.lat) &&
+                          Date.now() - puck.at < 5000);
+
+function stopTaskWhere() {
+  if (taskWhere.watch !== null) navigator.geolocation?.clearWatch(taskWhere.watch);
+  taskWhere = { on: false, watch: null, phone: null, panned: false };
+  if (taskWhereLayer) { taskWhereLayer.remove(); taskWhereLayer = null; }
+  $("taskWhere").textContent = "Visa var jag är";
+}
+
+function drawTaskWhere() {
+  if (taskWhereLayer) { taskWhereLayer.remove(); taskWhereLayer = null; }
+  if (!taskWhere.on || !taskMap) return;
+  const fromPuck = puckFresh();
+  const p = fromPuck ? [puck.gga.lat, puck.gga.lon] : taskWhere.phone && [taskWhere.phone.lat, taskWhere.phone.lon];
+  if (!p) return;
+  taskWhereLayer = L.layerGroup().addTo(taskMap);
+  if (!fromPuck) L.circle(p, { radius: taskWhere.phone.acc, color: "#38bdf8", weight: 1, fillOpacity: .1,
+    interactive: false }).addTo(taskWhereLayer);
+  L.circleMarker(p, { radius: 7, color: "#0b1220", weight: 2, fillColor: fromPuck ? "#fbbf24" : "#38bdf8",
+    fillOpacity: 1, interactive: false }).addTo(taskWhereLayer);
+  if (!taskWhere.panned) { taskMap.panTo(p); taskWhere.panned = true; }
+  if (!taskDraw) setTaskNote(fromPuck ? "Visar puckens position, ungefär en halvmeter rätt."
+    : `Visar telefonens position, ±${Math.round(taskWhere.phone.acc)} m. Anslut pucken under Snödjup för en halvmeter.`);
+}
+
+$("taskWhere").onclick = () => {
+  if (taskWhere.on) { stopTaskWhere(); setTaskNote(""); return; }
+  taskWhere.on = true;
+  $("taskWhere").textContent = "Sluta visa var jag är";
+  if (navigator.geolocation) {
+    taskWhere.watch = navigator.geolocation.watchPosition(
+      pos => { taskWhere.phone = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy || 25 }; drawTaskWhere(); },
+      err => {
+        if (puckFresh()) return;
+        setTaskNote(err.code === err.PERMISSION_DENIED
+          ? "Webbläsaren fick inte använda platsen. Tillåt det i inställningarna, eller anslut pucken under Snödjup."
+          : "Telefonens GPS: " + err.message);
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+  }
+  setTaskNote(puckFresh() ? "" : "Väntar på position…");
+  drawTaskWhere();
 };
 
 /* ==========================================================================
@@ -3997,7 +4423,7 @@ const GUIDE_STEPS = [
     text: "Sätt pucken på fästet utan att flytta fyrhjulingen, och mät med tumstock från marken vid framhjulet till puckens undersida. Sätt dig sedan på fyrhjulingen som när du kör och sitt still — fjädringen ska stå som under körningen.",
     start: "Jag sitter på — starta 2:00", done: "Klart. Nu kan du börja köra." },
   { key: "drive", kind: "drive", title: "4. Kör",
-    text: "Hela gatan, högst 5 km/h, ungefär en meter mellan varven. Titta på loggningsikonen vid varje vändpunkt — har den blivit ett streck loggar pucken inte längre.",
+    text: "Gatans kanter — ytterkanten, och innerkanten i vändslingorna — och utfyllnad däremellan över åsar och dalar, högst ungefär tio meter mellan linjerna. Lugnt, runt 5 km/h. Titta på loggningsikonen vid varje vändpunkt — har den blivit ett streck loggar pucken inte längre.",
     start: "Börja köra", next: "Körningen är klar" },
   { key: "stop", kind: "hold", sec: 60, title: "5. Stå still",
     text: "Ställ fyrhjulingen på ett öppet ställe och sitt kvar som när du kör. Pucken sitter kvar på fästet.",
@@ -4228,7 +4654,8 @@ function feedPuck(text) {
     const line = raw.slice(i).trim();
     if (!/^\$G.GGA,/.test(line) || !nmeaOk(line)) continue;
     const f = line.slice(0, line.indexOf("*")).split(",");
-    puck.gga = { q: +f[6] || 0, sats: +f[7] || 0, hdop: parseFloat(f[8]), alt: parseFloat(f[9]) };
+    puck.gga = { q: +f[6] || 0, sats: +f[7] || 0, hdop: parseFloat(f[8]), alt: parseFloat(f[9]),
+                 lat: nmeaDeg(f[2], f[3]), lon: nmeaDeg(f[4], f[5]) };
     puck.at = Date.now();
   }
 }
@@ -4248,6 +4675,7 @@ function renderPuck() {
   $("btStatus").innerHTML = puckSummary();
   $("btConnect").textContent = puck.device ? "Koppla från" : "Anslut pucken";
   if (GUIDE_STEPS[guide.step].key === "power") renderGuide();
+  if (taskWhere.on) drawTaskWhere();
 }
 
 async function connectPuck() {

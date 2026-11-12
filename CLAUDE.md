@@ -38,6 +38,15 @@ Brunn 1 och 16 står där spåret delar sig. Det inspelade varvet följer bara e
 grenen, så de hamnar längre från linjen på kartan än de är från spårgatan i
 verkligheten. Samma gäller 10, 13 och 17 — det är inte fel i koordinaterna.
 
+I norra änden delar sig spåret vid brunn 16 i två vändslingor. Den lilla
+vänder i övre delen av backen, strax öster om brunn 16, runt en liten trädö.
+Den stora, lite svårare, går ner för backen förbi 17 och 18 och kommer upp
+igen via 19. Mellan slingornas ben är det skog, inte spårgata, så luckor och
+interpolering i barmark och snödjup får inte fylla över dem. Kristian ritar
+sådana områden själv under fliken Uppdrag (`bareAreas`); tills trädön är
+ritad räknas den fram som gata. Längst ner i stora slingan är gatan 15–20 m
+bred, och allt mellan linjerna där är spårgata.
+
 Brunn 20 är en reserv vid schaktytan, aldrig använd, markerad `spare: true` och
 utesluten ur förslag om inkoppling.
 
@@ -127,11 +136,24 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   via Bluetooth LE med Nordics UART-tjänst — det klassiska SPP, puckens
   förval, kan webbläsaren inte.
 - **Bara fix** och höjdosäkerhet under fem centimeter. Float ger decimeterfel.
-- **Ett varv täcker en meter.** Pucken mäter rakt under sig; en åttameters gata
-  behöver åtta varv. Luckorna mellan varven visas rött.
+- **Kanterna körs, mellan dem räknas marken fram** (`bareFill`). Ytterkanten,
+  innerkanten i vändslingorna och utfyllnad över åsar och dalar — inte ett
+  varv per meter, som appen först räknade med. Höjden räknas rakt fram mellan
+  två mätta rutor längs rader, kolumner och diagonaler, upp till
+  `BARE_SPAN` 10 m; 10–20 m blir "fyll ut". Bara tvärs över linjerna, minst
+  45° mot dem: inne i en kurva gick en rad annars från innerkanten och
+  tillbaka, och skogen innanför blev gata. Provet på passet 11 november (en
+  del dold i taget, framräknad ur resten) gav 3,5 cm i mitten och 9 cm för
+  nio av tio rutor, nästan oberoende av avståndet — samma som där två varv
+  korsar varandra. Områden utan spårgata ritas i appen och hoppas över.
+- **Uppdrag** (`bareMissions`, fliken Uppdrag): fixlösa bitar som inget
+  runtom täcker, för breda mellanrum, och kanter som inte körts inom 5 m från
+  en brunn. Små bitar slås ihop eller visas bara på kartan — passet 11
+  november gav annars över trettio uppdrag.
 - **Lagring:** färdig barmark i `barmark.json` i roten; inläst men inte sparad
-  i localStorage (`snowBareDraft`). Mätloggar i `matdata/`, som inte följer med
-  till git.
+  i localStorage (`snowBareDraft`). Filen har också `nofix`, rutor som kördes
+  utan fix, och `areas`, områden utan spårgata. Börja om behåller områdena.
+  Mätloggar i `matdata/`, som inte följer med till git.
 - **Firestore** (projekt `snoprognos`, inte inkopplat än): lägg aldrig ett helt
   rutnät i ett dokument. Gränserna är 1 MiB och 40 000 indexposter per
   dokument; konceptets förslag slår i dem efter ett par hundra meter gata.

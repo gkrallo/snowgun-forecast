@@ -929,7 +929,7 @@ describe("Barmark", () => {
   after(() => app.close());
   const xy = (lat, lon) => [(lon - O[1]) * M.lon, (lat - O[0]) * M.lat];
   const ll = (x, y) => [O[0] + y / M.lat, O[1] + x / M.lon];
-  const reset = () => app.run("bareCells = new Map(); bareFiles = []; localStorage.removeItem('snowBareDraft')");
+  const reset = () => app.run("bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareFiles = []; localStorage.removeItem('snowBareDraft')");
 
   function survey({ passes = 8, spacing = 1, closing = true, endStop = true, calib = true, midStop = false } = {}) {
     let seed = 11;
@@ -1035,17 +1035,58 @@ describe("Barmark", () => {
     assert.ok(worst < 0.025, `största fel ${(worst * 100).toFixed(1)} cm i ruta ${where}`);
   });
 
-  test("åtta varv med en meter emellan täcker gatan, fyra med två meter gör det inte", async () => {
+  // Gatan körs i kanterna och med utfyllnad, inte ett varv per meter.
+  test("marken räknas fram mellan linjer upp till tio meter isär, bredare blir ett uppdrag", async () => {
     reset();
-    await importText(survey({ passes: 8, spacing: 1 }));
-    const tight = app.get("(() => { const r = bareReport(); return { c: r.coverage, missed: r.missed }; })()");
+    await importText(survey({ passes: 3, spacing: 4 }));
+    const near = app.get(`(() => { const r = bareReport(); return { interp: [...r.fill.interp.values()].map(c => [c.gx, c.gy, c.h]),
+      sparse: r.sparse, coverage: r.coverage, missed: r.missed, kinds: r.missions.map(m => m.kind) }; })()`);
+    assert.ok(near.interp.length > 1000, `${near.interp.length} framräknade rutor`);
+    // Terrängen böjer 15 cm på nio meter. Rakt fram över tio meter ger det
+    // som mest ett par centimeter fel; i de flesta rutor nästan inget.
+    const errs = near.interp.map(([gx, gy, h]) => Math.abs(h - (terrain(gx + 0.5, gy + 0.5) + PUCK))).sort((x, y) => x - y);
+    assert.ok(errs[errs.length - 1] < 0.03, `största fel ${(errs[errs.length - 1] * 100).toFixed(1)} cm`);
+    assert.ok(errs[errs.length >> 1] < 0.005, `fel i mitten ${(errs[errs.length >> 1] * 100).toFixed(1)} cm`);
+    assert.ok(near.coverage > 0.95, `${Math.round(near.coverage * 100)} % av gatan uppmätt eller framräknad`);
+    assert.ok(!near.kinds.includes("sparse"), "fyra meter mellan linjerna ska gå att räkna fram");
+    for (const no of [1, 2, 19]) assert.ok(near.missed.includes(no), `brunn ${no} borde sakna mätning`);
+    for (const no of [6, 7]) assert.ok(!near.missed.includes(no), `brunn ${no} är inmätt`);
+
     reset();
-    await importText(survey({ passes: 4, spacing: 2 }));
-    const loose = app.get("bareReport().coverage");
-    assert.ok(tight.c > 0.9, `täta varv gav ${Math.round(tight.c * 100)} %`);
-    assert.ok(loose < 0.7, `glesa varv gav ${Math.round(loose * 100)} %`);
-    for (const no of [1, 2, 19]) assert.ok(tight.missed.includes(no), `brunn ${no} borde sakna mätning`);
-    for (const no of [6, 7]) assert.ok(!tight.missed.includes(no), `brunn ${no} är inmätt`);
+    await importText(survey({ passes: 2, spacing: 15 }));
+    const wide = app.get("(() => { const r = bareReport(); return { interp: r.interp, sparse: r.sparse, kinds: r.missions.map(m => m.kind) }; })()");
+    assert.ok(wide.sparse > 1000, `${wide.sparse} m² för glest`);
+    assert.ok(wide.interp < wide.sparse / 10, "femton meter ska inte räknas fram");
+    assert.ok(wide.kinds.includes("sparse"), "det breda mellanrummet ska bli ett uppdrag");
+  });
+
+  test("en bit utan fix blir ett uppdrag i kanten, men inte mellan två linjer med fix", async () => {
+    // survey() lägger in en bit float på varv två.
+    reset();
+    await importText(survey({ passes: 2, spacing: 3 }));
+    const edge = app.get("bareReport().missions.filter(m => m.kind === 'nofix').map(m => m.text)");
+    assert.equal(edge.length, 1, "float-biten på det yttre varvet ska bli ett uppdrag");
+    assert.match(edge[0], /Fixen saknades på ungefär \d+ m vid brunn \d+/);
+    reset();
+    await importText(survey({ passes: 3, spacing: 3 }));
+    const mid = app.get("(() => { const r = bareReport(); return { tasks: r.missions.filter(m => m.kind === 'nofix').length, raw: bareNoFix.size, left: r.nofix }; })()");
+    assert.ok(mid.raw > 10, "rutorna utan fix ska vara sparade");
+    assert.equal(mid.left, 0, "mittlinjen utan fix räknas fram ur linjerna bredvid");
+    assert.equal(mid.tasks, 0);
+  });
+
+  test("inget räknas fram över ett område utan spårgata", async () => {
+    reset();
+    await importText(survey({ passes: 3, spacing: 4 }));
+    const all = app.get("bareReport().interp");
+    // En fyrkant över en bit av gatan, kring en punkt mitt på linjen.
+    const [cx, cy] = xy(...app.get("BUILTIN_TRACK.pts")[20]);
+    const sq = [[-15, -15], [15, -15], [15, 15], [-15, 15]].map(([dx, dy]) => ll(cx + dx, cy + dy));
+    app.run(`bareAreas = [{ pts: ${JSON.stringify(sq)} }]`);
+    const r = app.get(`(() => { const r = bareReport(), inside = bareAreaTest();
+      return { n: r.interp, bad: [...r.fill.interp.values(), ...r.fill.sparse.values()].filter(c => inside(c.gx, c.gy)).length }; })()`);
+    assert.ok(r.n < all - 100, `${all} framräknade utan området, ${r.n} med`);
+    assert.equal(r.bad, 0, "inget framräknat eller glest inne i området");
   });
 
   test("utan kontroll i slutet varnar appen, och utan stopp klipps slutet bort", () => {
@@ -1112,8 +1153,11 @@ describe("Barmark", () => {
   test("barmarken sparas som fil och läses tillbaka utan att något ändras", async () => {
     reset();
     await importText(survey({ passes: 2 }));
+    app.run(`bareAreas = [{ pts: [[58.5037, 13.0879], [58.5038, 13.0879], [58.5038, 13.0881]] }]`);
     const json = app.get("bareToJson()");
     assert.equal(json.format, "snoprognos-barmark-2");
+    assert.ok(json.nofix.length > 0, "rutorna som kördes utan fix sparas");
+    assert.equal(json.areas.length, 1);
     // Version 1 var relativt brunn 7-locket och får inte blandas in.
     assert.equal(app.run(`bareFromJson(${JSON.stringify({ ...json, format: "snoprognos-barmark-1" })})`), false);
     assert.equal(json.files.length, 1);
@@ -1121,6 +1165,8 @@ describe("Barmark", () => {
     app.run(`bareFromJson(${JSON.stringify(json)})`);
     const after = app.get("[...bareCells.values()].map(c => [c.gx, c.gy, Math.round(c.sum / c.n * 1000), c.n])").sort();
     assert.deepEqual(after, before);
+    assert.equal(app.run("bareNoFix.size"), json.nofix.length);
+    assert.deepEqual(app.get("bareAreas"), json.areas);
     assert.ok(app.win.localStorage.getItem("snowBareDraft"), "det inlästa ska ligga kvar i telefonen");
   });
 
@@ -1134,8 +1180,48 @@ describe("Barmark", () => {
       assert.match(a.$("bareStatus").textContent, /rutor/);
       assert.match(a.$("bareStatus").textContent, /inte sparat i appen/);
       assert.match(a.$("bareReport").textContent, /Antennhöjd 118,\d cm/);
-      assert.match(a.$("bareReport").textContent, /av ytan mellan varven är inmätt/);
+      assert.match(a.$("bareReport").textContent, /m² uppmätt och \d+ m² framräknat mellan linjerna/);
       assert.equal(a.$("bareSave").hidden, false);
+      assert.deepEqual(a.errors, []);
+    } finally { a.close(); }
+  });
+
+  test("fliken Uppdrag listar det som återstår, och ett område går att rita och ta bort", async () => {
+    const a = await loadApp();
+    try {
+      a.$("tabTasks").click();
+      await a.settle();
+      assert.match(a.$("taskStatus").textContent, /Läs in en mätning under Snödjup/);
+      await a.win.importBareFiles([{ name: "barmark.pos", text: async () => survey({ passes: 2, spacing: 15 }) }]);
+      a.$("tabTasks").click();
+      await a.settle();
+      assert.match(a.$("taskStatus").textContent, /\d+ uppdrag kvar/);
+      assert.match(a.$("taskList").textContent, /Fyll ut\./);
+      assert.match(a.$("taskList").textContent, /Fix saknas\./);
+
+      // Tre tryck på kartan blir ett område.
+      a.$("taskDraw").click();
+      assert.equal(a.$("taskDrawDone").hidden, false);
+      assert.equal(a.$("taskDrawDone").disabled, true, "Klar kräver tre hörn");
+      for (const [lat, lng] of [[58.5037, 13.0879], [58.5038, 13.0879], [58.5038, 13.0881]])
+        a.run(`taskMap._handlers.click[0]({ latlng: { lat: ${lat}, lng: ${lng} } })`);
+      assert.equal(a.$("taskDrawDone").disabled, false);
+      a.$("taskDrawUndo").click();
+      assert.equal(a.$("taskDrawDone").disabled, true, "ångrat hörn");
+      a.run(`taskMap._handlers.click[0]({ latlng: { lat: 58.5038, lng: 13.0881 } })`);
+      a.$("taskDrawDone").click();
+      assert.equal(a.run("bareAreas.length"), 1);
+      assert.equal(a.$("taskDraw").hidden, false, "ritläget ska vara slut");
+      assert.equal(JSON.parse(a.win.localStorage.getItem("snowBareDraft")).areas.length, 1, "området sparas i telefonen");
+
+      // Börja om läser in passet på nytt, men området följer med.
+      a.$("tabDepth").click();
+      await a.settle();
+      a.$("bareClear").click(); a.$("bareClear").click();
+      await a.settle();
+      assert.equal(a.run("bareCells.size"), 0);
+      assert.equal(a.run("bareAreas.length"), 1, "områdena ritas inte om för att ett pass läses in igen");
+      assert.deepEqual(a.win.__native || [], [], "inga inbyggda frågerutor");
       assert.deepEqual(a.errors, []);
     } finally { a.close(); }
   });
