@@ -58,6 +58,16 @@ ställen; SNR-mask och 20° hjälpte inte. Kör om kurvan, inte inställningarna
 Brunn 20 är en reserv vid schaktytan, aldrig använd, markerad `spare: true` och
 utesluten ur förslag om inkoppling.
 
+Koordinaterna i `BUILTIN_WELLS` är inmätta med mobilen och ligger 2–7 m fel:
+mot barmarken och flygbilden 12 november stod 5, 6 och 17 inne bland träden,
+och 1, 2, 4, 5, 6 och 12 låg österut om gatan. Det är därför uppdragen
+"Kanten vid brunn …" finns. 13 och 14 står där en stig går av och kan vara
+rätt. Brunnarna mäts om med pucken (Brunnsrundan i
+`docs/barmarksmatning.md`): en minut i hörnet mot spåret där slangen kommer
+upp, float räcker. Stoppen hittas i loggen och kopplas till närmaste brunn.
+Nya koordinater når bara den som inte har en sparad brunnslista — övriga
+trycker Återställ brunnarna.
+
 **Brunn 7 bär styrsystemets väderstation.** Det är den givaren som ska läsas av
 vid kalibrering. Dess vindmätare är inte tillförlitlig — vinden ska alltid tas
 från prognosen, aldrig från stationen.

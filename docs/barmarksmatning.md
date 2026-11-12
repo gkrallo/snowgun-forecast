@@ -130,6 +130,32 @@ sjunker när du sitter på. Det är appens värde som gäller.
 Hinner ni inte hela gatan i ett pass går det bra att dela upp. Varje pass
 räknas för sig och gör sin egen kalibrering.
 
+## Brunnsrundan
+
+Brunnarna lades in med mobilen, och flera ligger 2–7 m fel — några hamnar
+inne bland träden när man jämför med barmarken och flygbilden. De mäts om
+med pucken.
+
+Här behövs ingen fix. En halvmeter räcker för slangen och för uppdragen, och
+det ger efterberäkningen även med float, alltså även under träd. Därför
+räcker en minut per brunn.
+
+1. Gör rundan **direkt efter ett mätpass**, när kontrollen på marken (steg 6)
+   är klar men innan pucken stängs av. Appen klipper barmarken vid stoppet
+   före kontrollen, så rundan kommer inte med i rutnätet. Den hjälper dessutom
+   efterberäkningen bakåt i tiden att ha fix redan vid kontrollen. Det går
+   också att göra rundan för sig: starta pucken och låt den ligga 4 minuter
+   under fri himmel först.
+2. Vid varje brunn: lägg pucken plant i **hörnet mot spåret, precis där
+   slangen kommer upp**, och låt den ligga helt still **en minut**. Samma
+   hörn på alla brunnar — det är den punkten brunnens koordinater ska gälla,
+   eftersom det är därifrån slangen når.
+3. Mellan brunnarna kan pucken ligga i handen eller i knät. Ordningen spelar
+   ingen roll, och brunnarna behöver inte skrivas upp — stoppen hittas i
+   loggen och kopplas till närmaste brunn. Brunn 20 behövs inte.
+
+Efterberäkna som vanligt. De nya positionerna läggs in i appen i Claude Code.
+
 ## Efteråt
 
 1. **Kopiera loggfilen** från minneskortet till mappen `matdata/` i projektet.

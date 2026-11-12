@@ -462,6 +462,7 @@ button{font-family:inherit}
         <button id="taskDrawDone" class="armed" hidden>Klar</button>
         <button id="taskDrawUndo" hidden>Ångra hörn</button>
         <button id="taskDrawCancel" hidden>Avbryt</button>
+        <button id="taskSave" hidden>Spara barmark som fil</button>
       </div>
       <p class="plannote" id="taskNote"></p>
       <ol class="tasklist" id="taskList"></ol>
@@ -700,7 +701,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -4196,13 +4197,17 @@ function renderBare(notes = []) {
 }
 
 $("bareInput").onchange = e => { const f = [...e.target.files]; e.target.value = ""; importBareFiles(f); };
-$("bareSave").onclick = () => {
+// Samma knapp finns under Snödjup och Uppdrag. Områdena ritas under Uppdrag,
+// och där letade man förgäves efter den.
+function saveBareFile() {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(bareToJson())], { type: "application/json" }));
   a.download = "barmark.json";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-};
+}
+$("bareSave").onclick = saveBareFile;
+$("taskSave").onclick = saveBareFile;
 $("bareClear").onclick = () => {
   armConfirm($("bareClear"), "Ja, börja om", async () => {
     // Områdena utan spårgata beskriver spåret, inte mätningen. De följer
@@ -4311,6 +4316,8 @@ function renderDrawButtons() {
   const on = !!taskDraw;
   $("taskDraw").hidden = on;
   for (const id of ["taskDrawDone", "taskDrawUndo", "taskDrawCancel"]) $(id).hidden = !on;
+  // Som under Snödjup: bara när något här inte finns i appens fil än.
+  $("taskSave").hidden = on || bareSource !== "draft";
   if (!on) return;
   $("taskDrawDone").disabled = taskDraw.length < 3;
   $("taskDrawUndo").disabled = !taskDraw.length;
@@ -4339,7 +4346,7 @@ $("taskDrawDone").onclick = () => {
   bareAreas.push({ pts: taskDraw });
   taskDraw = null;
   bareChanged();
-  setTaskNote("Området är sparat på den här enheten. Spara barmarken som fil under Snödjup, så följer det med i appen.");
+  setTaskNote("Området är sparat på den här enheten. Tryck Spara barmark som fil och skicka filen, så kommer det med i appen för alla.");
   renderTasks();
 };
 
@@ -4438,7 +4445,7 @@ const GUIDE_STEPS = [
     start: "Fyrhjulingen står still — starta 1:00", done: "Klart. Kliv av, ta loss pucken och lägg den på marken intill framhjulet." },
   { key: "ground2", kind: "hold", sec: 300, title: "6. Pucken på marken igen",
     text: "Pucken på marken intill framhjulet. Det är kontrollen av antennhöjden. Den tar längre tid än i början: efterberäkningen bakåt i tiden börjar här och behöver några minuter för att hitta fix.",
-    start: "Pucken ligger på marken — starta 5:00", done: "Klart. Stäng av pucken." },
+    start: "Pucken ligger på marken — starta 5:00", done: "Klart. Ska brunnar mätas in, gör det nu innan pucken stängs av — en minut i hörnet mot spåret där slangen kommer upp. Annars: stäng av pucken." },
   { key: "done", kind: "done", title: "Klart",
     text: "Stäng av pucken med ett långt tryck <b>innan</b> minneskortet tas ut. Klockslagen nedan ligger kvar i telefonen tills du startar en ny guide." }
 ];

@@ -931,7 +931,7 @@ describe("Barmark", () => {
   const ll = (x, y) => [O[0] + y / M.lat, O[1] + x / M.lon];
   const reset = () => app.run("bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareFiles = []; localStorage.removeItem('snowBareDraft')");
 
-  function survey({ passes = 8, spacing = 1, closing = true, endStop = true, calib = true, midStop = false } = {}) {
+  function survey({ passes = 8, spacing = 1, closing = true, endStop = true, calib = true, midStop = false, wellRound = false } = {}) {
     let seed = 11;
     const noise = s => (((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5) * 2 * s;
     let t = Date.UTC(2026, 10, 10, 13, 0, 0);
@@ -991,6 +991,17 @@ describe("Barmark", () => {
     // Fyra millimeter fel, så att kontrollen har något att visa.
     const E = [pos[0], pos[1] + 1];
     if (closing) { walk(pos, E, hand, 0.5); still(E[0], E[1], terrain(E[0], E[1]) + PUCK + 0.004, 120); }
+    // Brunnsrundan efter kontrollen: pucken i handen mellan brunnarna och en
+    // minut på varje lock, i gatans kant.
+    if (wellRound) {
+      let p = E;
+      for (const i of [2, 6, 10]) {
+        const w = [line[i][0] + 4, line[i][1]];
+        walk(p, w, hand, 3);
+        still(w[0], w[1], terrain(w[0], w[1]) + PUCK, 60);
+        p = w;
+      }
+    }
     return lines.join("\n");
   }
   // Kontrollens förväntade värde: antennhöjden i slutet minus den i början.
@@ -1020,6 +1031,16 @@ describe("Barmark", () => {
     const noClose = calOf({ midStop: true, closing: false, endStop: false });
     assert.equal(noClose.drift, null);
     assert.equal(noClose.to, Infinity, "loggen slutar under körning — inget ska klippas");
+  });
+
+  test("en brunnsrunda efter kontrollen kommer inte med i barmarken", async () => {
+    const plain = calOf(), round = calOf({ wellRound: true });
+    assert.equal(round.to, plain.to, "körningen ska klippas vid samma stopp");
+    assert.ok(Math.abs(round.drift - DRIFT) < 0.003, `kontroll ${round.drift}`);
+    reset(); await importText(survey());
+    const without = app.run("JSON.stringify(bareToJson().cells)");
+    reset(); await importText(survey({ wellRound: true }));
+    assert.equal(app.run("JSON.stringify(bareToJson().cells)"), without, "rundan ska inte synas i rutnätet");
   });
 
   test("varje ruta får markens höjd mot LIDK, utan float och utan handburna punkter", async () => {
@@ -1201,6 +1222,7 @@ describe("Barmark", () => {
 
       // Tre tryck på kartan blir ett område.
       a.$("taskDraw").click();
+      assert.equal(a.$("taskSave").hidden, true, "spara-knappen göms medan man ritar");
       assert.equal(a.$("taskDrawDone").hidden, false);
       assert.equal(a.$("taskDrawDone").disabled, true, "Klar kräver tre hörn");
       for (const [lat, lng] of [[58.5037, 13.0879], [58.5038, 13.0879], [58.5038, 13.0881]])
@@ -1213,6 +1235,16 @@ describe("Barmark", () => {
       assert.equal(a.run("bareAreas.length"), 1);
       assert.equal(a.$("taskDraw").hidden, false, "ritläget ska vara slut");
       assert.equal(JSON.parse(a.win.localStorage.getItem("snowBareDraft")).areas.length, 1, "området sparas i telefonen");
+
+      // Filen går att spara härifrån också, inte bara under Snödjup.
+      assert.equal(a.$("taskSave").hidden, false);
+      let blob = null, name = null;
+      a.win.URL.createObjectURL = b => { blob = b; return "blob:barmark"; };
+      a.win.URL.revokeObjectURL = () => {};
+      a.win.HTMLAnchorElement.prototype.click = function () { name = this.download; };
+      a.$("taskSave").click();
+      assert.equal(name, "barmark.json");
+      assert.equal(JSON.parse(await blob.text()).areas.length, 1, "filen har med området");
 
       // Börja om läser in passet på nytt, men området följer med.
       a.$("tabDepth").click();
