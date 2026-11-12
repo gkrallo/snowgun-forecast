@@ -411,7 +411,7 @@ button{font-family:inherit}
     <div class="field" id="guideTapeRow" hidden style="margin:12px 0 0">
       <label for="guideTape">Tumstock: marken vid framhjulet till puckens undersida på fästet (cm)</label>
       <input type="number" id="guideTape" inputmode="decimal" step="0.5" min="0">
-      <p class="hint">Inget ska läggas till för antennen — appen räknar antennhöjden mellan samma punkt i pucken båda gångerna, så måttet ska stämma rakt av.</p>
+      <p class="hint">Inget ska läggas till för antennen — appen räknar antennhöjden mellan samma punkt i pucken båda gångerna. Mät innan du sätter dig: med dig på sjunker fjädringen, så appens antennhöjd kan bli någon centimeter mindre än måttet.</p>
     </div>
     <div id="guideLogWrap" hidden>
       <h3>Klockslag</h3>
@@ -670,7 +670,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -3982,7 +3982,7 @@ $("bareClear").onclick = () => {
 const GUIDE_STEPS = [
   { key: "intro", kind: "intro", title: "Före passet",
     text: `<ul><li>Pucken laddad, minneskortet i och <b>Rover</b> på skärmen.</li>
-      <li>Messages: Logging Defaults (RXM-RAWX och RXM-SFRBX på 1).</li>
+      <li>Messages: RXM-RAWX och RXM-SFRBX på 1, NMEA-GSA och NMEA-GSV på 0.</li>
       <li>Ett ställe med fri himmel för marken och fästet — inte under träd.</li>
       <li>Tumstock med.</li></ul>Starta guiden när du slår på pucken.` },
   { key: "power", kind: "wait", sec: 240, title: "1. Pucken startar",
@@ -3991,15 +3991,17 @@ const GUIDE_STEPS = [
   { key: "ground", kind: "hold", sec: 120, title: "2. Pucken på marken",
     text: "Lägg pucken på marken precis intill framhjulet. Rör den inte.",
     start: "Pucken ligger på marken — starta 2:00", done: "Klart. Sätt pucken på fästet utan att flytta fyrhjulingen." },
+  // Föraren sitter på under fästet och stoppet: fjädringen sjunker med någon
+  // på, och antennhöjden ska vara den som gäller under körningen.
   { key: "mount", kind: "hold", sec: 120, title: "3. Pucken på fästet",
-    text: "Pucken på fästet, fyrhjulingen orörd. Mät med tumstock från marken vid framhjulet till puckens undersida medan du väntar.",
-    start: "Pucken sitter på fästet — starta 2:00", done: "Klart. Nu kan du börja köra." },
+    text: "Sätt pucken på fästet utan att flytta fyrhjulingen, och mät med tumstock från marken vid framhjulet till puckens undersida. Sätt dig sedan på fyrhjulingen som när du kör och sitt still — fjädringen ska stå som under körningen.",
+    start: "Jag sitter på — starta 2:00", done: "Klart. Nu kan du börja köra." },
   { key: "drive", kind: "drive", title: "4. Kör",
     text: "Hela gatan, högst 5 km/h, ungefär en meter mellan varven. Titta på loggningsikonen vid varje vändpunkt — har den blivit ett streck loggar pucken inte längre.",
     start: "Börja köra", next: "Körningen är klar" },
   { key: "stop", kind: "hold", sec: 60, title: "5. Stå still",
-    text: "Ställ fyrhjulingen på ett öppet ställe. Pucken sitter kvar på fästet.",
-    start: "Fyrhjulingen står still — starta 1:00", done: "Klart. Ta loss pucken och lägg den på marken intill framhjulet." },
+    text: "Ställ fyrhjulingen på ett öppet ställe och sitt kvar som när du kör. Pucken sitter kvar på fästet.",
+    start: "Fyrhjulingen står still — starta 1:00", done: "Klart. Kliv av, ta loss pucken och lägg den på marken intill framhjulet." },
   { key: "ground2", kind: "hold", sec: 120, title: "6. Pucken på marken igen",
     text: "Pucken på marken intill framhjulet. Det är kontrollen av antennhöjden.",
     start: "Pucken ligger på marken — starta 2:00", done: "Klart. Stäng av pucken." },

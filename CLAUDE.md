@@ -113,7 +113,9 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   (kontrollen). Allt på ett ställe med fri himmel, var som helst. Stoppet
   före kontrollen klipper bort punkterna medan pucken bärs i handen — utan
   det hamnar handhöjden i rutnätet. Ett tankstopp mitt i passet följs inte av
-  marken och räknas inte som kontroll.
+  marken och räknas inte som kontroll. Föraren sitter på under fästet och
+  stoppet, så att fjädringen står som under körningen; tumstocken mäts innan
+  och kan därför visa någon centimeter mer än antennhöjden.
 - **Mätpassguiden** (Snödjup) sparar sitt läge i `snowGuide` och räknar tid
   från klockslag, så att en omladdning eller en nedsaktad timer inte tappar
   bort var man var. `reloadForUpdate` väntar medan guiden pågår. Pucken läses

@@ -87,14 +87,18 @@ fix och gav en antennhöjd som var en halvmeter fel.
 2. **Marken bredvid framhjulet, 2 minuter.** Lägg pucken på marken precis
    intill där hjulet står.
 3. **På fästet, 2 minuter.** Sätt pucken på fästet utan att flytta
-   fyrhjulingen. Skillnaden mot steg 2 blir antennhöjden.
+   fyrhjulingen. Mät med tumstock (se nedan), och **sätt dig sedan på
+   fyrhjulingen som när du kör** och sitt still. Fjädringen sjunker med
+   någon på, och antennhöjden ska vara den som gäller under körningen.
+   Skillnaden mot steg 2 blir antennhöjden.
 4. **Kör.** Hela spårgatan, kurvorna och spårdelningarna också, i lugn
    gångfart — högst 5 km/h. **Ungefär en meter mellan varven**: pucken mäter
    bara rakt under sig, så en 8 meter bred gata behöver omkring åtta varv.
    Det går bra att stanna, tanka och köra om en bit. Titta på
    loggningsikonen vid varje vändpunkt; har den blivit ett streck loggar
    pucken inte längre.
-5. **Stå still en minut** på ett öppet ställe med pucken kvar på fästet.
+5. **Stå still en minut** på ett öppet ställe med pucken kvar på fästet,
+   och **sitt kvar** som när du kör — det här är steg 3 en gång till.
    Appen klipper körningen där, så att punkterna medan pucken bärs i handen
    inte kommer med.
 6. **Marken bredvid framhjulet igen, 2 minuter.** Kontrollen: antennhöjden
@@ -103,9 +107,11 @@ fix och gav en antennhöjd som var en halvmeter fel.
    upp datum och ungefärliga klockslag.
 
 Mät också med tumstock från marken där framhjulet står upp till pucken på
-fästet, och skriv upp det. Det ska vara samma som antennhöjden appen räknar
-fram — pucken mäter till samma punkt i sig själv båda gångerna, så etikettens
-millimetrar under pucken behöver inte läggas till.
+fästet, innan du sätter dig, och skriv upp det (guiden har en ruta för det).
+Pucken mäter till samma punkt i sig själv båda gångerna, så etikettens
+millimetrar under pucken behöver inte läggas till. Antennhöjden appen räknar
+fram kan bli någon centimeter mindre än tumstocken, eftersom fjädringen
+sjunker när du sitter på. Det är appens värde som gäller.
 
 Hinner ni inte hela gatan i ett pass går det bra att dela upp. Varje pass
 räknas för sig och gör sin egen kalibrering.
