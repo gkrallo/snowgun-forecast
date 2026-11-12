@@ -108,6 +108,11 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   fascentrum några centimeter upp ingår och tar ut sig mot snöytan. Förut var
   brunn 7-locket nollpunkt (format `snoprognos-barmark-1`), men det står under
   tallar och gav ingen användbar fix i provpasset 10 november.
+- **GLONASS-heltalen är av** i `ppk-lidk.conf`. LIDK är en Septentrio, pucken
+  en u-blox, och heltalen låstes fel för pucken på marken bredvid
+  fyrhjulingen 11 november — antennhöjden blev 16 cm för låg och kontrollen
+  gick inte ihop. Sätt inte tillbaka fix-and-hold. RTKLIB tappar mappen i en
+  sökväg som börjar med `..`, så basens fil måste ligga i passmappen.
 - **Kalibreringen läses ur loggen** i fältinstruktionens ordning: marken,
   fästet (skillnaden är antennhöjden), körning, stopp, marken igen
   (kontrollen). Allt på ett ställe med fri himmel, var som helst. Stoppet

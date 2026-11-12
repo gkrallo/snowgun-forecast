@@ -134,6 +134,9 @@ räknas för sig och gör sin egen kalibrering.
    tillsammans i Claude Code.
    - Läge: *Kinematic*, frekvenser L1+L2, filter *Combined*
    - Basens position: LIDK:s koordinater från Swepos och antennhöjden 0,071 m
+   - GLONASS-heltal (*GLO AR*): **av**. LIDK och pucken är av olika
+     fabrikat, och då låses de lätt fel — 11 november blev antennhöjden
+     16 cm för låg av det, och kontrollen i slutet gick inte ihop.
    - Interpolering av basens data: på (dygnsfilerna har bara en mätning var
      30:e sekund)
    - Utdata: latitud, longitud och höjd i grader
