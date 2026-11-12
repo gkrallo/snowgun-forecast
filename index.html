@@ -700,7 +700,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -3780,7 +3780,7 @@ function calibrateSurvey(periods, pts = []) {
     return { ground, mounted, antennaHeight: H, stop, closing, from: mounted.end, to, warnings,
              drift: closing ? (stop.h - closing.h) - H : null };
   }
-  return { error: "Hittar inte stunderna med pucken på marken och sedan på fästet, två minuter vardera. Utan dem går antennhöjden inte att räkna. Står pucken under träd blir det ofta så — gör det på ett öppet ställe." };
+  return { error: "Hittar inte stunderna med pucken på marken och sedan på fästet, några minuter vardera. Utan dem går antennhöjden inte att räkna. Står pucken under träd blir det ofta så — gör det på ett öppet ställe." };
 }
 
 // Körningen in i rutnätet. Bara fix, och bara där mottagaren själv tror på
@@ -4411,12 +4411,20 @@ const GUIDE_STEPS = [
       <li>Messages: RXM-RAWX och RXM-SFRBX på 1, NMEA-GSA och NMEA-GSV på 0.</li>
       <li>Ett ställe med fri himmel för marken och fästet — inte under träd.</li>
       <li>Tumstock med.</li></ul>Starta guiden när du slår på pucken.` },
+  // Marken 4 minuter i början och 5 i slutet, inte 2. Efterberäkningen
+  // räknar framåt och bakåt i tiden och litar bara på en fix som båda
+  // riktningarna har. Den 11 november hade bara bakåt fix på marken i
+  // början — framåt hade tappat den när pucken flyttades för hand — och bara
+  // framåt i slutet, där bakåtberäkningen börjar från noll. Antennhöjden blev
+  // 98,3 cm i början och 102,5 i slutet, tumstocken visade 102. Därför ligger
+  // pucken också på marken redan medan den startar: då flyttas den inte
+  // mellan uppstarten och markstunden.
   { key: "power", kind: "wait", sec: 240, title: "1. Pucken startar",
-    text: "Låt den ligga under fri himmel. Rådatan duger först när pucken vet vilken GPS-vecka det är — i provpasset tog det tre och en halv minut. Kontrollera att loggningsikonen syns.",
+    text: "Ställ fyrhjulingen där himlen är fri och lägg pucken på marken precis intill framhjulet redan nu, så behöver den inte flyttas före nästa steg. Rådatan duger först när pucken vet vilken GPS-vecka det är — i provpasset tog det tre och en halv minut. Kontrollera att loggningsikonen syns.",
     next: "Pucken är redo" },
-  { key: "ground", kind: "hold", sec: 120, title: "2. Pucken på marken",
-    text: "Lägg pucken på marken precis intill framhjulet. Rör den inte.",
-    start: "Pucken ligger på marken — starta 2:00", done: "Klart. Sätt pucken på fästet utan att flytta fyrhjulingen." },
+  { key: "ground", kind: "hold", sec: 240, title: "2. Pucken på marken",
+    text: "Pucken ligger kvar på marken precis intill framhjulet. Rör den inte.",
+    start: "Pucken ligger på marken — starta 4:00", done: "Klart. Sätt pucken på fästet utan att flytta fyrhjulingen." },
   // Föraren sitter på under fästet och stoppet: fjädringen sjunker med någon
   // på, och antennhöjden ska vara den som gäller under körningen.
   { key: "mount", kind: "hold", sec: 120, title: "3. Pucken på fästet",
@@ -4428,9 +4436,9 @@ const GUIDE_STEPS = [
   { key: "stop", kind: "hold", sec: 60, title: "5. Stå still",
     text: "Ställ fyrhjulingen på ett öppet ställe och sitt kvar som när du kör. Pucken sitter kvar på fästet.",
     start: "Fyrhjulingen står still — starta 1:00", done: "Klart. Kliv av, ta loss pucken och lägg den på marken intill framhjulet." },
-  { key: "ground2", kind: "hold", sec: 120, title: "6. Pucken på marken igen",
-    text: "Pucken på marken intill framhjulet. Det är kontrollen av antennhöjden.",
-    start: "Pucken ligger på marken — starta 2:00", done: "Klart. Stäng av pucken." },
+  { key: "ground2", kind: "hold", sec: 300, title: "6. Pucken på marken igen",
+    text: "Pucken på marken intill framhjulet. Det är kontrollen av antennhöjden. Den tar längre tid än i början: efterberäkningen bakåt i tiden börjar här och behöver några minuter för att hitta fix.",
+    start: "Pucken ligger på marken — starta 5:00", done: "Klart. Stäng av pucken." },
   { key: "done", kind: "done", title: "Klart",
     text: "Stäng av pucken med ett långt tryck <b>innan</b> minneskortet tas ut. Klockslagen nedan ligger kvar i telefonen tills du startar en ny guide." }
 ];
@@ -4635,7 +4643,13 @@ document.addEventListener("visibilitychange", () => {
    minneskortet, med Nordics UART-tjänst i BLE-läge (biblioteket
    ESP32_BleSerial). Webbläsaren kan bara BLE, inte det klassiska SPP som är
    puckens förval. Strömmen innehåller också binär rådata (RAWX), så bara
-   hela NMEA-rader med rätt kontrollsumma räknas. */
+   hela NMEA-rader med rätt kontrollsumma räknas.
+
+   Någon lampa för om efterberäkningen kommer att få fix går inte att göra
+   härifrån. Rådatan från passet 11 november prövades: antal signaler med
+   låst fas, signalstyrka och fasbrott var desamma där det blev fix som där
+   det blev float, också i innerkurvan vid brunn 3–4 där träden gav falska
+   fixar. Det som visas är att pucken har en position och ser satelliterna. */
 
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";   // pucken → telefonen

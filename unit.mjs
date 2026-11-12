@@ -1248,8 +1248,10 @@ describe("Mätpass med pucken", () => {
       assert.equal(app.$("guideTimer").hidden, true, "nedräkningen ska vänta på trycket");
       click(app, "guideMain");
       assert.equal(app.$("guideMain").disabled, true, "nästa steg går inte medan pucken ska ligga still");
-      assert.match(app.$("guideTimer").textContent, /2:00/);
+      assert.match(app.$("guideTimer").textContent, /4:00/);
       rewind(app, 121);
+      assert.equal(app.$("guideMain").disabled, true, "marken är fyra minuter, inte två");
+      rewind(app, 120);
       assert.match(app.$("guideStep").textContent, /Sätt pucken på fästet/);
       assert.equal(app.$("guideMain").disabled, false);
       click(app, "guideMain");                                   // fästet
@@ -1262,12 +1264,14 @@ describe("Mätpass med pucken", () => {
       click(app, "guideMain");                                   // stå still
       click(app, "guideMain"); rewind(app, 61);
       click(app, "guideMain");                                   // marken igen
-      click(app, "guideMain"); rewind(app, 121);
+      click(app, "guideMain"); rewind(app, 241);
+      assert.equal(app.$("guideMain").disabled, true, "kontrollen är fem minuter");
+      rewind(app, 60);
       click(app, "guideMain");
       assert.match(app.$("guideStep").textContent, /innan<\/b> minneskortet|innan minneskortet/);
       const log = app.$("guideLog").textContent;
-      for (const t of ["Pucken startar", "Pucken på marken (2:00)", "Pucken på fästet (2:00)", "Kör (25:00)", "Stå still (1:00)",
-                       "Pucken på marken igen (2:00)", "Tumstock till puckens undersida: 94,5 cm"])
+      for (const t of ["Pucken startar", "Pucken på marken (4:00)", "Pucken på fästet (2:00)", "Kör (25:00)", "Stå still (1:00)",
+                       "Pucken på marken igen (5:00)", "Tumstock till puckens undersida: 94,5 cm"])
         assert.ok(log.includes(t), `saknar "${t}" i\n${log}`);
       // Klockslagen ligger kvar tills en ny guide startas.
       click(app, "guideMain");
@@ -1284,7 +1288,7 @@ describe("Mätpass med pucken", () => {
     try {
       app.$("tabDepth").click();
       assert.match(app.$("guideStep").textContent, /Pucken på marken/);
-      assert.match(app.$("guideTimer").textContent, /1:3\d/);
+      assert.match(app.$("guideTimer").textContent, /3:3\d/);
       assert.equal(app.$("guideMain").disabled, true);
     } finally { app.close(); }
   });

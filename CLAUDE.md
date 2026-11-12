@@ -138,6 +138,17 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   marken och räknas inte som kontroll. Föraren sitter på under fästet och
   stoppet, så att fjädringen står som under körningen; tumstocken mäts innan
   och kan därför visa någon centimeter mer än antennhöjden.
+- **Marken 4 minuter i början och 5 i slutet**, och pucken ligger på marken
+  redan medan den startar. RTKLIB:s kombinerade lösning litar bara på fix
+  som både framåt- och bakåtberäkningen har. Med två minuter 11 november hade
+  marken i början bara bakåt-fix (framåt tappade den när pucken flyttades) och
+  marken i slutet bara framåt-fix (bakåt börjar från noll där). Antennhöjden
+  blev 98,3 cm i början och 102,5 i slutet, tumstocken 102 — barmarken från
+  det passet kan alltså ligga upp till 4 cm för högt. Jämför där nästa pass
+  korsar det.
+- **Ingen fixlampa via BLE.** RAWX går över Bluetooth, men låsta faser,
+  C/N0 och fasbrott var desamma i fix och float 11 november, också där
+  träden gav falska fixar. Försök inte bygga en.
 - **Mätpassguiden** (Snödjup) sparar sitt läge i `snowGuide` och räknar tid
   från klockslag, så att en omladdning eller en nedsaktad timer inte tappar
   bort var man var. `reloadForUpdate` väntar medan guiden pågår. Pucken läses

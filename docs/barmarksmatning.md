@@ -81,11 +81,12 @@ iPhone.
 gatan, inte under träd. Under tallarna vid brunn 7 fick pucken nästan ingen
 fix och gav en antennhöjd som var en halvmeter fel.
 
-1. **Slå på pucken** och vänta några minuter tills den har fix. Den visar inte
-   RTK — det är som det ska utan korrektioner. Kontrollera att
-   loggningsikonen syns.
-2. **Marken bredvid framhjulet, 2 minuter.** Lägg pucken på marken precis
-   intill där hjulet står.
+1. **Ställ fyrhjulingen där himlen är fri, slå på pucken och lägg den
+   direkt på marken** precis intill framhjulet. Vänta några minuter tills den
+   har fix. Den visar inte RTK — det är som det ska utan korrektioner.
+   Kontrollera att loggningsikonen syns.
+2. **Marken bredvid framhjulet, 4 minuter.** Pucken ligger kvar där den
+   ligger. Rör den inte.
 3. **På fästet, 2 minuter.** Sätt pucken på fästet utan att flytta
    fyrhjulingen. Mät med tumstock (se nedan), och **sätt dig sedan på
    fyrhjulingen som när du kör** och sitt still. Fjädringen sjunker med
@@ -102,8 +103,20 @@ fix och gav en antennhöjd som var en halvmeter fel.
    och **sitt kvar** som när du kör — det här är steg 3 en gång till.
    Appen klipper körningen där, så att punkterna medan pucken bärs i handen
    inte kommer med.
-6. **Marken bredvid framhjulet igen, 2 minuter.** Kontrollen: antennhöjden
+6. **Marken bredvid framhjulet igen, 5 minuter.** Kontrollen: antennhöjden
    räknas en gång till och ska stämma med steg 2–3 inom några centimeter.
+
+Varför så länge på marken: efterberäkningen räknar passet både framåt och
+bakåt i tiden och litar bara på en fix som båda riktningarna har. Framåt
+tappar fixen när pucken flyttas för hand och behöver ett par minuter på sig
+igen, och bakåt börjar från noll i slutet av loggen. Den 11 november, med två
+minuter, hade bara den ena riktningen fix på marken både i början och i
+slutet, och antennhöjden skilde 4 cm mellan dem.
+
+Appen kan inte visa i förväg om fixen blir bra. Det pucken skickar över
+Bluetooth — satelliter, signalstyrka, låsta signaler — såg likadant ut där
+efterberäkningen fick fix som där den inte fick det. Fixen syns först när
+passet är efterberäknat; kör det som saknas ett annat pass (fliken Uppdrag).
 7. Stäng av pucken med ett långt tryck **innan** minneskortet tas ut. Skriv
    upp datum och ungefärliga klockslag.
 
