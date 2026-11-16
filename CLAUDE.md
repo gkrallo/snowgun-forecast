@@ -34,10 +34,10 @@ spårgatan**, som är cirka åtta meter bred och bredare i kurvorna. Vid god
 snötillgång pistas gatan som två spår, skejtbädd och två spår; åkriktningen är
 motsols.
 
-Brunn 1 och 16 står där spåret delar sig. Det inspelade varvet följer bara ena
-grenen, så de hamnar längre från linjen på kartan än de är från spårgatan i
-verkligheten. Samma gäller 10, 13, 17 och 18, som står upp till elva meter
-från linjen fast de sitter i kanten på gatan.
+Brunn 1 och 16 står där spåret delar sig, och varvet följer bara ena grenen.
+Spårlinjen i appen är skidåkarnas linje i gatan, inte gatans kant, så
+brunnarna står 2–8 m från den. 17 och 18 står längst ner i stora slingan, där
+gatan är 15–20 m bred, och hamnar 11–15 m från linjen.
 
 I norra änden delar sig spåret vid brunn 16 i två vändslingor. Den lilla
 vänder i övre delen av backen, strax öster om brunn 16, runt en liten trädö.
@@ -90,7 +90,14 @@ försvinner innan den ligger på marken.
 `loadSettings` lägger de sparade ovanpå. Övriga får trycka Återställ under ⚙️.
 
 Spåret är Sparbanksspåret, 2,3 km, inbakat i `index.html` som
-`BUILTIN_TRACK`. Drygt hälften går i nord–sydlig led.
+`BUILTIN_TRACK`. Drygt hälften går i nord–sydlig led. Det är medelvarvet ur
+fem varv med Kristians klocka 1 februari 2026 (`matdata/20260201_093644.gpx`),
+förenklat till 0,3 m. Varven skilde 1,2 m i median sinsemellan, men klockan
+låg 3 m för långt norrut mot barmarken, så varvet är flyttat dit och de korta
+bitar som ändå hamnade utanför gatan intryckta. Det gamla, ett enda varv
+förenklat till 3 m, genade i kurvorna och låg upp till 4 m utanför gatan.
+Barmarkstesterna har kvar det gamla utbenet som en fast linje
+(`SURVEY_LINE`), så att de inte ändras med spåret.
 
 ## Fysiken — rör inte utan att läsa detta
 

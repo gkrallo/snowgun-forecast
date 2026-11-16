@@ -415,8 +415,8 @@ describe("Spårgeometri", () => {
 
   test("ett aggregat räknas inte mot returslingan några meter bort", () => {
     // Punkten ligger på utbenet söder om parkeringen. Returbenet går
-    // parallellt sju meter österut och får inte räknas in.
-    const g = { id: "t", type: "fan", lat: 58.5040, lon: 13.0878 };
+    // parallellt ungefär fem meter österut och får inte räknas in.
+    const g = { id: "t", type: "fan", lat: 58.5040, lon: 13.087845 };
     const cov = app.win.gunCoverage(g);
     const radius = app.run("S.fanDist");
     assert.ok(cov.offset < 2, `${cov.offset} m från spåret`);
@@ -932,6 +932,12 @@ describe("Barmark", () => {
   const xy = (lat, lon) => [(lon - O[1]) * M.lon, (lat - O[0]) * M.lat];
   const ll = (x, y) => [O[0] + y / M.lat, O[1] + x / M.lon];
   const reset = () => app.run("bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareRedo = []; bareFiles = []; localStorage.removeItem('snowBareDraft')");
+  // Utbenet söder om parkeringen, där brunn 4–9 står, som det gamla inbyggda
+  // spåret hade det. Mätpassen här behöver bara en verklig linje, och den
+  // hålls fast så att testerna inte ändras när det inbyggda spåret byts.
+  const SURVEY_LINE = [[58.50527, 13.08707], [58.50436, 13.08757], [58.50365, 13.08802], [58.50358, 13.08803],
+    [58.50347, 13.088], [58.50288, 13.08762], [58.5027, 13.08752], [58.50255, 13.08748], [58.50244, 13.08749],
+    [58.50227, 13.08764], [58.50184, 13.08812], [58.5017, 13.08824], [58.50161, 13.08825], [58.50121, 13.08816]];
 
   function survey({ passes = 8, spacing = 1, closing = true, endStop = true, calib = true, midStop = false, wellRound = false } = {}) {
     let seed = 11;
@@ -955,7 +961,7 @@ describe("Barmark", () => {
     const rig = (x, y) => terrain(x, y) + MOUNT + PUCK;      // pucken på fästet
 
     // Utbenet söder om parkeringen, där brunn 4–9 står.
-    const line = app.get("BUILTIN_TRACK.pts").slice(13, 27).map(p => xy(p[0], p[1]));
+    const line = SURVEY_LINE.map(p => xy(p[0], p[1]));
     const G = [line[0][0] - 6, line[0][1]];
 
     lines.push("% program   : RTKPOST ver.demo5 b34", "%  GPST                  latitude(deg) longitude(deg)  height(m)   Q  ns   sdn(m)   sde(m)   sdu(m)");
@@ -1103,7 +1109,7 @@ describe("Barmark", () => {
     await importText(survey({ passes: 3, spacing: 4 }));
     const all = app.get("bareReport().interp");
     // En fyrkant över en bit av gatan, kring en punkt mitt på linjen.
-    const [cx, cy] = xy(...app.get("BUILTIN_TRACK.pts")[20]);
+    const [cx, cy] = xy(...SURVEY_LINE[7]);
     const sq = [[-15, -15], [15, -15], [15, 15], [-15, 15]].map(([dx, dy]) => ll(cx + dx, cy + dy));
     app.run(`bareAreas = [{ pts: ${JSON.stringify(sq)} }]`);
     const r = app.get(`(() => { const r = bareReport(), inside = bareAreaTest();
@@ -1118,7 +1124,7 @@ describe("Barmark", () => {
     // måste bort och får inte komma tillbaka med ett gammalt pass.
     // Hela gatans bredd, som här är åtta linjer en meter isär, och tio meter
     // längs den — som vallen, där inget går att räkna fram tvärs över.
-    const tp = app.get("BUILTIN_TRACK.pts").slice(19, 22).map(p => xy(p[0], p[1]));
+    const tp = SURVEY_LINE.slice(6, 9).map(p => xy(p[0], p[1]));
     const [cx, cy] = tp[1], L = Math.hypot(tp[2][0] - tp[0][0], tp[2][1] - tp[0][1]);
     const ux = (tp[2][0] - tp[0][0]) / L, uy = (tp[2][1] - tp[0][1]) / L;
     const sq = [[-5, -4.5], [5, -4.5], [5, 4.5], [-5, 4.5]].map(([a, c]) => ll(cx + a * ux - c * uy, cy + a * uy + c * ux));
