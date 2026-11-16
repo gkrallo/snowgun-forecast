@@ -132,13 +132,14 @@ räknas för sig och gör sin egen kalibrering.
 
 ## Brunnsrundan
 
-Brunnarna lades in med mobilen, och flera ligger 2–7 m fel — några hamnar
-inne bland träden när man jämför med barmarken och flygbilden. De mäts om
-med pucken.
+Brunn 1–19 mättes in så här 15 november. Rundan behövs igen bara för en ny
+brunn, eller om någon av dem som är osäkra (3, 5, 6, 8, 10, 11 och 12, inom
+ungefär en meter) ska mätas noggrannare.
 
-Här behövs ingen fix. En halvmeter räcker för slangen och för uppdragen, och
-det ger efterberäkningen även med float, alltså även under träd. Därför
-räcker en minut per brunn.
+Fix behövs inte vid varje brunn, men float räcker inte alltid: där fixen
+tappats under träden hamnade float 1–2 m fel. Fix åt minst ena hållet i
+efterberäkningen gav decimetern. Under träd: låt pucken ligga **två–tre
+minuter** i stället för en.
 
 1. Gör rundan **direkt efter ett mätpass**, när kontrollen på marken (steg 6)
    är klar men innan pucken stängs av. Appen klipper barmarken vid stoppet

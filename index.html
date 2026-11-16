@@ -701,7 +701,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -1209,7 +1209,8 @@ const BUILTIN_TRACK = {
 
    Brunn 1 och 16 står där spåret delar sig. Det inspelade varvet följer bara
    den ena grenen, så de två hamnar längre från linjen på kartan än de är från
-   spårgatan i verkligheten. Samma sak gäller 10, 13 och 17.
+   spårgatan i verkligheten. Samma sak gäller 10, 13, 17 och 18, som står upp
+   till elva meter från linjen fast de sitter i kanten på gatan.
 
    Brunn 7 bär styrsystemets väderstation — det är den givaren appen ska
    kalibreras mot. Dess vindmätare är däremot inte tillförlitlig, så vinden
@@ -1217,27 +1218,34 @@ const BUILTIN_TRACK = {
 
    Brunn 20 är en reserv vid schaktytan för träning och tillgänglighetsspår,
    knappt sextio meter från spåret. Den har aldrig använts och föreslås därför
-   inte som inkoppling. */
+   inte som inkoppling.
+
+   Brunn 1–19 är inmätta med pucken 15 november 2026 och efterberäknade mot
+   LIDK: en minut i hörnet mot spåret där slangen kommer upp. Det är den
+   punkten slangen går ifrån. Förut var de inmätta med mobilen och låg 1–6 m
+   fel, flera inne bland träden. 3, 5, 6, 8, 10, 11 och 12 fick fix bara åt
+   ena hållet i beräkningen och kan ligga upp till ungefär en meter fel; de
+   andra stämmer på decimetern. Brunn 20 är inte ommätt. */
 const BUILTIN_WELLS = [
-  { no: 1, lat: 58.500038, lon: 13.088891 },
-  { no: 2, lat: 58.50081, lon: 13.088443 },
-  { no: 3, lat: 58.501464, lon: 13.088295 },
-  { no: 4, lat: 58.502066, lon: 13.088121 },
-  { no: 5, lat: 58.502645, lon: 13.087593 },
-  { no: 6, lat: 58.50315, lon: 13.088064 },
-  { no: 7, lat: 58.503781, lon: 13.087922, station: true },
-  { no: 8, lat: 58.504247, lon: 13.08773 },
-  { no: 9, lat: 58.504722, lon: 13.087461 },
-  { no: 10, lat: 58.505265, lon: 13.087402 },
-  { no: 11, lat: 58.505641, lon: 13.086717 },
-  { no: 12, lat: 58.506026, lon: 13.086323 },
-  { no: 13, lat: 58.506739, lon: 13.08604 },
-  { no: 14, lat: 58.506874, lon: 13.087089 },
-  { no: 15, lat: 58.507007, lon: 13.088262 },
-  { no: 16, lat: 58.506981, lon: 13.089118 },
-  { no: 17, lat: 58.506829, lon: 13.090311 },
-  { no: 18, lat: 58.507088, lon: 13.090475 },
-  { no: 19, lat: 58.507521, lon: 13.089579 },
+  { no: 1, lat: 58.5000251, lon: 13.0888591 },
+  { no: 2, lat: 58.5007883, lon: 13.0884306 },
+  { no: 3, lat: 58.501446, lon: 13.0883199 },
+  { no: 4, lat: 58.5020553, lon: 13.0881364 },
+  { no: 5, lat: 58.5026144, lon: 13.0875538 },
+  { no: 6, lat: 58.5031421, lon: 13.0880276 },
+  { no: 7, lat: 58.5037755, lon: 13.0879116, station: true },
+  { no: 8, lat: 58.5042417, lon: 13.0878237 },
+  { no: 9, lat: 58.504721, lon: 13.0875332 },
+  { no: 10, lat: 58.5052341, lon: 13.0873162 },
+  { no: 11, lat: 58.5056589, lon: 13.086779 },
+  { no: 12, lat: 58.5060168, lon: 13.0862999 },
+  { no: 13, lat: 58.5066904, lon: 13.086078 },
+  { no: 14, lat: 58.5068476, lon: 13.0871011 },
+  { no: 15, lat: 58.5070145, lon: 13.0881917 },
+  { no: 16, lat: 58.5069455, lon: 13.089078 },
+  { no: 17, lat: 58.506789, lon: 13.0903636 },
+  { no: 18, lat: 58.5070813, lon: 13.0904723 },
+  { no: 19, lat: 58.5074957, lon: 13.0896091 },
   { no: 20, lat: 58.50341, lon: 13.086911, spare: true },
 ];
 
@@ -3613,7 +3621,12 @@ const BARE_CELL = 1;            // m
 // Version 2: höjder mot LIDK. Version 1 var relativt brunn 7-locket och går
 // inte att blanda med den, så en sådan fil läses inte längre.
 const BARE_FORMAT = "snoprognos-barmark-2";
-const BARE_ORIGIN = BUILTIN_WELLS.find(w => w.station);
+// Nollpunkten är brunn 7 som den mättes in med mobilen. Den står fast, också
+// när brunnarna mäts om: barmark.json och utkasten sparar bara rutornas
+// nummer, inte var de ligger, så en flyttad nollpunkt skulle flytta all
+// barmark i sidled utan att något märktes. Brunn 7:s nya koordinater i
+// BUILTIN_WELLS påverkar alltså inte rutnätet.
+const BARE_ORIGIN = { lat: 58.503781, lon: 13.087922 };
 
 // Meter per grad vid brunn 7, på WGS84-ellipsoiden. Rutnätet behöver bara
 // vara konsekvent med sig självt, men med riktiga värden hamnar rutorna

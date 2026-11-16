@@ -36,7 +36,8 @@ motsols.
 
 Brunn 1 och 16 står där spåret delar sig. Det inspelade varvet följer bara ena
 grenen, så de hamnar längre från linjen på kartan än de är från spårgatan i
-verkligheten. Samma gäller 10, 13 och 17 — det är inte fel i koordinaterna.
+verkligheten. Samma gäller 10, 13, 17 och 18, som står upp till elva meter
+från linjen fast de sitter i kanten på gatan.
 
 I norra änden delar sig spåret vid brunn 16 i två vändslingor. Den lilla
 vänder i övre delen av backen, strax öster om brunn 16, runt en liten trädö.
@@ -58,15 +59,24 @@ ställen; SNR-mask och 20° hjälpte inte. Kör om kurvan, inte inställningarna
 Brunn 20 är en reserv vid schaktytan, aldrig använd, markerad `spare: true` och
 utesluten ur förslag om inkoppling.
 
-Koordinaterna i `BUILTIN_WELLS` är inmätta med mobilen och ligger 2–7 m fel:
-mot barmarken och flygbilden 12 november stod 5, 6 och 17 inne bland träden,
-och 1, 2, 4, 5, 6 och 12 låg österut om gatan. Det är därför uppdragen
-"Kanten vid brunn …" finns. 13 och 14 står där en stig går av och kan vara
-rätt. Brunnarna mäts om med pucken (Brunnsrundan i
-`docs/barmarksmatning.md`): en minut i hörnet mot spåret där slangen kommer
-upp, float räcker. Stoppen hittas i loggen och kopplas till närmaste brunn.
+Brunn 1–19 i `BUILTIN_WELLS` är inmätta med pucken 15 november
+(Brunnsrundan i `docs/barmarksmatning.md`): en minut i hörnet mot spåret där
+slangen kommer upp, efterberäknat mot LIDK. Förut var de inmätta med mobilen
+och låg 1–6 m fel, flera inne bland träden — det var därifrån uppdragen
+"Kanten vid brunn …" kom, och de försvann med de nya lägena. Alla står nu
+0–2 m från körd spårgata.
+
+Float räckte inte. Där fixen tappats hamnade float 1–2 m fel i sidled och
+2–5 m i höjd. Brunnarna valdes därför ur åtta beräkningar (framåt och bakåt,
+med fix-and-hold, continuous, 20° mask och bara GPS+Galileo) som den fix
+flest var eniga om, och höjden fick inte ligga mer än någon meter över
+barmarken. 1, 2, 4, 9 och 13–19 har fix åt båda hållen och stämmer på
+decimetern, 7 har fix framåt och float runt samma punkt. 3, 5, 6, 8, 10, 11
+och 12 har fix bara åt ena hållet och kan ligga upp till ungefär en meter
+fel. Brunnslocken står 0,2–1,1 m över gatan bredvid.
+
 Nya koordinater når bara den som inte har en sparad brunnslista — övriga
-trycker Återställ brunnarna.
+trycker Återställ brunnarna. Rutnätets origo flyttar inte med brunn 7.
 
 **Brunn 7 bär styrsystemets väderstation.** Det är den givaren som ska läsas av
 vid kalibrering. Dess vindmätare är inte tillförlitlig — vinden ska alltid tas
@@ -128,6 +138,9 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
 
 - **Rutnät** på en meter med origo i brunn 7, via `bareXY`/`bareLatLon` och
   WGS84-värdena i `BARE_M`. Allt som hamnar i rutnätet ska gå genom dem.
+  Origo (`BARE_ORIGIN`) är brunn 7 som den mättes med mobilen och står fast
+  när brunnarna mäts om — filerna sparar bara rutornas nummer, så en flyttad
+  origo flyttar all barmark i sidled.
 - **Höjderna är ellipsoidhöjder mot Swepos-stationen LIDK**, med stationens
   koordinater låsta i `docs/ppk-lidk.conf`. Alla pass räknas mot samma punkt
   och hamnar i samma höjdsystem. Ändra aldrig koordinaterna mitt i en säsong.
@@ -153,9 +166,12 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   som både framåt- och bakåtberäkningen har. Med två minuter 11 november hade
   marken i början bara bakåt-fix (framåt tappade den när pucken flyttades) och
   marken i slutet bara framåt-fix (bakåt börjar från noll där). Antennhöjden
-  blev 98,3 cm i början och 102,5 i slutet, tumstocken 102 — barmarken från
-  det passet kan alltså ligga upp till 4 cm för högt. Jämför där nästa pass
-  korsar det.
+  blev 98,3 cm i början och 102,5 i slutet, tumstocken 102. 15 november, med
+  de längre stunderna, hade båda ändarna fix åt båda hållen — och ändå 98,8
+  cm i början och 104,5 i slutet. Skillnaden är alltså verklig och åt samma
+  håll båda gångerna, orsaken okänd. Appen räknar med början. Med det
+  stämmer passen inbördes: i 885 rutor som båda körde skiljer de 1,4 cm i
+  median, hälften inom −4 till +1,4 cm. Snöytan ska räknas på samma sätt.
 - **Ingen fixlampa via BLE.** RAWX går över Bluetooth, men låsta faser,
   C/N0 och fasbrott var desamma i fix och float 11 november, också där
   träden gav falska fixar. Försök inte bygga en.

@@ -694,7 +694,8 @@ describe("Spår, platser och aggregat", () => {
   test("slangavståndet visas på decimetern och stämmer med varningen", async () => {
     // Med hela meter stod det "8 m — mer än 8 m slang" när brunnen låg 8,3 m
     // bort. Nu ska 8,3 m varna och knappt 8 m inte göra det.
-    const lat7 = 58.503781, lon7 = 13.087922, m = 1 / 111320;
+    // Brunn 7 som den står i BUILTIN_WELLS.
+    const lat7 = 58.5037755, lon7 = 13.0879116, m = 1 / 111320;
     const { app, gunMarkers } = await withGuns([
       { id: "far", type: "fan", lat: lat7 + 8.3 * m, lon: lon7 },
       { id: "near", type: "fan", lat: lat7 - 7.96 * m, lon: lon7 }]);
@@ -840,7 +841,7 @@ describe("Brunnarna på kartan", () => {
       const stored = JSON.parse(app.win.localStorage.getItem("snowWellsByTrack")).sparbanksparet;
       assert.equal(stored.find(w => w.no === 1).lat, lat);
       assert.ok(wellMarkers(app).every(m => !m.opts.draggable), "brunnen låstes inte igen");
-      assert.match(app.$("planNote").textContent, /Brunn 1 flyttades 6,9 m och är låst igen/);
+      assert.match(app.$("planNote").textContent, /Brunn 1 flyttades 8,7 m och är låst igen/);
     } finally { app.close(); }
   });
 
@@ -870,11 +871,12 @@ describe("Brunnarna på kartan", () => {
       assert.match(app.$("trackOrigin").textContent, /skiljer sig från anläggningens: brunn 1 flyttad 30 m\./);
       assert.equal(btn.hidden, false);
 
+      const lat1 = app.run("BUILTIN_WELLS.find(w => w.no === 1).lat");
       btn.click();
-      assert.notEqual(app.run("wells.find(w => w.no === 1).lat"), 58.500038, "första trycket ska bara fråga");
+      assert.notEqual(app.run("wells.find(w => w.no === 1).lat"), lat1, "första trycket ska bara fråga");
       assert.equal(btn.textContent, "Ja, återställ");
       btn.click();
-      assert.equal(app.run("wells.find(w => w.no === 1).lat"), 58.500038);
+      assert.equal(app.run("wells.find(w => w.no === 1).lat"), lat1);
       assert.equal(app.run("wells.length"), 20);
       assert.equal(JSON.parse(app.win.localStorage.getItem("snowWellsByTrack")).sparbanksparet, undefined);
       assert.equal(btn.hidden, true);
@@ -1189,6 +1191,14 @@ describe("Barmark", () => {
     assert.equal(app.run("bareNoFix.size"), json.nofix.length);
     assert.deepEqual(app.get("bareAreas"), json.areas);
     assert.ok(app.win.localStorage.getItem("snowBareDraft"), "det inlästa ska ligga kvar i telefonen");
+  });
+
+  test("rutnätets nollpunkt står fast när brunn 7 mäts om", () => {
+    // Filerna sparar bara rutornas nummer. Följde nollpunkten brunn 7:s
+    // koordinater skulle all barmark flytta i sidled när brunnen mättes om.
+    assert.deepEqual(O, [58.503781, 13.087922]);
+    const file = JSON.parse(readFileSync(new URL("./barmark.json", import.meta.url), "utf8"));
+    assert.deepEqual(file.origin, O);
   });
 
   test("fliken Snödjup visar rutnätet och vad passet gav", async () => {
