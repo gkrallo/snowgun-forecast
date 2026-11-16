@@ -194,6 +194,13 @@ Efterberäkna som vanligt. De nya positionerna läggs in i appen i Claude Code.
    läs in det också; rutnätet fylls på, och det som blivit klart stryks.
    **Visa var jag är** visar puckens position om den är ansluten, annars
    telefonens.
+
+   **Har marken ändrats** efter att den mättes — schaktats, fyllts, en vall
+   tagits bort — så säg till i Claude Code innan biten körs om. Ett nytt pass
+   läggs ihop med det gamla som medelvärde, så de gamla rutorna måste bort
+   först. Området läggs in i appen och syns som uppdraget **Mät om** (orange)
+   tills det är kört igen. Säg ungefär när det ändrades: mätningar från före
+   dess räknas sedan inte där.
 6. När allt ser bra ut: **Spara barmark som fil**. Filen `barmark.json` läggs in
    i appen, så att alla ser samma barmark.
 

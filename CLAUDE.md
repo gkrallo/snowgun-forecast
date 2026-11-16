@@ -197,8 +197,19 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   november gav annars över trettio uppdrag.
 - **Lagring:** färdig barmark i `barmark.json` i roten; inläst men inte sparad
   i localStorage (`snowBareDraft`). Filen har också `nofix`, rutor som kördes
-  utan fix, och `areas`, områden utan spårgata. Börja om behåller områdena.
-  Mätloggar i `matdata/`, som inte följer med till git.
+  utan fix, `areas`, områden utan spårgata, och `redo`, ändrad mark. Börja om
+  behåller områdena. Mätloggar i `matdata/`, som inte följer med till git.
+- **Ändrad mark** (`bareRedo`, `redo`): nya pass läggs ihop med gamla som
+  medelvärde, så schaktad eller fylld mark måste tas bort innan den mäts om —
+  annars drar de gamla rutorna ommätningen halvvägs tillbaka. Området läggs in
+  i `barmark.json` (ingen knapp i appen än), rutorna inom det tas bort, och
+  `addSurvey` hoppar över mätningar från före `since` där. Uppdraget Mät om
+  står kvar tills fyra femtedelar av området är mätt eller framräknat;
+  hålet syns inte som något annat uppdrag, eftersom framräkningen bara går
+  tvärs över linjerna. Lägg området som höljet runt det täckta, annars räknas
+  skogen bredvid in och uppdraget går aldrig bort. Första: vallen tvärs över
+  spåret 15–20 m norr om brunn 2, 10–15 cm hög, schaktad 15 november efter
+  passet.
 - **Firestore** (projekt `snoprognos`, inte inkopplat än): lägg aldrig ett helt
   rutnät i ett dokument. Gränserna är 1 MiB och 40 000 indexposter per
   dokument; konceptets förslag slår i dem efter ett par hundra meter gata.

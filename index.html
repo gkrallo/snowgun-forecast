@@ -192,7 +192,7 @@ button{font-family:inherit}
   line-height:1.45; cursor:pointer}
 .tasknum,.task-pin{flex:0 0 auto; display:flex; align-items:center; justify-content:center; width:22px; height:22px;
   border-radius:50%; font-size:.72rem; font-weight:700; color:#03121c; border:2px solid #0b1220}
-.tk-edge{background:#38bdf8} .tk-nofix{background:#c084fc} .tk-sparse{background:#f87171}
+.tk-edge{background:#38bdf8} .tk-nofix{background:#c084fc} .tk-sparse{background:#f87171} .tk-redo{background:#fb923c}
 /* En ruta är en pixel i bilden. Utjämnad blir den en suddig fläck. */
 .bare-overlay{image-rendering:pixelated}
 .leaflet-container{background:#0e1a2c; font-family:inherit}
@@ -701,7 +701,7 @@ button{font-family:inherit}
 // Höjs vid varje utgåva tillsammans med VERSION i sw.js — unit.mjs fäller
 // den som bara höjer den ena. Siffran står under Om appen, så att man kan se
 // vilken version telefonen faktiskt kör.
-const APP_VERSION = 19;
+const APP_VERSION = 20;
 
 const DEFAULTS = {
   trailBearing: 90,   // spårets riktning i grader
@@ -3652,6 +3652,12 @@ let bareNoFix = new Map();      // bareKey -> { gx, gy }
 // Områden som inte är spårgata, ritade i appen: trädön i lilla vändslingan,
 // kilarna där spåret delar sig. Inget räknas fram över dem.
 let bareAreas = [];             // [{ pts: [[lat, lon], …] }]
+// Mark som ändrats sedan den mättes, till exempel schaktats. Ett nytt pass
+// läggs ihop med de gamla som medelvärde, så gamla rutor där skulle dra
+// ommätningen halvvägs tillbaka. Rutorna tas bort när området läggs in, och
+// mätningar från före "since" hoppas över där, även om ett gammalt pass
+// läses in igen. Läggs in i barmark.json, än så länge utan knapp i appen.
+let bareRedo = [];              // [{ pts: [[lat, lon], …], since: ISO-tid, why }]
 let bareFiles = [];             // vilka pass rutnätet är byggt av
 let bareSource = null;          // "app" = filen i appen, "draft" = inläst här men inte sparad
 let bareLoaded = false, bareMap = null, bareLayer = null, bareFitted = false;
@@ -3800,11 +3806,13 @@ function calibrateSurvey(periods, pts = []) {
 // Körningen in i rutnätet. Bara fix, och bara där mottagaren själv tror på
 // höjden inom fem centimeter. Float ger lätt decimeterfel i höjd.
 function addSurvey(pts, cal) {
-  let used = 0, rejected = 0;
+  let used = 0, rejected = 0, stale = 0;
+  const redo = bareRedo.map(a => ({ t: Date.parse(a.since), inside: bareAreaTest([a]) }));
   for (const p of pts) {
     if (p.t <= cal.from || p.t >= cal.to) continue;
     const [x, y] = bareXY(p.lat, p.lon);
     const gx = Math.floor(x / BARE_CELL), gy = Math.floor(y / BARE_CELL);
+    if (redo.some(r => p.t < r.t && r.inside(gx, gy))) { stale++; continue; }
     if (p.q !== 1 || (Number.isFinite(p.sdu) && p.sdu > 0.05)) {
       rejected++;
       bareNoFix.set(bareKey(gx, gy), { gx, gy });
@@ -3817,7 +3825,7 @@ function addSurvey(pts, cal) {
     bareCells.set(k, c);
     used++;
   }
-  return { used, rejected };
+  return { used, rejected, stale };
 }
 
 /* ---- mellan linjerna ----
@@ -3862,10 +3870,10 @@ function bareLineDirs() {
   return dirs;
 }
 
-// Ligger rutan i ett område som inte är spårgata? Testet görs i rutnätets
-// koordinater, med rutans mitt.
-function bareAreaTest() {
-  const polys = bareAreas.map(a => a.pts.map(([lat, lon]) => bareXY(lat, lon)));
+// Ligger rutan i ett område som inte är spårgata (eller i något av de
+// områden som skickas in)? Testet görs i rutnätets koordinater, med rutans mitt.
+function bareAreaTest(list = bareAreas) {
+  const polys = list.map(a => a.pts.map(([lat, lon]) => bareXY(lat, lon)));
   const memo = new Map();
   return (gx, gy) => {
     if (!polys.length) return false;
@@ -3995,6 +4003,23 @@ function bareMissions(fill) {
     out.push({ kind: "sparse", size: g.length, ...at,
       text: `${g.length} m² vid brunn ${at.near.no} ligger för långt från körda linjer för att räknas fram. Kör en utfyllnad genom mitten.` });
   }
+  // Ändrad mark. Hålet efter de borttagna rutorna syns inte som något annat
+  // uppdrag: framräkningen går bara tvärs över linjerna, och här saknas hela
+  // bredden. Uppdraget står kvar tills fyra femtedelar är mätt eller
+  // framräknat igen.
+  for (const a of bareRedo) {
+    const P = a.pts.map(([lat, lon]) => bareXY(lat, lon)), inside = bareAreaTest([a]);
+    const xs = P.map(p => p[0] / BARE_CELL), ys = P.map(p => p[1] / BARE_CELL);
+    let n = 0, ok = 0;
+    for (let gx = Math.floor(Math.min(...xs)); gx <= Math.ceil(Math.max(...xs)); gx++)
+      for (let gy = Math.floor(Math.min(...ys)); gy <= Math.ceil(Math.max(...ys)); gy++)
+        if (inside(gx, gy)) { n++; if (covered(bareKey(gx, gy))) ok++; }
+    if (!n || ok >= 0.8 * n) continue;
+    const mx = bareAvg(xs) * BARE_CELL, my = bareAvg(ys) * BARE_CELL, [lat, lon] = bareLatLon(mx, my);
+    const near = bareNearestWell(mx, my).w;
+    out.push({ kind: "redo", size: n, lat, lon, near,
+      text: `${a.why || `Marken vid brunn ${near.no} är ändrad sedan den mättes.`} Kör den biten igen, kanterna och en linje i mitten.` });
+  }
   // Brunnarna sitter i gatans kant, så kanten ska ha körts tätt förbi dem.
   for (const w of BUILTIN_WELLS) {
     if (w.spare) continue;
@@ -4010,7 +4035,7 @@ function bareMissions(fill) {
       text: Number.isFinite(d) ? `Kanten vid brunn ${w.no} verkar inte körd — närmaste mätning ${Math.round(d)} m bort.`
                                : `Ingen mätning nära brunn ${w.no}.` });
   }
-  const order = { edge: 0, nofix: 1, sparse: 2 };
+  const order = { redo: 0, edge: 1, nofix: 2, sparse: 3 };
   return out.sort((a, b) => a.near.no - b.near.no || order[a.kind] - order[b.kind]);
 }
 
@@ -4040,7 +4065,7 @@ function bareReport() {
 function bareToJson() {
   return {
     format: BARE_FORMAT,
-    note: "Barmark för Sparbanksspåret. Ellipsoidhöjder i millimeter, efterberäknade mot Swepos LIDK (koordinater i docs/ppk-lidk.conf), som pucken visar liggande på marken. Rutor på en meter med origo i brunn 7. nofix är rutor som kördes utan fix, areas områden som inte är spårgata.",
+    note: "Barmark för Sparbanksspåret. Ellipsoidhöjder i millimeter, efterberäknade mot Swepos LIDK (koordinater i docs/ppk-lidk.conf), som pucken visar liggande på marken. Rutor på en meter med origo i brunn 7. nofix är rutor som kördes utan fix, areas områden som inte är spårgata, redo mark som ändrats och ska mätas om (mätningar före since räknas inte där).",
     cell: BARE_CELL, origin: [BARE_ORIGIN.lat, BARE_ORIGIN.lon],
     files: bareFiles,
     cells: [...bareCells.values()].sort((a, b) => a.gy - b.gy || a.gx - b.gx)
@@ -4048,7 +4073,8 @@ function bareToJson() {
     // Bara de som ingen annan körning har täckt; resten behövs inte.
     nofix: [...bareNoFix.values()].filter(c => !bareCells.has(bareKey(c.gx, c.gy)))
       .sort((a, b) => a.gy - b.gy || a.gx - b.gx).map(c => [c.gx, c.gy]),
-    areas: bareAreas.map(a => ({ pts: a.pts.map(([lat, lon]) => [+lat.toFixed(7), +lon.toFixed(7)]) }))
+    areas: bareAreas.map(a => ({ pts: a.pts.map(([lat, lon]) => [+lat.toFixed(7), +lon.toFixed(7)]) })),
+    redo: bareRedo.map(a => ({ pts: a.pts.map(([lat, lon]) => [+lat.toFixed(7), +lon.toFixed(7)]), since: a.since, why: a.why }))
   };
 }
 
@@ -4063,6 +4089,8 @@ function bareFromJson(j) {
   bareNoFix = new Map();
   for (const [gx, gy] of Array.isArray(j.nofix) ? j.nofix : []) bareNoFix.set(bareKey(gx, gy), { gx, gy });
   bareAreas = (Array.isArray(j.areas) ? j.areas : []).filter(a => Array.isArray(a?.pts) && a.pts.length >= 3);
+  // redo kom till i version 20.
+  bareRedo = (Array.isArray(j.redo) ? j.redo : []).filter(a => Array.isArray(a?.pts) && a.pts.length >= 3 && !Number.isNaN(Date.parse(a.since)));
   bareFiles = Array.isArray(j.files) ? j.files : [];
   return true;
 }
@@ -4144,6 +4172,7 @@ function ensureBareMap() {
 const BARE_COLORS = { cell: "rgba(56,189,248,.9)", shaky: "rgba(251,191,36,.95)", interp: "rgba(56,189,248,.38)",
                       sparse: "rgba(248,113,113,.9)", nofix: "rgba(192,132,252,.95)" };
 const AREA_STYLE = { color: "#e8eef7", weight: 1.5, dashArray: "5 4", fillColor: "#e8eef7", fillOpacity: .1 };
+const REDO_STYLE = { color: "#fb923c", weight: 1.5, dashArray: "5 4", fillColor: "#fb923c", fillOpacity: .15, interactive: false };
 
 // Rutnätet ritas som en bild med en pixel per ruta. Femtontusen rutor som
 // enskilda kartobjekt gör telefonen seg; en bild kostar ingenting. Ger
@@ -4181,6 +4210,7 @@ function drawBare(r) {
   bareLayer = L.layerGroup().addTo(bareMap);
   const box = drawBareGrid(bareLayer, r);
   bareAreas.forEach(a => L.polygon(a.pts, { ...AREA_STYLE, interactive: false }).addTo(bareLayer));
+  bareRedo.forEach(a => L.polygon(a.pts, REDO_STYLE).addTo(bareLayer));
   if (box && !bareFitted) { bareMap.fitBounds(box, { padding: [20, 20] }); bareFitted = true; }
 }
 
@@ -4227,7 +4257,7 @@ $("bareClear").onclick = () => {
     // med, så att de inte behöver ritas om när ett pass läses in på nytt.
     const areas = bareAreas;
     localStorage.removeItem("snowBareDraft");
-    bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareFiles = [];
+    bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareRedo = []; bareFiles = [];
     bareSource = null; bareLoaded = false; bareFitted = false; taskFitted = false;
     await loadBare();
     if (areas.length && !bareAreas.length) { bareAreas = areas; bareChanged(); }
@@ -4263,7 +4293,7 @@ function ensureTaskMap() {
 
 async function openTasks() { await loadBare(); renderTasks(); }
 
-const TASK_KIND = { edge: "Kanten", nofix: "Fix saknas", sparse: "Fyll ut" };
+const TASK_KIND = { redo: "Mät om", edge: "Kanten", nofix: "Fix saknas", sparse: "Fyll ut" };
 
 function renderTasks() {
   const has = bareCells.size > 0;
@@ -4315,6 +4345,7 @@ function drawTasks(r) {
       });
     });
   });
+  bareRedo.forEach(a => L.polygon(a.pts, REDO_STYLE).addTo(taskLayer));
   if (!taskDraw) r.missions.forEach((m, i) => L.marker([m.lat, m.lon], {
     icon: L.divIcon({ className: "task-pin tk-" + m.kind, html: String(i + 1), iconSize: [22, 22], iconAnchor: [11, 11] })
   }).bindTooltip(m.text).addTo(taskLayer));

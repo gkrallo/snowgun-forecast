@@ -931,7 +931,7 @@ describe("Barmark", () => {
   after(() => app.close());
   const xy = (lat, lon) => [(lon - O[1]) * M.lon, (lat - O[0]) * M.lat];
   const ll = (x, y) => [O[0] + y / M.lat, O[1] + x / M.lon];
-  const reset = () => app.run("bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareFiles = []; localStorage.removeItem('snowBareDraft')");
+  const reset = () => app.run("bareCells = new Map(); bareNoFix = new Map(); bareAreas = []; bareRedo = []; bareFiles = []; localStorage.removeItem('snowBareDraft')");
 
   function survey({ passes = 8, spacing = 1, closing = true, endStop = true, calib = true, midStop = false, wellRound = false } = {}) {
     let seed = 11;
@@ -1110,6 +1110,39 @@ describe("Barmark", () => {
       return { n: r.interp, bad: [...r.fill.interp.values(), ...r.fill.sparse.values()].filter(c => inside(c.gx, c.gy)).length }; })()`);
     assert.ok(r.n < all - 100, `${all} framräknade utan området, ${r.n} med`);
     assert.equal(r.bad, 0, "inget framräknat eller glest inne i området");
+  });
+
+  test("ändrad mark: gamla mätningar kommer inte tillbaka, och Mät om står kvar tills den körts igen", async () => {
+    // Vallen norr om brunn 2 schaktades bort efter passet 15 november. Ett
+    // nytt pass läggs ihop med de gamla som medelvärde, så de gamla rutorna
+    // måste bort och får inte komma tillbaka med ett gammalt pass.
+    // Hela gatans bredd, som här är åtta linjer en meter isär, och tio meter
+    // längs den — som vallen, där inget går att räkna fram tvärs över.
+    const tp = app.get("BUILTIN_TRACK.pts").slice(19, 22).map(p => xy(p[0], p[1]));
+    const [cx, cy] = tp[1], L = Math.hypot(tp[2][0] - tp[0][0], tp[2][1] - tp[0][1]);
+    const ux = (tp[2][0] - tp[0][0]) / L, uy = (tp[2][1] - tp[0][1]) / L;
+    const sq = [[-5, -4.5], [5, -4.5], [5, 4.5], [-5, 4.5]].map(([a, c]) => ll(cx + a * ux - c * uy, cy + a * uy + c * ux));
+    const inside = () => app.get(`(() => { const t = bareAreaTest(bareRedo); return [...bareCells.values()].filter(c => t(c.gx, c.gy)).length; })()`);
+    const kinds = () => app.get("bareReport().missions.map(m => m.kind)");
+    // Schaktat efter passet: inget av passet hamnar i området.
+    reset();
+    app.run(`bareRedo = [{ pts: ${JSON.stringify(sq)}, since: "2026-11-11T00:00:00Z", why: "Schaktat." }]`);
+    await importText(survey());
+    assert.equal(inside(), 0);
+    assert.ok(app.get("bareCells.size") > 500, "resten av passet ska komma med");
+    assert.ok(kinds().includes("redo"));
+    assert.match(app.get("bareReport().missions.find(m => m.kind === 'redo').text"), /^Schaktat\. Kör den biten igen/);
+    // Ett pass efter schaktningen fyller området, och uppdraget försvinner.
+    reset();
+    app.run(`bareRedo = [{ pts: ${JSON.stringify(sq)}, since: "2026-11-01T00:00:00Z" }]`);
+    await importText(survey());
+    assert.ok(inside() > 20);
+    assert.ok(!kinds().includes("redo"));
+    // Området följer med i filen.
+    const json = app.get("bareToJson()");
+    assert.equal(json.redo.length, 1);
+    app.run(`bareRedo = []; bareFromJson(${JSON.stringify(json)})`);
+    assert.equal(app.get("bareRedo[0].since"), "2026-11-01T00:00:00Z");
   });
 
   test("utan kontroll i slutet varnar appen, och utan stopp klipps slutet bort", () => {
