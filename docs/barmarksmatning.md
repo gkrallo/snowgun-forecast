@@ -86,7 +86,11 @@ fix och gav en antennhöjd som var en halvmeter fel.
    har fix. Den visar inte RTK — det är som det ska utan korrektioner.
    Kontrollera att loggningsikonen syns.
 2. **Marken bredvid framhjulet, 4 minuter.** Pucken ligger kvar där den
-   ligger. Rör den inte.
+   ligger. Rör den inte. Ligger den på en tuva eller en sten blir hela passet
+   lika mycket fel: 16 november visade pucken 5 cm lägre än 11 november på
+   samma ställe, fast fästet stod på samma höjd inom en centimeter. En
+   betongplatta nedgrävd jäms med marken på kalibreringsplatsen, där pucken
+   läggs varje gång, tar bort det.
 3. **På fästet, 2 minuter.** Sätt pucken på fästet utan att flytta
    fyrhjulingen. Mät med tumstock (se nedan), och **sätt dig sedan på
    fyrhjulingen som när du kör** och sitt still. Fjädringen sjunker med

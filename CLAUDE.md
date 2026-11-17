@@ -176,9 +176,20 @@ inte kod som körs. Fältinstruktionen ligger i `docs/barmarksmatning.md`.
   blev 98,3 cm i början och 102,5 i slutet, tumstocken 102. 15 november, med
   de längre stunderna, hade båda ändarna fix åt båda hållen — och ändå 98,8
   cm i början och 104,5 i slutet. Skillnaden är alltså verklig och åt samma
-  håll båda gångerna, orsaken okänd. Appen räknar med början. Med det
+  håll båda gångerna. Appen räknar med början. Med det
   stämmer passen inbördes: i 885 rutor som båda körde skiljer de 1,4 cm i
   median, hälften inom −4 till +1,4 cm. Snöytan ska räknas på samma sätt.
+- **Pucken på marken är kalibreringens svaga punkt.** 16 november gav
+  kalibreringen 104,6 cm (103,6 i slutet, tumstocken 103), och passet hamnade
+  5,0 cm under barmarken i de 778 rutor som fanns sedan tidigare, lika mycket
+  vid alla brunnar. Fyrhjulingen stod på samma ställe som 11 november, och
+  fästet visade samma höjd inom 1 cm. Pucken på marken bredvid skilde 5 cm.
+  Felet kommer alltså från var och hur pucken ligger på marken (tuvor,
+  grus), ±3 cm, inte från GPS:en. Passet lades mot barmarken med 99,6 cm;
+  kalibreringens värde står som `calibrated` i `files`. Överlappar ett nytt
+  pass barmarken, jämför och lägg det mot den. Snöytan har ingen barmark att
+  läggas mot, så där går kalibreringsfelet rakt in i snödjupet. Den behöver
+  en fast punkt som visar samma höjd varje gång.
 - **Ingen fixlampa via BLE.** RAWX går över Bluetooth, men låsta faser,
   C/N0 och fasbrott var desamma i fix och float 11 november, också där
   träden gav falska fixar. Försök inte bygga en.
